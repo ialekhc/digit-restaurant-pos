@@ -1,0 +1,92 @@
+import { Navigate, Route, Routes } from 'react-router-dom';
+import DashboardLayout from './layouts/DashboardLayout';
+import ProtectedRoute from './routes/ProtectedRoute';
+import LoginPage from './pages/LoginPage';
+import DashboardPage from './pages/DashboardPage';
+import UsersPage from './pages/UsersPage';
+import MenuCategoriesPage from './pages/MenuCategoriesPage';
+import MenuItemsPage from './pages/MenuItemsPage';
+import TablesPage from './pages/TablesPage';
+import OrdersPage from './pages/OrdersPage';
+import OrderCreatePage from './pages/OrderCreatePage';
+import KitchenPage from './pages/KitchenPage';
+import BillingPage from './pages/BillingPage';
+import InventoryPage from './pages/InventoryPage';
+import SuppliersPage from './pages/SuppliersPage';
+import CustomersPage from './pages/CustomersPage';
+import ReportsPage from './pages/ReportsPage';
+import SettingsPage from './pages/SettingsPage';
+import SuperAdminPage from './pages/SuperAdminPage';
+import NotFoundPage from './pages/NotFoundPage';
+import { useAuth } from './hooks/useAuth';
+import { ROLES, getDefaultRouteForRole } from './utils/constants';
+
+const allStaff = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN];
+
+const RoleHomeRedirect = () => {
+  const { user } = useAuth();
+  return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
+};
+
+const App = () => {
+  return (
+    <Routes>
+      <Route path="/login" element={<LoginPage />} />
+
+      <Route element={<ProtectedRoute />}>
+        <Route element={<DashboardLayout />}>
+          <Route path="/" element={<RoleHomeRedirect />} />
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
+            <Route path="/super-admin" element={<SuperAdminPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
+            <Route path="/users" element={<UsersPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER]} />}>
+            <Route path="/menu/categories" element={<MenuCategoriesPage />} />
+            <Route path="/suppliers" element={<SuppliersPage />} />
+            <Route path="/inventory" element={<InventoryPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER]} />}>
+            <Route path="/menu/items" element={<MenuItemsPage />} />
+            <Route path="/tables" element={<TablesPage />} />
+            <Route path="/orders/create" element={<OrderCreatePage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={allStaff} />}>
+            <Route path="/orders" element={<OrdersPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.KITCHEN]} />}>
+            <Route path="/kitchen" element={<KitchenPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER]} />}>
+            <Route path="/billing" element={<BillingPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER]} />}>
+            <Route path="/customers" element={<CustomersPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={allStaff} />}>
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+      </Route>
+    </Routes>
+  );
+};
+
+export default App;

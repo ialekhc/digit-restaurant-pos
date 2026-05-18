@@ -1,0 +1,65 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+  color: #0f172a;
+  background: radial-gradient(circle at top left, #f0f7ff 0%, #f8fafc 40%, #f1f5f9 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+@layer components {
+  .app-card {
+    @apply rounded-2xl bg-white shadow-sm ring-1 ring-slate-200;
+  }
+
+  .app-title {
+    @apply text-lg font-semibold text-slate-800;
+  }
+
+  .app-subtitle {
+    @apply text-sm text-slate-500;
+  }
+
+  .table-ui {
+    @apply min-w-full text-sm;
+  }
+
+  .table-ui thead {
+    @apply bg-slate-100 text-left text-slate-600;
+  }
+
+  .table-ui th {
+    @apply whitespace-nowrap px-3 py-2 font-semibold;
+  }
+
+  .table-ui td {
+    @apply px-3 py-2 align-middle text-slate-700;
+  }
+
+  .table-ui tbody tr {
+    @apply border-b border-slate-100;
+  }
+
+  .table-ui tbody tr:hover {
+    @apply bg-slate-50;
+  }
+
+  .page-grid {
+    @apply space-y-5;
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 999px;
+}
