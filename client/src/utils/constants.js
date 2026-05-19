@@ -59,7 +59,12 @@ export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'];
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'SPLIT'];
 
 export const PAGE_TITLES = {
-  '/super-admin': 'Super Admin Portal',
+  '/super-admin': 'Super Admin',
+  '/super-admin/dashboard': 'Super Admin Dashboard',
+  '/super-admin/vendors': 'Vendors',
+  '/super-admin/subscriptions': 'Subscriptions',
+  '/super-admin/plans': 'Plans & Features',
+  '/super-admin/users': 'Users',
   '/dashboard': 'Dashboard',
   '/users': 'Users',
   '/menu/categories': 'Menu Categories',
@@ -77,7 +82,7 @@ export const PAGE_TITLES = {
 };
 
 export const DEFAULT_ROUTE_BY_ROLE = {
-  [ROLES.SUPER_ADMIN]: '/super-admin',
+  [ROLES.SUPER_ADMIN]: '/super-admin/dashboard',
   [ROLES.ADMIN]: '/dashboard',
   [ROLES.MANAGER]: '/orders',
   [ROLES.CASHIER]: '/billing',

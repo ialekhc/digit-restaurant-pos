@@ -112,7 +112,7 @@ const ReportsPage = () => {
 
       <Panel title="Best-Selling Items Table">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
                 <th className="px-3 py-2">Item</th>
@@ -135,7 +135,7 @@ const ReportsPage = () => {
 
       <Panel title="Low Stock Report">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
                 <th className="px-3 py-2">Item</th>

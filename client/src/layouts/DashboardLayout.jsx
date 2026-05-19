@@ -15,7 +15,7 @@ const DashboardLayout = () => {
       <div className="lg:pl-72">
         <Topbar user={user} onMenu={() => setSidebarOpen(true)} onLogout={logout} />
 
-        <main className="p-4 lg:p-6">
+        <main className="p-3 sm:p-4 lg:p-6">
           <div className="mx-auto w-full max-w-[1700px]">
             <Outlet />
           </div>

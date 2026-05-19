@@ -194,4 +194,7 @@ export const BILLABLE_ORDER_STATUSES = ['READY', 'SERVED'];
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'SPLIT'];
 export const PAYMENT_STATUSES = ['PAID', 'UNPAID', 'PARTIAL'];
 
+export const PURCHASE_TYPES = ['IN', 'OUT'];
+export const KITCHEN_SECTIONS = ['FOOD', 'BAR'];
+
 export const LOW_STOCK_THRESHOLD_DEFAULT = 10;

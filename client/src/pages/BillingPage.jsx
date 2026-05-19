@@ -54,21 +54,26 @@ const buildReceiptHtml = (payment, cashierName = '') => {
   <meta charset="utf-8" />
   <title>Receipt ${escapeHtml(payment?.billNumber || '')}</title>
   <style>
-    * { box-sizing: border-box; font-family: Arial, sans-serif; color: #1f2937; }
-    body { margin: 0; padding: 16px; background: #ffffff; }
-    .receipt { width: 340px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 14px; }
+    @page { size: 57mm 40mm; margin: 0; }
+    * { box-sizing: border-box; font-family: "Courier New", monospace; color: #111827; }
+    body { margin: 0; padding: 0; width: 57mm; height: 40mm; background: #ffffff; }
+    .receipt { width: 57mm; min-height: 40mm; max-height: 40mm; margin: 0; padding: 1.5mm; overflow: hidden; }
     .center { text-align: center; }
-    h1 { margin: 0; font-size: 18px; }
-    .muted { color: #6b7280; font-size: 12px; margin-top: 2px; }
-    .row { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; margin: 3px 0; }
-    .divider { border-top: 1px dashed #d1d5db; margin: 10px 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 12px; }
-    th, td { border-bottom: 1px solid #f1f5f9; padding: 6px 4px; vertical-align: top; }
-    th { text-align: left; background: #f8fafc; }
-    .totals .row { font-size: 13px; }
-    .grand { font-weight: 700; font-size: 14px; }
-    .footer { text-align: center; font-size: 12px; color: #4b5563; margin-top: 12px; }
-    @media print { body { padding: 0; } .receipt { border: none; width: 100%; } }
+    h1 { margin: 0; font-size: 9px; line-height: 1.1; }
+    .muted { color: #4b5563; font-size: 6px; margin-top: 1px; line-height: 1.1; }
+    .row { display: flex; justify-content: space-between; gap: 2px; font-size: 6px; line-height: 1.2; margin: 0.6mm 0; }
+    .divider { border-top: 1px dashed #9ca3af; margin: 1mm 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 6px; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 0.4mm; vertical-align: top; }
+    th { text-align: left; background: #f8fafc; font-size: 6px; }
+    .totals .row { font-size: 6px; }
+    .grand { font-weight: 700; font-size: 7px; }
+    .footer { text-align: center; font-size: 6px; color: #4b5563; margin-top: 1mm; line-height: 1.1; }
+    @media print {
+      @page { size: 57mm 40mm; margin: 0; }
+      html, body { width: 57mm; height: 40mm; }
+      .receipt { width: 57mm; min-height: 40mm; max-height: 40mm; }
+    }
   </style>
 </head>
 <body>

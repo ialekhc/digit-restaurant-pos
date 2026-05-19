@@ -11,7 +11,7 @@ import { ROLES } from '../config/constants.js';
 
 const router = Router();
 
-router.use(authenticate, authorize(ROLES.ADMIN));
+router.use(authenticate, authorize(ROLES.ADMIN, ROLES.SUPER_ADMIN));
 
 router.route('/').get(getUsers).post(createUser);
 router.route('/:id').get(getUserById).put(updateUser).delete(deleteUser);

@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { ORDER_STATUSES, ORDER_TYPES } from '../config/constants.js';
+import { KITCHEN_SECTIONS, ORDER_STATUSES, ORDER_TYPES } from '../config/constants.js';
 
 const orderItemSchema = new mongoose.Schema(
   {
@@ -7,7 +7,8 @@ const orderItemSchema = new mongoose.Schema(
     name: { type: String, required: true },
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
-    notes: { type: String, default: '' }
+    notes: { type: String, default: '' },
+    kitchenSection: { type: String, enum: KITCHEN_SECTIONS, default: 'FOOD' }
   },
   { _id: false }
 );

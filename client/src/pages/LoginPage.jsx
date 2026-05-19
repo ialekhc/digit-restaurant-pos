@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useAuth } from '../hooks/useAuth';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import { ROLE_LOGIN_PRESETS, getDefaultRouteForRole } from '../utils/constants';
+import { ROLE_LOGIN_PRESETS, ROLES, getDefaultRouteForRole } from '../utils/constants';
 
 const schema = z.object({
   email: z.string().email('Enter a valid email'),
@@ -18,7 +18,8 @@ const LoginPage = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState('');
-  const [selectedRole, setSelectedRole] = useState(ROLE_LOGIN_PRESETS[0].role);
+  const loginPresets = ROLE_LOGIN_PRESETS.filter((preset) => preset.role !== ROLES.SUPER_ADMIN);
+  const [selectedRole, setSelectedRole] = useState(loginPresets[0]?.role || '');
 
   const {
     register,
@@ -28,8 +29,8 @@ const LoginPage = () => {
   } = useForm({
     resolver: zodResolver(schema),
     defaultValues: {
-      email: ROLE_LOGIN_PRESETS[0].email,
-      password: ROLE_LOGIN_PRESETS[0].password
+      email: loginPresets[0]?.email || '',
+      password: loginPresets[0]?.password || ''
     }
   });
 
@@ -57,7 +58,7 @@ const LoginPage = () => {
           <h1 className="text-2xl font-bold tracking-tight">Restaurant RMS</h1>
           <p className="mt-2 text-sm text-slate-300">Choose your role and login quickly with the matching account.</p>
           <div className="mt-6 space-y-2">
-            {ROLE_LOGIN_PRESETS.map((preset) => (
+            {loginPresets.map((preset) => (
               <button
                 key={preset.role}
                 type="button"

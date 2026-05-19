@@ -71,7 +71,7 @@ const MenuCategoriesPage = () => {
 
       <Panel title="Categories">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-sm">
+          <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
                 <th className="px-3 py-2">Name</th>

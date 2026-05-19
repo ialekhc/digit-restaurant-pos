@@ -1,4 +1,5 @@
 import mongoose from 'mongoose';
+import { KITCHEN_SECTIONS } from '../config/constants.js';
 
 const menuItemSchema = new mongoose.Schema(
   {
@@ -8,7 +9,8 @@ const menuItemSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     image: { type: String, default: '' },
     preparationTime: { type: Number, default: 10, min: 0 },
-    isAvailable: { type: Boolean, default: true }
+    isAvailable: { type: Boolean, default: true },
+    kitchenSection: { type: String, enum: KITCHEN_SECTIONS, default: 'FOOD' }
   },
   { timestamps: true }
 );

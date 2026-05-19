@@ -11,6 +11,7 @@ import supplierRoutes from './supplierRoutes.js';
 import customerRoutes from './customerRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import planRoutes from './planRoutes.js';
+import vendorRoutes from './vendorRoutes.js';
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use('/suppliers', supplierRoutes);
 router.use('/customers', customerRoutes);
 router.use('/reports', reportRoutes);
 router.use('/plans', planRoutes);
+router.use('/vendors', vendorRoutes);
 
 export default router;

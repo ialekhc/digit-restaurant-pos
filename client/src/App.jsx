@@ -16,7 +16,11 @@ import SuppliersPage from './pages/SuppliersPage';
 import CustomersPage from './pages/CustomersPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
-import SuperAdminPage from './pages/SuperAdminPage';
+import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
+import SuperAdminVendorsPage from './pages/SuperAdminVendorsPage';
+import SuperAdminSubscriptionsPage from './pages/SuperAdminSubscriptionsPage';
+import SuperAdminPlansPage from './pages/SuperAdminPlansPage';
+import SuperAdminUsersPage from './pages/SuperAdminUsersPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { useAuth } from './hooks/useAuth';
 import { ROLES, getDefaultRouteForRole } from './utils/constants';
@@ -38,7 +42,12 @@ const App = () => {
           <Route path="/" element={<RoleHomeRedirect />} />
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
-            <Route path="/super-admin" element={<SuperAdminPage />} />
+            <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
+            <Route path="/super-admin/dashboard" element={<SuperAdminDashboardPage />} />
+            <Route path="/super-admin/vendors" element={<SuperAdminVendorsPage />} />
+            <Route path="/super-admin/subscriptions" element={<SuperAdminSubscriptionsPage />} />
+            <Route path="/super-admin/plans" element={<SuperAdminPlansPage />} />
+            <Route path="/super-admin/users" element={<SuperAdminUsersPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>

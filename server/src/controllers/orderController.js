@@ -27,12 +27,13 @@ const assertValidTransition = (currentStatus, nextStatus) => {
 };
 
 export const getOrders = asyncHandler(async (req, res) => {
-  const { status = '', orderType = '', table = '', date = '', search = '' } = req.query;
+  const { status = '', orderType = '', table = '', date = '', search = '', kitchenSection = '' } = req.query;
 
   const query = {};
   if (status) query.status = status;
   if (orderType) query.orderType = orderType;
   if (table) query.table = table;
+  if (kitchenSection) query['items.kitchenSection'] = kitchenSection;
 
   if (date) {
     const from = new Date(date);
@@ -125,7 +126,8 @@ export const createOrder = asyncHandler(async (req, res) => {
       name: menu.name,
       price: menu.price,
       quantity,
-      notes: item.notes || ''
+      notes: item.notes || '',
+      kitchenSection: menu.kitchenSection || 'FOOD'
     };
   });
 

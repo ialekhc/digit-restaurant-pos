@@ -11,6 +11,7 @@ import { Customer } from '../models/Customer.js';
 import { Order } from '../models/Order.js';
 import { Payment } from '../models/Payment.js';
 import { PlanConfig } from '../models/PlanConfig.js';
+import { Vendor } from '../models/Vendor.js';
 import { ROLES } from '../config/constants.js';
 
 dotenv.config();
@@ -22,6 +23,7 @@ const seed = async () => {
     Payment.deleteMany({}),
     Order.deleteMany({}),
     PlanConfig.deleteMany({}),
+    Vendor.deleteMany({}),
     User.deleteMany({}),
     Category.deleteMany({}),
     MenuItem.deleteMany({}),
@@ -90,6 +92,104 @@ const seed = async () => {
     currency: 'NPR',
     profitMargin: '41.6%'
   });
+
+  const now = Date.now();
+  const vendors = await Vendor.insertMany([
+    {
+      vendorName: 'Himalayan Bites',
+      contactPerson: 'Rita Adhikari',
+      email: 'owner@himalayanbites.local',
+      phone: '+9779801000001',
+      address: 'Kathmandu',
+      isActive: true,
+      subscription: {
+        planId: 'STANDARD',
+        billingCycle: 'monthly',
+        amount: 2499,
+        addons: ['QR Menu System'],
+        status: 'ACTIVE',
+        startsOn: new Date(now - 1000 * 60 * 60 * 24 * 90),
+        nextBillingDate: new Date(now + 1000 * 60 * 60 * 24 * 15)
+      },
+      paymentHistory: [
+        {
+          amount: 2499,
+          paymentMethod: 'ONLINE',
+          paymentDate: new Date(now - 1000 * 60 * 60 * 24 * 60),
+          reference: 'TXN-HB-1001',
+          note: 'Monthly subscription'
+        },
+        {
+          amount: 2998,
+          paymentMethod: 'ONLINE',
+          paymentDate: new Date(now - 1000 * 60 * 60 * 24 * 30),
+          reference: 'TXN-HB-1002',
+          note: 'Plan + addon'
+        }
+      ],
+      totalPaid: 5497,
+      lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 30),
+      createdBy: users[0]._id
+    },
+    {
+      vendorName: 'Everest Grill House',
+      contactPerson: 'Suman Thapa',
+      email: 'admin@everestgrill.local',
+      phone: '+9779801000002',
+      address: 'Pokhara',
+      isActive: true,
+      subscription: {
+        planId: 'PREMIUM',
+        billingCycle: 'monthly',
+        amount: 3999,
+        addons: ['Online Ordering System', 'WhatsApp Notification'],
+        status: 'ACTIVE',
+        startsOn: new Date(now - 1000 * 60 * 60 * 24 * 65),
+        nextBillingDate: new Date(now + 1000 * 60 * 60 * 24 * 8)
+      },
+      paymentHistory: [
+        {
+          amount: 5697,
+          paymentMethod: 'ONLINE',
+          paymentDate: new Date(now - 1000 * 60 * 60 * 24 * 35),
+          reference: 'TXN-EG-1001',
+          note: 'Premium plan and addons'
+        }
+      ],
+      totalPaid: 5697,
+      lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 35),
+      createdBy: users[0]._id
+    },
+    {
+      vendorName: 'Terai Cafe',
+      contactPerson: 'Aashish Yadav',
+      email: 'ops@teraicafe.local',
+      phone: '+9779801000003',
+      address: 'Biratnagar',
+      isActive: false,
+      subscription: {
+        planId: 'STARTER',
+        billingCycle: 'monthly',
+        amount: 1499,
+        addons: [],
+        status: 'PAUSED',
+        startsOn: new Date(now - 1000 * 60 * 60 * 24 * 120),
+        nextBillingDate: new Date(now + 1000 * 60 * 60 * 24 * 20)
+      },
+      paymentHistory: [
+        {
+          amount: 1499,
+          paymentMethod: 'CASH',
+          paymentDate: new Date(now - 1000 * 60 * 60 * 24 * 95),
+          reference: 'REC-TC-1001',
+          note: 'Initial subscription'
+        }
+      ],
+      totalPaid: 1499,
+      lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 95),
+      createdBy: users[0]._id
+    }
+  ]);
 
   const categories = await Category.insertMany([
     { name: 'Appetizers', description: 'Starter dishes' },
@@ -395,7 +495,8 @@ const seed = async () => {
     suppliers: suppliers.length,
     customers: customers.length,
     orders: orderDocs.length,
-    payments: 2
+    payments: 2,
+    vendors: vendors.length
   });
 
   await mongoose.connection.close();

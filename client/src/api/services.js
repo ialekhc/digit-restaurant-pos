@@ -106,3 +106,18 @@ export const planService = {
   active: async () => unwrap(await api.get('/plans/active')),
   updateActive: async (payload) => unwrap(await api.put('/plans/active', payload))
 };
+
+export const vendorService = {
+  list: async (params) => unwrap(await api.get('/vendors', { params })),
+  get: async (id) => unwrap(await api.get(`/vendors/${id}`)),
+  create: async (payload) => unwrap(await api.post('/vendors', payload)),
+  update: async (id, payload) => unwrap(await api.put(`/vendors/${id}`, payload)),
+  remove: async (id) => unwrap(await api.delete(`/vendors/${id}`)),
+  overview: async () => unwrap(await api.get('/vendors/overview')),
+  updateSubscription: async (id, payload) => unwrap(await api.put(`/vendors/${id}/subscription`, payload)),
+  addSubscriptionPayment: async (id, payload) => unwrap(await api.post(`/vendors/${id}/subscription/payments`, payload)),
+  updateSubscriptionPayment: async (id, paymentId, payload) =>
+    unwrap(await api.put(`/vendors/${id}/subscription/payments/${paymentId}`, payload)),
+  removeSubscriptionPayment: async (id, paymentId) =>
+    unwrap(await api.delete(`/vendors/${id}/subscription/payments/${paymentId}`))
+};

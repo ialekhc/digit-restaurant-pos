@@ -3,9 +3,11 @@
 @tailwind utilities;
 
 body {
+  margin: 0;
   font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
   color: #0f172a;
   background: radial-gradient(circle at top left, #f0f7ff 0%, #f8fafc 40%, #f1f5f9 100%);
+  overflow-x: hidden;
 }
 
 #root {
@@ -51,6 +53,18 @@ body {
 
   .page-grid {
     @apply space-y-5;
+  }
+}
+
+@media (max-width: 767px) {
+  .table-ui {
+    min-width: 760px;
+    font-size: 12px;
+  }
+
+  .table-ui th,
+  .table-ui td {
+    padding: 0.45rem 0.55rem;
   }
 }
 

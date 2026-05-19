@@ -12,14 +12,7 @@ import { ensureFeatureEnabled } from '../services/planService.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-export const createPayment = asyncHandler(async (req, res) => {
-  const { order: orderId, orderNumber = '', tableNumber = '', paymentMethod, amountPaid, paymentStatus = 'PAID' } = req.body;
-  const normalizedTableNumber = String(tableNumber).trim();
-
-  if ((!orderId && !orderNumber) || !paymentMethod || typeof amountPaid === 'undefined') {
-    throw new ApiError(400, 'Order ID or order number, payment method and amount paid are required');
-  }
-
+const ensurePaymentMethodFeature = async (paymentMethod) => {
   if (paymentMethod === 'CASH') {
     await ensureFeatureEnabled(FEATURE_KEYS.CASH_PAYMENT, 'Cash payment is not available in the active plan');
   }
@@ -38,6 +31,47 @@ export const createPayment = asyncHandler(async (req, res) => {
   if (paymentMethod === 'SPLIT') {
     await ensureFeatureEnabled(FEATURE_KEYS.SPLIT_BILLING, 'Split billing is not available in the active plan');
   }
+};
+
+const completeOrderAfterPayment = async (order) => {
+  if (!order) return;
+  if (order.status !== 'COMPLETED') {
+    order.status = 'COMPLETED';
+    await order.save();
+  }
+
+  await syncTableStatusFromOrders(order.table);
+
+  if (order.customer) {
+    try {
+      await ensureFeatureEnabled(FEATURE_KEYS.LOYALTY_POINTS_SYSTEM);
+      await Customer.findByIdAndUpdate(order.customer, {
+        $inc: { loyaltyPoints: Math.floor(order.total / 10) }
+      });
+    } catch (_error) {
+      // Loyalty feature is optional by plan; skip points update if unavailable.
+    }
+  }
+};
+
+export const createPayment = asyncHandler(async (req, res) => {
+  const {
+    order: orderId,
+    orderNumber = '',
+    tableNumber = '',
+    paymentMethod,
+    amountPaid,
+    paymentStatus = 'PAID',
+    dueDate,
+    creditNote = ''
+  } = req.body;
+  const normalizedTableNumber = String(tableNumber).trim();
+
+  if ((!orderId && !orderNumber) || !paymentMethod || typeof amountPaid === 'undefined') {
+    throw new ApiError(400, 'Order ID or order number, payment method and amount paid are required');
+  }
+
+  await ensurePaymentMethodFeature(paymentMethod);
 
   let order = null;
 
@@ -77,15 +111,33 @@ export const createPayment = asyncHandler(async (req, res) => {
   if (existing) throw new ApiError(409, 'Payment already exists for this order');
 
   const paid = Number(amountPaid);
+  if (Number.isNaN(paid) || paid < 0) {
+    throw new ApiError(400, 'Amount paid must be a non-negative number');
+  }
+
+  if (!BILLABLE_ORDER_STATUSES.includes(order.status)) {
+    throw new ApiError(400, `Order must be ${BILLABLE_ORDER_STATUSES.join(' or ')} before billing`);
+  }
+
+  if (paymentStatus === 'UNPAID' && paid !== 0) {
+    throw new ApiError(400, 'UNPAID credit record must have amount paid as 0');
+  }
+  if (paymentStatus === 'PARTIAL' && (paid <= 0 || paid >= order.total)) {
+    throw new ApiError(400, 'PARTIAL payment must be greater than 0 and less than order total');
+  }
+  if (paymentStatus === 'PAID' && paid < order.total) {
+    throw new ApiError(400, 'Amount paid is less than total. Use PARTIAL or UNPAID status for credit sales');
+  }
+
+  let parsedDueDate;
+  if (dueDate) {
+    parsedDueDate = new Date(dueDate);
+    if (Number.isNaN(parsedDueDate.getTime())) {
+      throw new ApiError(400, 'Invalid due date');
+    }
+  }
+
   const changeAmount = paid > order.total ? paid - order.total : 0;
-
-  if (paid < order.total && paymentStatus === 'PAID') {
-    throw new ApiError(400, 'Amount paid is less than total. Use PARTIAL status or pay full amount');
-  }
-
-  if (paymentStatus === 'PAID' && !BILLABLE_ORDER_STATUSES.includes(order.status)) {
-    throw new ApiError(400, `Order must be ${BILLABLE_ORDER_STATUSES.join(' or ')} before final payment`);
-  }
 
   const data = await Payment.create({
     order: order._id,
@@ -94,40 +146,41 @@ export const createPayment = asyncHandler(async (req, res) => {
     amountPaid: paid,
     changeAmount,
     paymentStatus,
-    paidBy: req.user._id
+    paidBy: req.user._id,
+    dueDate: paymentStatus === 'PAID' ? undefined : parsedDueDate,
+    creditNote: paymentStatus === 'PAID' ? '' : String(creditNote || ''),
+    creditHistory:
+      paid > 0 && paymentStatus !== 'PAID'
+        ? [
+          {
+            amount: paid,
+            paymentMethod,
+            note: String(creditNote || 'Initial credit entry'),
+            receivedBy: req.user._id
+          }
+        ]
+        : []
   });
 
   if (paymentStatus === 'PAID') {
-    order.status = 'COMPLETED';
-    await order.save();
-
-    await syncTableStatusFromOrders(order.table);
-
-    if (order.customer) {
-      try {
-        await ensureFeatureEnabled(FEATURE_KEYS.LOYALTY_POINTS_SYSTEM);
-        await Customer.findByIdAndUpdate(order.customer, {
-          $inc: { loyaltyPoints: Math.floor(order.total / 10) }
-        });
-      } catch (_error) {
-        // Loyalty feature is optional by plan; skip points update if unavailable.
-      }
-    }
+    await completeOrderAfterPayment(order);
   }
 
   const populated = await Payment.findById(data._id)
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
-    .populate('paidBy', 'name role');
+    .populate('paidBy', 'name role')
+    .populate('creditHistory.receivedBy', 'name role');
 
   res.status(201).json({ data: populated });
 });
 
 export const getPayments = asyncHandler(async (req, res) => {
-  const { method = '', status = '', date = '' } = req.query;
+  const { method = '', status = '', date = '', creditOnly = '' } = req.query;
 
   const query = {};
   if (method) query.paymentMethod = method;
   if (status) query.paymentStatus = status;
+  if (creditOnly === 'true') query.paymentStatus = { $in: ['UNPAID', 'PARTIAL'] };
   if (date) {
     const from = new Date(date);
     const to = new Date(date);
@@ -138,6 +191,7 @@ export const getPayments = asyncHandler(async (req, res) => {
   const data = await Payment.find(query)
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
     .populate('paidBy', 'name role')
+    .populate('creditHistory.receivedBy', 'name role')
     .sort({ createdAt: -1 });
 
   res.json({ data });
@@ -146,8 +200,62 @@ export const getPayments = asyncHandler(async (req, res) => {
 export const getPaymentById = asyncHandler(async (req, res) => {
   const data = await Payment.findById(req.params.id)
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
-    .populate('paidBy', 'name role');
+    .populate('paidBy', 'name role')
+    .populate('creditHistory.receivedBy', 'name role');
 
   if (!data) throw new ApiError(404, 'Payment not found');
+  res.json({ data });
+});
+
+export const settleCreditPayment = asyncHandler(async (req, res) => {
+  const { amountReceived, paymentMethod = '', note = '' } = req.body;
+  const received = Number(amountReceived);
+
+  if (Number.isNaN(received) || received <= 0) {
+    throw new ApiError(400, 'Amount received must be greater than 0');
+  }
+
+  const payment = await Payment.findById(req.params.id).populate('order');
+  if (!payment) throw new ApiError(404, 'Payment not found');
+
+  if (payment.paymentStatus === 'PAID') {
+    throw new ApiError(400, 'This payment is already settled');
+  }
+
+  const nextMethod = paymentMethod || payment.paymentMethod;
+  await ensurePaymentMethodFeature(nextMethod);
+
+  const orderTotal = Number(payment.order?.total || 0);
+  const nextPaid = Number(payment.amountPaid || 0) + received;
+  const nextStatus = nextPaid >= orderTotal ? 'PAID' : 'PARTIAL';
+  const nextChange = nextPaid > orderTotal ? nextPaid - orderTotal : 0;
+
+  payment.amountPaid = nextPaid;
+  payment.changeAmount = nextChange;
+  payment.paymentMethod = nextMethod;
+  payment.paymentStatus = nextStatus;
+  payment.creditHistory.push({
+    amount: received,
+    paymentMethod: nextMethod,
+    note: String(note || 'Credit settlement'),
+    receivedBy: req.user._id
+  });
+
+  if (nextStatus === 'PAID') {
+    payment.settledAt = new Date();
+    payment.dueDate = undefined;
+  }
+
+  await payment.save();
+
+  if (nextStatus === 'PAID') {
+    await completeOrderAfterPayment(payment.order);
+  }
+
+  const data = await Payment.findById(payment._id)
+    .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
+    .populate('paidBy', 'name role')
+    .populate('creditHistory.receivedBy', 'name role');
+
   res.json({ data });
 });

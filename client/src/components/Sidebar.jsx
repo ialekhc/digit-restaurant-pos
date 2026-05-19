@@ -4,7 +4,11 @@ import { planService } from '../api/services';
 import { FEATURE_KEYS, ROLES } from '../utils/constants';
 
 const navItems = [
-  { path: '/super-admin', label: 'Super Admin Portal', group: 'Overview', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/dashboard', label: 'Dashboard', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/vendors', label: 'Vendors', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/subscriptions', label: 'Subscriptions', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/plans', label: 'Plans & Features', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/users', label: 'Users', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
   { path: '/dashboard', label: 'Dashboard', group: 'Overview', roles: [ROLES.ADMIN], featureKey: FEATURE_KEYS.DASHBOARD_OVERVIEW },
   { path: '/orders', label: 'Orders', group: 'Operations', roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN], featureKey: FEATURE_KEYS.ORDER_HISTORY },
   { path: '/orders/create', label: 'Create Order', group: 'Operations', roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.ORDER_HISTORY },
@@ -21,7 +25,7 @@ const navItems = [
   { path: '/settings', label: 'Settings', group: 'System', roles: [ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN] }
 ];
 
-const navGroups = ['Overview', 'Operations', 'Billing', 'Restaurant Setup', 'Resources', 'Insights', 'System'];
+const navGroups = ['Super Admin', 'Overview', 'Operations', 'Billing', 'Restaurant Setup', 'Resources', 'Insights', 'System'];
 const linkBase = 'block rounded-xl px-4 py-2.5 text-sm font-medium transition border border-transparent';
 
 const Sidebar = ({ userRole, open, onClose }) => {
@@ -47,10 +51,7 @@ const Sidebar = ({ userRole, open, onClose }) => {
   }, []);
 
   const items = useMemo(() => {
-    const roleItems =
-      userRole === ROLES.SUPER_ADMIN
-        ? navItems
-        : navItems.filter((item) => item.roles.includes(userRole));
+    const roleItems = navItems.filter((item) => item.roles.includes(userRole));
 
     return roleItems.filter((item) => {
       if (userRole === ROLES.SUPER_ADMIN) return true;

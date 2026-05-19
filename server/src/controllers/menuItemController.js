@@ -21,7 +21,7 @@ export const getMenuItems = asyncHandler(async (req, res) => {
 });
 
 export const createMenuItem = asyncHandler(async (req, res) => {
-  const { name, category, description, price, preparationTime, isAvailable } = req.body;
+  const { name, category, description, price, preparationTime, isAvailable, kitchenSection } = req.body;
 
   if (!name || !category || typeof price === 'undefined') {
     throw new ApiError(400, 'Name, category and price are required');
@@ -38,7 +38,8 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     description,
     price,
     preparationTime,
-    isAvailable,
+    isAvailable: typeof isAvailable === 'string' ? isAvailable === 'true' : isAvailable,
+    kitchenSection: kitchenSection || 'FOOD',
     image
   });
 
@@ -54,6 +55,10 @@ export const getMenuItemById = asyncHandler(async (req, res) => {
 
 export const updateMenuItem = asyncHandler(async (req, res) => {
   const payload = { ...req.body };
+
+  if (typeof payload.isAvailable === 'string') {
+    payload.isAvailable = payload.isAvailable === 'true';
+  }
 
   if (req.file) {
     payload.image = `/uploads/${req.file.filename}`;

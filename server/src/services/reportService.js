@@ -3,6 +3,7 @@ import { Order } from '../models/Order.js';
 import { Table } from '../models/Table.js';
 import { InventoryItem } from '../models/InventoryItem.js';
 import { User } from '../models/User.js';
+import { Vendor } from '../models/Vendor.js';
 
 export const getDashboardData = async () => {
   const [
@@ -81,11 +82,17 @@ export const getSuperAdminOverviewData = async () => {
     totalPayments,
     paymentsByMethod,
     totalRevenueAgg,
+    totalVendors,
+    activeVendors,
+    vendorsByPlan,
+    vendorsBySubscriptionStatus,
+    vendorIncomeAgg,
     lowStockCount,
     tablesByStatus,
     recentUsers,
     recentOrders,
-    recentPayments
+    recentPayments,
+    recentVendors
   ] = await Promise.all([
     User.countDocuments(),
     User.countDocuments({ isActive: true }),
@@ -104,6 +111,17 @@ export const getSuperAdminOverviewData = async () => {
       { $sort: { totalAmount: -1 } }
     ]),
     Payment.aggregate([{ $group: { _id: null, total: { $sum: '$amountPaid' } } }]),
+    Vendor.countDocuments(),
+    Vendor.countDocuments({ isActive: true }),
+    Vendor.aggregate([
+      { $group: { _id: '$subscription.planId', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]),
+    Vendor.aggregate([
+      { $group: { _id: '$subscription.status', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]),
+    Vendor.aggregate([{ $group: { _id: null, total: { $sum: '$totalPaid' } } }]),
     InventoryItem.countDocuments({
       $expr: { $lte: ['$quantity', '$minimumStockLevel'] }
     }),
@@ -123,6 +141,10 @@ export const getSuperAdminOverviewData = async () => {
       .populate({ path: 'order', select: 'orderNumber', populate: { path: 'table', select: 'tableNumber' } })
       .populate('paidBy', 'name role')
       .sort({ createdAt: -1 })
+      .limit(8),
+    Vendor.find({})
+      .select('vendorName contactPerson subscription totalPaid isActive createdAt')
+      .sort({ createdAt: -1 })
       .limit(8)
   ]);
 
@@ -134,6 +156,10 @@ export const getSuperAdminOverviewData = async () => {
       totalOrders,
       totalPayments,
       totalRevenue: totalRevenueAgg[0]?.total || 0,
+      totalVendors,
+      activeVendors,
+      inactiveVendors: Math.max(0, totalVendors - activeVendors),
+      totalVendorSubscriptionIncome: vendorIncomeAgg[0]?.total || 0,
       lowStockCount
     },
     distributions: {
@@ -144,12 +170,18 @@ export const getSuperAdminOverviewData = async () => {
         count: row.count,
         totalAmount: row.totalAmount
       })),
+      vendorsByPlan: vendorsByPlan.map((row) => ({ planId: row._id, count: row.count })),
+      vendorsBySubscriptionStatus: vendorsBySubscriptionStatus.map((row) => ({
+        status: row._id,
+        count: row.count
+      })),
       tablesByStatus: tablesByStatus.map((row) => ({ status: row._id, count: row.count }))
     },
     recent: {
       users: recentUsers,
       orders: recentOrders,
-      payments: recentPayments
+      payments: recentPayments,
+      vendors: recentVendors
     }
   };
 };
