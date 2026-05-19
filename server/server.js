@@ -7,8 +7,16 @@ const PORT = process.env.PORT || 5500;
 const start = async () => {
   await connectDB();
 
-  app.listen(PORT, () => {
+  const server = app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
+  });
+
+  server.on('error', (error) => {
+    if (error?.code === 'EADDRINUSE') {
+      console.error(`Port ${PORT} is already in use. Update PORT in server/.env and restart.`);
+      process.exit(1);
+    }
+    throw error;
   });
 };
 

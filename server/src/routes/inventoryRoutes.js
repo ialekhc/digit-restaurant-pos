@@ -17,14 +17,14 @@ router.use(authenticate, featureGate(FEATURE_KEYS.INVENTORY_MANAGEMENT));
 
 router
   .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER), getInventory)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER), createInventoryItem);
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), getInventory)
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), createInventoryItem);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.MANAGER), updateInventoryItem)
-  .delete(authorize(ROLES.ADMIN, ROLES.MANAGER), deleteInventoryItem);
+  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateInventoryItem)
+  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteInventoryItem);
 
-router.patch('/:id/stock', authorize(ROLES.ADMIN, ROLES.MANAGER), updateStock);
+router.patch('/:id/stock', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateStock);
 
 export default router;

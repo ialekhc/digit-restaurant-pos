@@ -19,15 +19,15 @@ router.use(authenticate, featureGate(FEATURE_KEYS.TABLE_MANAGEMENT));
 router
   .route('/')
   .get(getTables)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER), createTable);
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), createTable);
 
-router.patch('/transfer', authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER), transferTable);
+router.patch('/transfer', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER), transferTable);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.MANAGER), updateTable)
-  .delete(authorize(ROLES.ADMIN, ROLES.MANAGER), deleteTable);
+  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateTable)
+  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteTable);
 
-router.patch('/:id/status', authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER), updateTableStatus);
+router.patch('/:id/status', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER), updateTableStatus);
 
 export default router;

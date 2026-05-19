@@ -17,11 +17,11 @@ router.use(authenticate, featureGate(FEATURE_KEYS.CATEGORY_MANAGEMENT));
 router
   .route('/')
   .get(getCategories)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER), createCategory);
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), createCategory);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.MANAGER), updateCategory)
-  .delete(authorize(ROLES.ADMIN, ROLES.MANAGER), deleteCategory);
+  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateCategory)
+  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteCategory);
 
 export default router;

@@ -18,31 +18,31 @@ router.use(authenticate);
 
 router.get(
   '/dashboard',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.BASIC_REPORTS),
   dashboardReport
 );
 router.get(
   '/daily-sales',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.BASIC_REPORTS),
   dailySalesReport
 );
 router.get(
   '/monthly-sales',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.ADVANCED_SALES_REPORTS),
   monthlySalesReport
 );
 router.get(
   '/best-selling-items',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.ADVANCED_SALES_REPORTS),
   bestSellingItemsReport
 );
 router.get(
   '/low-stock',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.LOW_STOCK_ALERTS),
   lowStockReport
 );

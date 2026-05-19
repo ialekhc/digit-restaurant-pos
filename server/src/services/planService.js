@@ -71,7 +71,7 @@ export const getStaffAccountLimit = async () => {
 export const getActiveStaffCount = async () => {
   return User.countDocuments({
     isActive: true,
-    role: { $nin: [ROLES.CUSTOMER, ROLES.SUPER_ADMIN] }
+    role: { $nin: [ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER] }
   });
 };
 
@@ -82,7 +82,13 @@ export const ensureStaffLimitAvailable = async ({ ignoreUserId } = {}) => {
   const count = await getActiveStaffCount();
   if (typeof ignoreUserId === 'string' && ignoreUserId) {
     const user = await User.findById(ignoreUserId).select('isActive role');
-    if (user && user.isActive && user.role !== ROLES.CUSTOMER && user.role !== ROLES.SUPER_ADMIN) {
+    if (
+      user &&
+      user.isActive &&
+      user.role !== ROLES.CUSTOMER &&
+      user.role !== ROLES.SUPER_ADMIN &&
+      user.role !== ROLES.RESTAURANT_OWNER
+    ) {
       return;
     }
   }

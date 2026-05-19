@@ -1,0 +1,19 @@
+{
+  "name": "digit-restaurant-pos-platform",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "client",
+    "server",
+    "services/*"
+  ],
+  "scripts": {
+    "dev:client": "npm run dev --workspace client",
+    "dev:server": "npm run dev --workspace server",
+    "dev:gateway": "npm run dev --workspace @pos/api-gateway",
+    "dev:vendor-service": "npm run dev --workspace @pos/vendor-service",
+    "dev:microservices": "node scripts/dev-microservices.js",
+    "build:client": "npm run build --workspace client",
+    "seed": "npm run seed --workspace server"
+  }
+}

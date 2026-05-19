@@ -19,12 +19,12 @@ router.use(authenticate, featureGate(FEATURE_KEYS.MENU_MANAGEMENT));
 router
   .route('/')
   .get(getMenuItems)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER), upload.single('image'), createMenuItem);
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), upload.single('image'), createMenuItem);
 
 router
   .route('/:id')
   .get(getMenuItemById)
-  .put(authorize(ROLES.ADMIN, ROLES.MANAGER), upload.single('image'), updateMenuItem)
-  .delete(authorize(ROLES.ADMIN, ROLES.MANAGER), deleteMenuItem);
+  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), upload.single('image'), updateMenuItem)
+  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteMenuItem);
 
 export default router;

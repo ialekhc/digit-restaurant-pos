@@ -11,11 +11,11 @@ router.use(authenticate, featureGate(FEATURE_KEYS.BASIC_BILLING));
 
 router
   .route('/')
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER), createPayment)
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER), getPayments);
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER), createPayment)
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER), getPayments);
 
 router
   .route('/:id')
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER), getPaymentById);
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER), getPaymentById);
 
 export default router;

@@ -17,14 +17,14 @@ router.use(authenticate, featureGate(FEATURE_KEYS.ORDER_HISTORY));
 
 router
   .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN), getOrders)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER), createOrder);
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN), getOrders)
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER), createOrder);
 
 router
   .route('/:id')
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN), getOrderById);
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN), getOrderById);
 
-router.patch('/:id/status', authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.KITCHEN), updateOrderStatus);
-router.patch('/:id/cancel', authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), cancelOrder);
+router.patch('/:id/status', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.KITCHEN), updateOrderStatus);
+router.patch('/:id/cancel', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), cancelOrder);
 
 export default router;

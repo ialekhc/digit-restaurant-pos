@@ -1,11 +1,123 @@
 import { Vendor } from '../models/Vendor.js';
+import { User } from '../models/User.js';
 import { PLAN_CATALOG } from '../config/planCatalog.js';
+import { ROLES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 
 const BILLING_CYCLES = ['monthly', 'semiAnnual', 'annual'];
 const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAUSED', 'EXPIRED', 'CANCELLED'];
 const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'BANK_TRANSFER'];
+
+const VENDOR_LOGIN_ROLE = ROLES.RESTAURANT_OWNER;
+const VENDOR_LOGIN_MIN_PASSWORD = 6;
+
+const parseLoginPayload = (loginAccess) => {
+  if (typeof loginAccess === 'undefined') return null;
+
+  if (!loginAccess || typeof loginAccess !== 'object' || Array.isArray(loginAccess)) {
+    throw new ApiError(400, 'loginAccess must be an object');
+  }
+
+  const name = typeof loginAccess.name === 'string' ? loginAccess.name.trim() : '';
+  const email = typeof loginAccess.email === 'string' ? loginAccess.email.trim().toLowerCase() : '';
+  const password = typeof loginAccess.password === 'string' ? loginAccess.password : '';
+  const isActive = typeof loginAccess.isActive === 'boolean' ? loginAccess.isActive : undefined;
+
+  if (email && !/^\S+@\S+\.\S+$/.test(email)) {
+    throw new ApiError(400, 'Invalid vendor login email');
+  }
+
+  if (password && password.length < VENDOR_LOGIN_MIN_PASSWORD) {
+    throw new ApiError(400, `Vendor login password must be at least ${VENDOR_LOGIN_MIN_PASSWORD} characters`);
+  }
+
+  if (!name && !email && !password && typeof isActive === 'undefined') {
+    return null;
+  }
+
+  return { name, email, password, isActive };
+};
+
+const findVendorByIdWithPopulate = (id) =>
+  Vendor.findById(id).populate('createdBy', 'name role').populate('loginUser', 'name email role isActive');
+
+const buildVendorLoginName = ({ vendorName, loginName }) => {
+  if (loginName) return loginName;
+  return `${vendorName} Owner`;
+};
+
+const createVendorLoginAccount = async ({ vendorName, loginAccess }) => {
+  if (!loginAccess) return null;
+  if (!loginAccess.email || !loginAccess.password) {
+    throw new ApiError(400, 'Vendor login email and password are required');
+  }
+
+  const existing = await User.findOne({ email: loginAccess.email });
+  if (existing) {
+    throw new ApiError(409, 'Vendor login email already exists');
+  }
+
+  return User.create({
+    name: buildVendorLoginName({ vendorName, loginName: loginAccess.name }),
+    email: loginAccess.email,
+    password: loginAccess.password,
+    phone: '',
+    role: VENDOR_LOGIN_ROLE,
+    isActive: typeof loginAccess.isActive === 'boolean' ? loginAccess.isActive : true
+  });
+};
+
+const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
+  if (!loginAccess) return;
+
+  const hasExistingLogin = Boolean(vendor.loginUser);
+  const shouldCreateNew = !hasExistingLogin && loginAccess.email && loginAccess.password;
+  if (shouldCreateNew) {
+    const user = await createVendorLoginAccount({ vendorName, loginAccess });
+    vendor.loginUser = user._id;
+    vendor.loginEmail = user.email;
+    vendor.loginEnabled = user.isActive;
+    return;
+  }
+
+  if (!hasExistingLogin) {
+    if (loginAccess.email || loginAccess.password || loginAccess.name || typeof loginAccess.isActive === 'boolean') {
+      throw new ApiError(400, 'Provide both vendor login email and password to create vendor access');
+    }
+    return;
+  }
+
+  const user = await User.findById(vendor.loginUser);
+  if (!user) {
+    vendor.loginUser = null;
+    vendor.loginEmail = '';
+    vendor.loginEnabled = false;
+    if (loginAccess.email && loginAccess.password) {
+      const newUser = await createVendorLoginAccount({ vendorName, loginAccess });
+      vendor.loginUser = newUser._id;
+      vendor.loginEmail = newUser.email;
+      vendor.loginEnabled = newUser.isActive;
+    }
+    return;
+  }
+
+  if (loginAccess.email && loginAccess.email !== user.email) {
+    const existing = await User.findOne({ email: loginAccess.email, _id: { $ne: user._id } });
+    if (existing) throw new ApiError(409, 'Vendor login email already exists');
+    user.email = loginAccess.email;
+  }
+  if (loginAccess.password) user.password = loginAccess.password;
+  if (loginAccess.name) user.name = loginAccess.name;
+  if (typeof loginAccess.isActive === 'boolean') user.isActive = loginAccess.isActive;
+
+  if (user.role !== VENDOR_LOGIN_ROLE) user.role = VENDOR_LOGIN_ROLE;
+
+  await user.save();
+  vendor.loginUser = user._id;
+  vendor.loginEmail = user.email;
+  vendor.loginEnabled = user.isActive;
+};
 
 const parseDateValue = (value, fieldName) => {
   if (!value) return undefined;
@@ -124,42 +236,68 @@ export const getVendors = asyncHandler(async (req, res) => {
     ];
   }
 
-  const data = await Vendor.find(query).populate('createdBy', 'name role').sort({ createdAt: -1 });
+  const data = await Vendor.find(query)
+    .populate('createdBy', 'name role')
+    .populate('loginUser', 'name email role isActive')
+    .sort({ createdAt: -1 });
   res.json({ data });
 });
 
 export const getVendorById = asyncHandler(async (req, res) => {
-  const data = await Vendor.findById(req.params.id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(req.params.id);
   if (!data) throw new ApiError(404, 'Vendor not found');
   res.json({ data });
 });
 
 export const createVendor = asyncHandler(async (req, res) => {
-  const { vendorName, contactPerson, email, phone, address, isActive, notes = '', subscription = {} } = req.body;
+  const { vendorName, contactPerson, email, phone, address, isActive, notes = '', subscription = {}, loginAccess } = req.body;
 
   if (!vendorName) throw new ApiError(400, 'vendorName is required');
+  const parsedLoginAccess = parseLoginPayload(loginAccess);
 
   const subscriptionPayload = buildSubscriptionPayload(subscription, {});
 
-  const vendor = await Vendor.create({
-    vendorName,
-    contactPerson: contactPerson || '',
-    email: email || '',
-    phone: phone || '',
-    address: address || '',
-    isActive: typeof isActive === 'boolean' ? isActive : true,
-    notes: notes || '',
-    subscription: subscriptionPayload,
-    createdBy: req.user?._id
-  });
+  let vendor;
+  let createdLoginUser = null;
+  try {
+    vendor = await Vendor.create({
+      vendorName,
+      contactPerson: contactPerson || '',
+      email: email || '',
+      phone: phone || '',
+      address: address || '',
+      isActive: typeof isActive === 'boolean' ? isActive : true,
+      notes: notes || '',
+      subscription: subscriptionPayload,
+      createdBy: req.user?._id
+    });
 
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+    if (parsedLoginAccess) {
+      createdLoginUser = await createVendorLoginAccount({ vendorName, loginAccess: parsedLoginAccess });
+      vendor.loginUser = createdLoginUser._id;
+      vendor.loginEmail = createdLoginUser.email;
+      vendor.loginEnabled = createdLoginUser.isActive;
+      await vendor.save();
+    }
+  } catch (error) {
+    if (vendor?._id) {
+      await Vendor.findByIdAndDelete(vendor._id);
+    }
+    if (createdLoginUser?._id) {
+      await User.findByIdAndDelete(createdLoginUser._id);
+    }
+    throw error;
+  }
+
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.status(201).json({ data });
 });
 
 export const updateVendor = asyncHandler(async (req, res) => {
   const vendor = await Vendor.findById(req.params.id);
   if (!vendor) throw new ApiError(404, 'Vendor not found');
+
+  const parsedLoginAccess = parseLoginPayload(req.body.loginAccess);
 
   const fields = ['vendorName', 'contactPerson', 'email', 'phone', 'address', 'notes'];
   fields.forEach((field) => {
@@ -170,14 +308,23 @@ export const updateVendor = asyncHandler(async (req, res) => {
     vendor.isActive = Boolean(req.body.isActive);
   }
 
+  await syncVendorLoginAccount({
+    vendor,
+    loginAccess: parsedLoginAccess,
+    vendorName: vendor.vendorName
+  });
+
   await vendor.save();
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.json({ data });
 });
 
 export const deleteVendor = asyncHandler(async (req, res) => {
   const vendor = await Vendor.findById(req.params.id);
   if (!vendor) throw new ApiError(404, 'Vendor not found');
+  if (vendor.loginUser) {
+    await User.findByIdAndDelete(vendor.loginUser);
+  }
   await vendor.deleteOne();
   res.json({ message: 'Vendor deleted' });
 });
@@ -189,7 +336,7 @@ export const updateVendorSubscription = asyncHandler(async (req, res) => {
   vendor.subscription = buildSubscriptionPayload(req.body, vendor.subscription || {});
   await vendor.save();
 
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.json({ data });
 });
 
@@ -220,7 +367,7 @@ export const addVendorSubscriptionPayment = asyncHandler(async (req, res) => {
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.status(201).json({ data });
 });
 
@@ -254,7 +401,7 @@ export const updateVendorSubscriptionPayment = asyncHandler(async (req, res) => 
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.json({ data });
 });
 
@@ -269,7 +416,7 @@ export const deleteVendorSubscriptionPayment = asyncHandler(async (req, res) => 
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await Vendor.findById(vendor._id).populate('createdBy', 'name role');
+  const data = await findVendorByIdWithPopulate(vendor._id);
   res.json({ data });
 });
 

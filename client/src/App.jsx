@@ -25,7 +25,15 @@ import NotFoundPage from './pages/NotFoundPage';
 import { useAuth } from './hooks/useAuth';
 import { ROLES, getDefaultRouteForRole } from './utils/constants';
 
-const allStaff = [ROLES.SUPER_ADMIN, ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN];
+const allStaff = [
+  ROLES.SUPER_ADMIN,
+  ROLES.RESTAURANT_OWNER,
+  ROLES.ADMIN,
+  ROLES.MANAGER,
+  ROLES.CASHIER,
+  ROLES.WAITER,
+  ROLES.KITCHEN
+];
 
 const RoleHomeRedirect = () => {
   const { user } = useAuth();
@@ -58,13 +66,13 @@ const App = () => {
             <Route path="/users" element={<UsersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER]} />}>
             <Route path="/menu/categories" element={<MenuCategoriesPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER]} />}>
             <Route path="/menu/items" element={<MenuItemsPage />} />
             <Route path="/tables" element={<TablesPage />} />
             <Route path="/orders/create" element={<OrderCreatePage />} />
@@ -74,16 +82,18 @@ const App = () => {
             <Route path="/orders" element={<OrdersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.KITCHEN]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.KITCHEN]} />}>
             <Route path="/kitchen" element={<KitchenPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.CASHIER]} />}>
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER]} />}>
             <Route path="/billing" element={<BillingPage />} />
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER]} />}>
+          <Route
+            element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER]} />}
+          >
             <Route path="/customers" element={<CustomersPage />} />
           </Route>
 

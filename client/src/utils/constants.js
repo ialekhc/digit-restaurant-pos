@@ -1,5 +1,6 @@
 export const ROLES = {
   SUPER_ADMIN: 'SUPER_ADMIN',
+  RESTAURANT_OWNER: 'RESTAURANT_OWNER',
   ADMIN: 'ADMIN',
   MANAGER: 'MANAGER',
   CASHIER: 'CASHIER',
@@ -15,6 +16,13 @@ export const ROLE_LOGIN_PRESETS = [
     email: 'superadmin@restaurant.local',
     password: 'SuperAdmin@12345',
     description: 'Platform owner with full control'
+  },
+  {
+    role: ROLES.RESTAURANT_OWNER,
+    label: 'Vendor Owner',
+    email: 'vendor.himalayan@restaurant.local',
+    password: 'Vendor@12345',
+    description: 'Restaurant owner account for vendor portal'
   },
   {
     role: ROLES.ADMIN,
@@ -83,6 +91,7 @@ export const PAGE_TITLES = {
 
 export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.SUPER_ADMIN]: '/super-admin/dashboard',
+  [ROLES.RESTAURANT_OWNER]: '/orders',
   [ROLES.ADMIN]: '/dashboard',
   [ROLES.MANAGER]: '/orders',
   [ROLES.CASHIER]: '/billing',

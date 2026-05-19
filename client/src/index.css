@@ -1,12 +1,28 @@
+@import url('https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700;800&family=Poppins:wght@500;600;700;800&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --surface-bg: #fffef8;
+  --surface-tint: #fff7ed;
+  --surface-soft: #f0fdfa;
+  --text-main: #1f2937;
+  --text-muted: #6b7280;
+  --ring-soft: rgba(249, 115, 22, 0.18);
+}
+
 body {
   margin: 0;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
-  color: #0f172a;
-  background: radial-gradient(circle at top left, #f0f7ff 0%, #f8fafc 40%, #f1f5f9 100%);
+  font-family: 'Nunito Sans', sans-serif;
+  color: var(--text-main);
+  background:
+    radial-gradient(circle at 0% 0%, #ffe7d1 0%, transparent 35%),
+    radial-gradient(circle at 100% 10%, #dcfce7 0%, transparent 30%),
+    radial-gradient(circle at 40% 100%, #e0f2fe 0%, transparent 36%),
+    linear-gradient(145deg, #fffef8 0%, #fff8ee 45%, #f7fffb 100%);
+  background-attachment: fixed;
   overflow-x: hidden;
 }
 
@@ -14,13 +30,30 @@ body {
   min-height: 100vh;
 }
 
+@layer base {
+  h1,
+  h2,
+  h3,
+  h4 {
+    font-family: 'Poppins', sans-serif;
+    letter-spacing: -0.01em;
+  }
+}
+
 @layer components {
   .app-card {
-    @apply rounded-2xl bg-white shadow-sm ring-1 ring-slate-200;
+    @apply rounded-2xl border border-white bg-white shadow-sm;
+    border-color: rgba(255, 255, 255, 0.72);
+    background-color: rgba(255, 255, 255, 0.92);
+    box-shadow:
+      0 16px 40px -28px rgba(15, 23, 42, 0.45),
+      0 2px 12px -8px rgba(249, 115, 22, 0.3);
+    backdrop-filter: blur(8px);
   }
 
   .app-title {
     @apply text-lg font-semibold text-slate-800;
+    font-family: 'Poppins', sans-serif;
   }
 
   .app-subtitle {
@@ -28,27 +61,30 @@ body {
   }
 
   .table-ui {
-    @apply min-w-full text-sm;
+    @apply min-w-full overflow-hidden text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
   }
 
   .table-ui thead {
-    @apply bg-slate-100 text-left text-slate-600;
+    @apply text-left text-slate-700;
+    background: linear-gradient(135deg, #fff1dc 0%, #ecfdf5 100%);
   }
 
   .table-ui th {
-    @apply whitespace-nowrap px-3 py-2 font-semibold;
+    @apply whitespace-nowrap px-3 py-3 font-semibold;
   }
 
   .table-ui td {
-    @apply px-3 py-2 align-middle text-slate-700;
+    @apply px-3 py-2.5 align-middle text-slate-700;
   }
 
   .table-ui tbody tr {
-    @apply border-b border-slate-100;
+    @apply border-b border-orange-100/60;
   }
 
   .table-ui tbody tr:hover {
-    @apply bg-slate-50;
+    @apply bg-orange-50/55;
   }
 
   .page-grid {
@@ -74,6 +110,6 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
+  background: linear-gradient(180deg, #fb923c, #2dd4bf);
   border-radius: 999px;
 }

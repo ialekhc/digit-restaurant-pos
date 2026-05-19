@@ -17,17 +17,17 @@ router.use(authenticate, featureGate(FEATURE_KEYS.CUSTOMER_MANAGEMENT));
 
 router
   .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), getCustomers)
-  .post(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), createCustomer);
+  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), getCustomers)
+  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), createCustomer);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), updateCustomer)
-  .delete(authorize(ROLES.ADMIN, ROLES.MANAGER), deleteCustomer);
+  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), updateCustomer)
+  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteCustomer);
 
 router.get(
   '/:id/order-history',
-  authorize(ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER),
   getCustomerOrderHistory
 );
 

@@ -85,6 +85,33 @@ const seed = async () => {
     }
   ]);
 
+  const vendorOwnerUsers = await User.create([
+    {
+      name: 'Himalayan Bites Owner',
+      email: 'vendor.himalayan@restaurant.local',
+      password: 'Vendor@12345',
+      role: ROLES.RESTAURANT_OWNER,
+      phone: '+9779801100001',
+      isActive: true
+    },
+    {
+      name: 'Everest Grill Owner',
+      email: 'vendor.everest@restaurant.local',
+      password: 'Vendor@12345',
+      role: ROLES.RESTAURANT_OWNER,
+      phone: '+9779801100002',
+      isActive: true
+    },
+    {
+      name: 'Terai Cafe Owner',
+      email: 'vendor.terai@restaurant.local',
+      password: 'Vendor@12345',
+      role: ROLES.RESTAURANT_OWNER,
+      phone: '+9779801100003',
+      isActive: false
+    }
+  ]);
+
   await PlanConfig.create({
     activePlanId: 'STANDARD',
     billingCycle: 'monthly',
@@ -129,6 +156,9 @@ const seed = async () => {
       ],
       totalPaid: 5497,
       lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 30),
+      loginUser: vendorOwnerUsers[0]._id,
+      loginEmail: vendorOwnerUsers[0].email,
+      loginEnabled: vendorOwnerUsers[0].isActive,
       createdBy: users[0]._id
     },
     {
@@ -158,6 +188,9 @@ const seed = async () => {
       ],
       totalPaid: 5697,
       lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 35),
+      loginUser: vendorOwnerUsers[1]._id,
+      loginEmail: vendorOwnerUsers[1].email,
+      loginEnabled: vendorOwnerUsers[1].isActive,
       createdBy: users[0]._id
     },
     {
@@ -187,6 +220,9 @@ const seed = async () => {
       ],
       totalPaid: 1499,
       lastPaymentDate: new Date(now - 1000 * 60 * 60 * 24 * 95),
+      loginUser: vendorOwnerUsers[2]._id,
+      loginEmail: vendorOwnerUsers[2].email,
+      loginEnabled: vendorOwnerUsers[2].isActive,
       createdBy: users[0]._id
     }
   ]);
@@ -487,6 +523,11 @@ const seed = async () => {
   console.log('Seed completed successfully');
   console.log('Super Admin login: superadmin@restaurant.local / SuperAdmin@12345');
   console.log('Admin login: admin@restaurant.local / Admin@12345');
+  console.log('Vendor owner login template: vendor.<name>@restaurant.local / Vendor@12345');
+  console.log(
+    'Vendor owner logins:',
+    vendorOwnerUsers.map((u) => `${u.email} (${u.isActive ? 'Active' : 'Inactive'})`).join(', ')
+  );
   console.log('Created users:', users.map((u) => `${u.role}:${u.email}`).join(', '));
   console.log('Dummy data counts:', {
     categories: categories.length,

@@ -22,7 +22,11 @@ const defaultForm = {
   startsOn: '',
   endsOn: '',
   nextBillingDate: '',
-  addons: []
+  addons: [],
+  loginName: '',
+  loginEmail: '',
+  loginPassword: '',
+  loginActive: 'true'
 };
 
 const SuperAdminVendorsPage = () => {
@@ -30,6 +34,7 @@ const SuperAdminVendorsPage = () => {
   const [catalog, setCatalog] = useState(null);
   const [form, setForm] = useState(defaultForm);
   const [editingId, setEditingId] = useState('');
+  const [editingVendorHasLogin, setEditingVendorHasLogin] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
 
@@ -52,6 +57,8 @@ const SuperAdminVendorsPage = () => {
         vendor.contactPerson,
         vendor.email,
         vendor.phone,
+        vendor.loginUser?.email,
+        vendor.loginEmail,
         vendor.subscription?.planId,
         vendor.subscription?.status
       ]
@@ -101,6 +108,31 @@ const SuperAdminVendorsPage = () => {
       amount: form.amount === '' ? undefined : Number(form.amount)
     };
 
+    const loginName = form.loginName.trim();
+    const loginEmail = form.loginEmail.trim().toLowerCase();
+    const loginPassword = form.loginPassword;
+    const wantsToConfigureLogin = Boolean(loginName || loginEmail || loginPassword);
+
+    if (!editingId && wantsToConfigureLogin && (!loginEmail || !loginPassword)) {
+      setError('Vendor login email and password are required when creating vendor access');
+      return;
+    }
+
+    if (editingId && !editingVendorHasLogin && (loginEmail || loginPassword) && (!loginEmail || !loginPassword)) {
+      setError('Provide both vendor login email and password to create login access');
+      return;
+    }
+
+    const shouldSendLoginAccess = editingVendorHasLogin || wantsToConfigureLogin;
+    if (shouldSendLoginAccess) {
+      topPayload.loginAccess = {
+        ...(loginName ? { name: loginName } : {}),
+        ...(loginEmail ? { email: loginEmail } : {}),
+        ...(loginPassword ? { password: loginPassword } : {}),
+        isActive: form.loginActive === 'true'
+      };
+    }
+
     try {
       if (editingId) {
         await vendorService.update(editingId, topPayload);
@@ -113,6 +145,7 @@ const SuperAdminVendorsPage = () => {
       }
 
       setEditingId('');
+      setEditingVendorHasLogin(false);
       setForm(defaultForm);
       await load();
     } catch (err) {
@@ -122,6 +155,7 @@ const SuperAdminVendorsPage = () => {
 
   const onEdit = (vendor) => {
     setEditingId(vendor._id);
+    const vendorLoginEmail = vendor.loginUser?.email || vendor.loginEmail || '';
     setForm({
       vendorName: vendor.vendorName || '',
       contactPerson: vendor.contactPerson || '',
@@ -139,8 +173,13 @@ const SuperAdminVendorsPage = () => {
       nextBillingDate: vendor.subscription?.nextBillingDate
         ? new Date(vendor.subscription.nextBillingDate).toISOString().slice(0, 10)
         : '',
-      addons: vendor.subscription?.addons || []
+      addons: vendor.subscription?.addons || [],
+      loginName: vendor.loginUser?.name || '',
+      loginEmail: vendorLoginEmail,
+      loginPassword: '',
+      loginActive: String(vendor.loginUser?.isActive ?? vendor.loginEnabled ?? true)
     });
+    setEditingVendorHasLogin(Boolean(vendor.loginUser || vendor.loginEmail));
     setError('');
   };
 
@@ -206,6 +245,33 @@ const SuperAdminVendorsPage = () => {
             onChange={(e) => setForm((p) => ({ ...p, nextBillingDate: e.target.value }))}
           />
 
+          <Input label="Vendor Login Name" value={form.loginName} onChange={(e) => setForm((p) => ({ ...p, loginName: e.target.value }))} />
+          <Input
+            label="Vendor Login Email"
+            type="email"
+            value={form.loginEmail}
+            onChange={(e) => setForm((p) => ({ ...p, loginEmail: e.target.value }))}
+          />
+          <Input
+            label={editingVendorHasLogin ? 'Reset Vendor Password (optional)' : 'Vendor Login Password'}
+            type="password"
+            value={form.loginPassword}
+            onChange={(e) => setForm((p) => ({ ...p, loginPassword: e.target.value }))}
+            placeholder={editingVendorHasLogin ? 'Leave blank to keep existing password' : 'Create initial password'}
+          />
+          <Select
+            label="Vendor Login Status"
+            value={form.loginActive}
+            options={[
+              { label: 'Active', value: 'true' },
+              { label: 'Inactive', value: 'false' }
+            ]}
+            onChange={(e) => setForm((p) => ({ ...p, loginActive: e.target.value }))}
+          />
+          <p className="md:col-span-2 lg:col-span-3 text-xs text-slate-500">
+            Leave vendor login fields empty if you do not want to create login access now.
+          </p>
+
           <div className="lg:col-span-3">
             <Input label="Notes" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
           </div>
@@ -235,7 +301,16 @@ const SuperAdminVendorsPage = () => {
           <div className="lg:col-span-3 flex flex-wrap gap-2">
             <Button type="submit">{editingId ? 'Update Vendor' : 'Create Vendor'}</Button>
             {editingId ? (
-              <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(defaultForm); setError(''); }}>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  setEditingId('');
+                  setEditingVendorHasLogin(false);
+                  setForm(defaultForm);
+                  setError('');
+                }}
+              >
                 Cancel
               </Button>
             ) : null}
@@ -261,6 +336,7 @@ const SuperAdminVendorsPage = () => {
                 <th>Status</th>
                 <th>Total Paid</th>
                 <th>Next Billing</th>
+                <th>Login Access</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -275,6 +351,18 @@ const SuperAdminVendorsPage = () => {
                   <td><StatusBadge value={vendor.subscription?.status || '-'} /></td>
                   <td>{currency(vendor.totalPaid || 0)}</td>
                   <td>{formatDate(vendor.subscription?.nextBillingDate)}</td>
+                  <td>
+                    {vendor.loginUser || vendor.loginEmail ? (
+                      <div className="text-xs">
+                        <p className="font-medium text-slate-700">{vendor.loginUser?.email || vendor.loginEmail}</p>
+                        <p className={vendor.loginUser?.isActive || vendor.loginEnabled ? 'text-emerald-600' : 'text-rose-600'}>
+                          {(vendor.loginUser?.isActive || vendor.loginEnabled) ? 'Active' : 'Inactive'}
+                        </p>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">Not created</span>
+                    )}
+                  </td>
                   <td>
                     <div className="flex gap-2">
                       <Button variant="secondary" size="sm" onClick={() => onEdit(vendor)}>Edit</Button>
@@ -314,6 +402,15 @@ const SuperAdminVendorsPage = () => {
                 <p>Amount: {currency(vendor.subscription?.amount || 0)}</p>
                 <p>Total Paid: {currency(vendor.totalPaid || 0)}</p>
                 <p>Next Billing: {formatDate(vendor.subscription?.nextBillingDate)}</p>
+                <p>
+                  Login: {vendor.loginUser?.email || vendor.loginEmail || 'Not created'}
+                  {vendor.loginUser || vendor.loginEmail ? (
+                    <span className={(vendor.loginUser?.isActive || vendor.loginEnabled) ? 'text-emerald-600' : 'text-rose-600'}>
+                      {' '}
+                      ({(vendor.loginUser?.isActive || vendor.loginEnabled) ? 'Active' : 'Inactive'})
+                    </span>
+                  ) : null}
+                </p>
               </div>
               <div className="mt-3 flex gap-2">
                 <Button variant="secondary" size="sm" onClick={() => onEdit(vendor)}>Edit</Button>

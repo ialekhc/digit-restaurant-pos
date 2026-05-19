@@ -5,8 +5,9 @@ A complete restaurant management web application built with MongoDB, Express, Re
 ## Features
 
 - JWT authentication with role-based access control
-- Roles: `SUPER_ADMIN`, `ADMIN`, `MANAGER`, `CASHIER`, `WAITER`, `KITCHEN`
+- Roles: `SUPER_ADMIN`, `RESTAURANT_OWNER`, `ADMIN`, `MANAGER`, `CASHIER`, `WAITER`, `KITCHEN`
 - Super Admin portal for platform analytics and plan distribution
+- Vendor onboarding with dedicated vendor-owner login credentials
 - SaaS plan engine with feature gating (`STARTER`, `STANDARD`, `PREMIUM`, `ENTERPRISE`)
 - Dashboard with live metrics and Recharts analytics
 - Menu category and menu item management (with image upload)
@@ -65,6 +66,23 @@ client/
     utils/
     context/
     App.jsx
+services/
+  api-gateway/
+    src/
+      config/
+      app.js
+      server.js
+  vendor-service/
+    src/
+      constants/
+      controllers/
+      middleware/
+      models/
+      repositories/
+      routes/
+      services/
+      utils/
+      validators/
 README.md
 ```
 
@@ -219,6 +237,9 @@ Additional seeded users:
 - `cashier@restaurant.local` / `Cashier@12345`
 - `waiter@restaurant.local` / `Waiter@12345`
 - `kitchen@restaurant.local` / `Kitchen@12345`
+- `vendor.himalayan@restaurant.local` / `Vendor@12345`
+- `vendor.everest@restaurant.local` / `Vendor@12345`
+- `vendor.terai@restaurant.local` / `Vendor@12345` (inactive example)
 
 ## API Routes
 
@@ -311,12 +332,64 @@ Additional seeded users:
 - `GET /api/plans/active`
 - `PUT /api/plans/active`
 
+## Microservices Mode (Architecture)
+
+For sustainability and easier maintenance, this repository now includes a microservices-ready architecture with:
+
+- `services/api-gateway` (API Gateway)
+- `server` (Core Service / existing monolith domains)
+- `services/vendor-service` (Vendor + Subscription bounded context)
+
+### Run in Microservices Mode
+
+1. Install workspace dependencies from root:
+
+```bash
+npm install
+```
+
+2. Start all microservices from root:
+
+```bash
+npm run dev:microservices
+```
+
+This runs:
+- `core-service` on `:5500`
+- `vendor-service` on `:5601`
+- `api-gateway` on `:8080`
+
+3. Start frontend:
+
+```bash
+npm run dev:client
+```
+
+4. Point frontend API to gateway:
+
+```env
+VITE_API_URL=http://localhost:8080/api
+```
+
+### Gateway Routing
+
+- `/api/vendors/*` → `vendor-service`
+- `/api/*` → `core-service`
+
+### Docker (Microservices)
+
+```bash
+docker compose -f docker-compose.microservices.yml up -d --build
+```
+
+Architecture details are documented in:
+
+- `docs/architecture/microservices-architecture.md`
+- `docs/architecture/design-patterns.md`
+
+
 ## Notes
 
 - Menu images are stored in `server/src/uploads` and served via `/uploads/*`.
 - `register` is restricted to `ADMIN` users after authentication.
 - Customer role is optional and not enabled in frontend routing by default.
-
-
-
-

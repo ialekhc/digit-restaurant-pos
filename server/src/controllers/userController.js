@@ -35,7 +35,7 @@ export const createUser = asyncHandler(async (req, res) => {
 
   const nextRole = role || ROLES.WAITER;
   const nextActive = typeof isActive === 'boolean' ? isActive : true;
-  if (nextActive && nextRole !== ROLES.CUSTOMER && nextRole !== ROLES.SUPER_ADMIN) {
+  if (nextActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(nextRole)) {
     await ensureStaffLimitAvailable();
   }
 
@@ -58,9 +58,9 @@ export const updateUser = asyncHandler(async (req, res) => {
 
   const nextRole = rest.role || user.role;
   const nextActive = typeof rest.isActive === 'boolean' ? rest.isActive : user.isActive;
-  const willConsumeStaffSlot = nextActive && nextRole !== ROLES.CUSTOMER && nextRole !== ROLES.SUPER_ADMIN;
+  const willConsumeStaffSlot = nextActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(nextRole);
   const currentlyConsumesStaffSlot =
-    user.isActive && user.role !== ROLES.CUSTOMER && user.role !== ROLES.SUPER_ADMIN;
+    user.isActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(user.role);
 
   if (willConsumeStaffSlot && !currentlyConsumesStaffSlot) {
     await ensureStaffLimitAvailable({ ignoreUserId: String(user._id) });

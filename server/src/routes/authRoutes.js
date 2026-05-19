@@ -5,7 +5,7 @@ import { ROLES } from '../config/constants.js';
 
 const router = Router();
 
-router.post('/register', authenticate, authorize(ROLES.ADMIN), register);
+router.post('/register', authenticate, authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER), register);
 router.post('/login', login);
 router.get('/profile', authenticate, getProfile);
 router.put('/change-password', authenticate, changePassword);

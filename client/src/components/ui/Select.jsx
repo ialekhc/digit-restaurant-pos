@@ -3,11 +3,11 @@ import { forwardRef } from 'react';
 const Select = forwardRef(({ label, helperText, error, options = [], className = '', ...props }, ref) => {
   return (
     <label className="block">
-      {label ? <span className="mb-1 block text-sm font-medium text-slate-700">{label}</span> : null}
+      {label ? <span className="mb-1.5 block text-sm font-semibold text-slate-700">{label}</span> : null}
       <select
         ref={ref}
         {...props}
-        className={`w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100 ${className}`}
+        className={`w-full rounded-xl border border-orange-200/80 bg-gradient-to-b from-white to-orange-50/35 px-3.5 py-2.5 text-sm outline-none transition focus:border-brand-500 focus:ring-4 focus:ring-brand-100 ${className}`}
       >
         {options.map((option) => (
           <option key={option.value} value={option.value}>

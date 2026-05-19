@@ -12,7 +12,11 @@ import { FEATURE_KEYS } from '../config/planCatalog.js';
 
 const router = Router();
 
-router.use(authenticate, featureGate(FEATURE_KEYS.SUPPLIER_MANAGEMENT), authorize(ROLES.ADMIN, ROLES.MANAGER));
+router.use(
+  authenticate,
+  featureGate(FEATURE_KEYS.SUPPLIER_MANAGEMENT),
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER)
+);
 
 router.route('/').get(getSuppliers).post(createSupplier);
 router.route('/:id').put(updateSupplier).delete(deleteSupplier);

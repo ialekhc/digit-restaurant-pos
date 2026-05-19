@@ -1,0 +1,57 @@
+services:
+  mongodb:
+    image: mongo:7
+    container_name: restaurant-pos-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+
+  core-service:
+    build:
+      context: ./server
+    container_name: restaurant-pos-core-service
+    restart: unless-stopped
+    environment:
+      PORT: 5500
+      MONGO_URI: mongodb://mongodb:27017/restaurant_pos
+      JWT_SECRET: supersecretkey
+      JWT_EXPIRES_IN: 7d
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongodb
+    ports:
+      - "5500:5500"
+
+  vendor-service:
+    build:
+      context: ./services/vendor-service
+    container_name: restaurant-pos-vendor-service
+    restart: unless-stopped
+    environment:
+      PORT: 5601
+      MONGO_URI: mongodb://mongodb:27017/restaurant_pos
+      JWT_SECRET: supersecretkey
+    depends_on:
+      - mongodb
+    ports:
+      - "5601:5601"
+
+  api-gateway:
+    build:
+      context: ./services/api-gateway
+    container_name: restaurant-pos-api-gateway
+    restart: unless-stopped
+    environment:
+      PORT: 8080
+      CORE_SERVICE_URL: http://core-service:5500
+      VENDOR_SERVICE_URL: http://vendor-service:5601
+    depends_on:
+      - core-service
+      - vendor-service
+    ports:
+      - "8080:8080"
+
+volumes:
+  mongodb_data:
