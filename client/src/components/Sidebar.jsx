@@ -14,6 +14,8 @@ const navItems = [
   { path: '/orders/create', label: 'Create Order', group: 'Operations', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.ORDER_HISTORY },
   { path: '/kitchen', label: 'Kitchen Display', group: 'Operations', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.KITCHEN], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
   { path: '/billing', label: 'Billing', group: 'Billing', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_BILLING },
+  { path: '/purchase-in', label: 'Purchase In', group: 'Billing', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
+  { path: '/purchase-out', label: 'Purchase Out', group: 'Billing', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
   { path: '/tables', label: 'Tables', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.TABLE_MANAGEMENT },
   { path: '/menu/categories', label: 'Menu Categories', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.CATEGORY_MANAGEMENT },
   { path: '/menu/items', label: 'Menu Items', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
