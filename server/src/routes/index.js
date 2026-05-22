@@ -13,6 +13,7 @@ import customerRoutes from './customerRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import planRoutes from './planRoutes.js';
 import vendorRoutes from './vendorRoutes.js';
+import publicRoutes from './publicRoutes.js';
 
 const router = Router();
 
@@ -30,5 +31,6 @@ router.use('/customers', customerRoutes);
 router.use('/reports', reportRoutes);
 router.use('/plans', planRoutes);
 router.use('/vendors', vendorRoutes);
+router.use('/public', publicRoutes);
 
 export default router;

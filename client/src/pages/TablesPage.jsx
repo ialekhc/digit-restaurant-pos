@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { API_BASE_URL } from '../api/axios';
 import { orderService, tableService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
@@ -47,6 +48,10 @@ const TablesPage = () => {
   const [transferToTableId, setTransferToTableId] = useState('');
   const [transferMessage, setTransferMessage] = useState('');
   const [transferring, setTransferring] = useState(false);
+  const [bulkAdding, setBulkAdding] = useState(false);
+  const [qrTable, setQrTable] = useState(null);
+  const [qrVersion, setQrVersion] = useState('0');
+  const [qrLoading, setQrLoading] = useState(false);
   const canManageTables = [ROLES.ADMIN, ROLES.MANAGER].includes(user?.role);
   const canPlaceOrders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER].includes(user?.role);
   const canTransferTables = canPlaceOrders;
@@ -153,6 +158,67 @@ const TablesPage = () => {
     }
   };
 
+  const onAdd10Tables = async () => {
+    setError('');
+    setTransferMessage('');
+    setBulkAdding(true);
+    try {
+      const usedNumbers = new Set(
+        tables
+          .map((table) => {
+            const match = String(table.tableNumber || '').match(/\d+/);
+            return match ? Number(match[0]) : null;
+          })
+          .filter((value) => Number.isFinite(value))
+      );
+      const currentMax = usedNumbers.size ? Math.max(...usedNumbers) : 0;
+      const payloads = [];
+      for (let index = 1; index <= 10; index += 1) {
+        let next = currentMax + index;
+        while (usedNumbers.has(next)) {
+          next += 1;
+        }
+        usedNumbers.add(next);
+        payloads.push({
+          tableNumber: `T-${next}`,
+          seatingCapacity: 4,
+          status: 'AVAILABLE'
+        });
+      }
+
+      await Promise.all(payloads.map((payload) => tableService.create(payload)));
+      await load();
+      setTransferMessage('10 new tables have been added successfully.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to add 10 tables');
+    } finally {
+      setBulkAdding(false);
+    }
+  };
+
+  const qrUrlForTable = (tableId, menuVersion) =>
+    `${window.location.origin}/scan/${tableId}${menuVersion ? `?mv=${encodeURIComponent(menuVersion)}` : ''}`;
+  const qrImageUrlForTable = (tableId) =>
+    `https://api.qrserver.com/v1/create-qr-code/?size=420x420&data=${encodeURIComponent(qrUrlForTable(tableId, qrVersion))}`;
+
+  const openQrForTable = async (table) => {
+    setError('');
+    setQrLoading(true);
+    try {
+      const response = await fetch(`${API_BASE_URL}/public/qr-meta/${table._id}`);
+      const payload = await response.json();
+      if (!response.ok) {
+        throw new Error(payload?.message || 'Unable to prepare QR');
+      }
+      setQrVersion(payload?.data?.menuVersion || '0');
+      setQrTable(table);
+    } catch (err) {
+      setError(err.message || 'Unable to prepare QR');
+    } finally {
+      setQrLoading(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       {canManageTables ? (
@@ -186,7 +252,16 @@ const TablesPage = () => {
         </Panel>
       )}
 
-      <Panel title="Table List">
+      <Panel
+        title="Table List"
+        right={
+          canManageTables ? (
+            <Button onClick={onAdd10Tables} disabled={bulkAdding}>
+              {bulkAdding ? 'Adding...' : 'Add 10 Tables'}
+            </Button>
+          ) : null
+        }
+      >
         <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {TABLE_STATUSES.map((status) => (
             <div key={status} className={`rounded-xl border px-3 py-2 ${statusRowClass[status] || 'border-slate-200 bg-white'}`}>
@@ -333,6 +408,15 @@ const TablesPage = () => {
                   >
                     New Order
                   </Link>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="sm:col-span-2"
+                    onClick={() => openQrForTable(item)}
+                    disabled={qrLoading}
+                  >
+                    {qrLoading && qrTable?._id === item._id ? 'Loading QR...' : 'Show QR'}
+                  </Button>
                   {canTransferTables && (activeOrderCountByTable[item._id] || 0) > 0 ? (
                     <Button
                       type="button"
@@ -388,7 +472,74 @@ const TablesPage = () => {
             </article>
           ))}
         </div>
+
       </Panel>
+
+      {qrTable ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h4 className="text-lg font-bold text-slate-900">Permanent QR - Table {qrTable.tableNumber}</h4>
+                <p className="text-sm text-slate-600">
+                  QR changes only when menu items are updated. Otherwise this QR remains unchanged for this table.
+                </p>
+              </div>
+              <Button type="button" variant="secondary" onClick={() => setQrTable(null)}>
+                Close
+              </Button>
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-[260px,1fr]">
+              <img
+                src={qrImageUrlForTable(qrTable._id)}
+                alt={`QR for ${qrTable.tableNumber}`}
+                className="h-[260px] w-[260px] rounded-xl border border-slate-200 bg-white p-2"
+              />
+              <div className="space-y-3">
+                <p className="text-sm text-slate-700 break-all">
+                  Menu URL: <span className="font-semibold">{qrUrlForTable(qrTable._id, qrVersion)}</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <a
+                    href={qrImageUrlForTable(qrTable._id)}
+                    download={`table-${String(qrTable.tableNumber || '').replace(/\s+/g, '-').toLowerCase()}-qr.png`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-brand-700"
+                  >
+                    Download QR
+                  </a>
+                  <Button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(qrUrlForTable(qrTable._id, qrVersion));
+                        setTransferMessage(`QR link copied for ${qrTable.tableNumber}`);
+                      } catch (_err) {
+                        setError('Unable to copy QR link');
+                      }
+                    }}
+                  >
+                    Copy Menu Link
+                  </Button>
+                  <a
+                    href={qrUrlForTable(qrTable._id, qrVersion)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
+                  >
+                    Open Menu
+                  </a>
+                </div>
+                <p className="text-xs text-slate-500">
+                  Customer orders from this QR go to the same dine-in order pipeline, so waiter and kitchen receive them.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 };
