@@ -9,13 +9,27 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import Loader from '../components/Loader';
 import { formatDateTime } from '../utils/format';
+import { useAuth } from '../hooks/useAuth';
 
 const schema = z.object({
   name: z.string().min(2),
   email: z.string().email(),
   password: z.string().min(6).optional().or(z.literal('')),
   phone: z.string().optional(),
-  role: z.enum(['ADMIN', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'CUSTOMER']),
+  role: z.enum([
+    'RESTAURANT_OWNER',
+    'MANAGER',
+    'CASHIER',
+    'WAITER',
+    'CHEF',
+    'INVENTORY_MANAGER',
+    'ACCOUNTANT',
+    'DELIVERY_PARTNER',
+    'CUSTOMER_SUPPORT',
+    'ADMIN',
+    'KITCHEN',
+    'CUSTOMER'
+  ]),
   isActive: z.enum(['true', 'false'])
 });
 
@@ -28,17 +42,47 @@ const defaultValues = {
   isActive: 'true'
 };
 
-const roleOptions = ['ADMIN', 'MANAGER', 'CASHIER', 'WAITER', 'KITCHEN', 'CUSTOMER'].map((x) => ({
+const allRoleOptions = [
+  'RESTAURANT_OWNER',
+  'MANAGER',
+  'CASHIER',
+  'WAITER',
+  'CHEF',
+  'INVENTORY_MANAGER',
+  'ACCOUNTANT',
+  'DELIVERY_PARTNER',
+  'CUSTOMER_SUPPORT',
+  'ADMIN',
+  'KITCHEN',
+  'CUSTOMER'
+].map((x) => ({
+  label: x,
+  value: x
+}));
+
+const vendorAdminRoleOptions = [
+  'MANAGER',
+  'CASHIER',
+  'WAITER',
+  'CHEF',
+  'INVENTORY_MANAGER',
+  'ACCOUNTANT',
+  'DELIVERY_PARTNER',
+  'CUSTOMER_SUPPORT',
+  'KITCHEN'
+].map((x) => ({
   label: x,
   value: x
 }));
 
 const UsersPage = () => {
+  const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
+  const roleOptions = user?.role === 'RESTAURANT_OWNER' ? vendorAdminRoleOptions : allRoleOptions;
 
   const {
     register,
@@ -91,12 +135,13 @@ const UsersPage = () => {
 
   const startEdit = (item) => {
     setEditing(item);
+    const fallbackRole = roleOptions[0]?.value || 'WAITER';
     reset({
       name: item.name,
       email: item.email,
       password: '',
       phone: item.phone || '',
-      role: item.role,
+      role: roleOptions.some((opt) => opt.value === item.role) ? item.role : fallbackRole,
       isActive: String(item.isActive)
     });
   };

@@ -1,6 +1,31 @@
 import { useMemo } from 'react';
 import { NavLink } from 'react-router-dom';
-import { getVisibleNavItems, NAV_GROUPS } from '../utils/navigation';
+import { planService } from '../api/services';
+import { FEATURE_KEYS, ROLES } from '../utils/constants';
+
+const navItems = [
+  { path: '/super-admin/dashboard', label: 'Dashboard', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/vendors', label: 'Vendors', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/subscriptions', label: 'Subscriptions', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/plans', label: 'Plans & Features', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/super-admin/users', label: 'Users', group: 'Super Admin', roles: [ROLES.SUPER_ADMIN] },
+  { path: '/dashboard', label: 'Dashboard', group: 'Overview', roles: [ROLES.ADMIN], featureKey: FEATURE_KEYS.DASHBOARD_OVERVIEW },
+  { path: '/orders', label: 'Orders', group: 'Operations', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN], featureKey: FEATURE_KEYS.ORDER_HISTORY },
+  { path: '/orders/create', label: 'Create Order', group: 'Operations', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.ORDER_HISTORY },
+  { path: '/kitchen', label: 'Kitchen Display', group: 'Operations', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.KITCHEN], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
+  { path: '/billing', label: 'Billing', group: 'Billing', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_BILLING },
+  { path: '/tables', label: 'Tables', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.TABLE_MANAGEMENT },
+  { path: '/menu/categories', label: 'Menu Categories', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.CATEGORY_MANAGEMENT },
+  { path: '/menu/items', label: 'Menu Items', group: 'Restaurant Setup', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
+  { path: '/inventory', label: 'Inventory', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
+  { path: '/suppliers', label: 'Suppliers', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.SUPPLIER_MANAGEMENT },
+  { path: '/customers', label: 'Customers', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER], featureKey: FEATURE_KEYS.CUSTOMER_MANAGEMENT },
+  { path: '/reports', label: 'Reports', group: 'Insights', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_REPORTS },
+  { path: '/users', label: 'Users', group: 'System', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER] },
+  { path: '/settings', label: 'Settings', group: 'System', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN] }
+];
+
+const navGroups = ['Super Admin', 'Overview', 'Operations', 'Billing', 'Restaurant Setup', 'Resources', 'Insights', 'System'];
 const linkBase = 'block rounded-xl px-4 py-2.5 text-sm font-semibold transition border';
 
 const Sidebar = ({ userRole, enabledFeatures, open, onClose }) => {

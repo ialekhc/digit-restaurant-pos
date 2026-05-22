@@ -25,7 +25,6 @@ const defaultForm = {
   startsOn: '',
   endsOn: '',
   nextBillingDate: '',
-  addons: [],
   loginName: '',
   loginEmail: '',
   loginPassword: '',
@@ -132,7 +131,6 @@ const SuperAdminVendorsPage = () => {
       planId: form.planId,
       billingCycle: form.billingCycle,
       status: form.status,
-      addons: form.addons,
       startsOn: form.startsOn || undefined,
       endsOn: form.endsOn || undefined,
       nextBillingDate: form.nextBillingDate || undefined,
@@ -203,7 +201,6 @@ const SuperAdminVendorsPage = () => {
       nextBillingDate: vendor.subscription?.nextBillingDate
         ? new Date(vendor.subscription.nextBillingDate).toISOString().slice(0, 10)
         : '',
-      addons: vendor.subscription?.addons || [],
       loginName: vendor.loginUser?.name || '',
       loginEmail: vendorLoginEmail,
       loginPassword: '',
