@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { categoryService, menuService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
@@ -6,6 +6,8 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { API_BASE_URL } from '../api/axios';
 import { currency } from '../utils/format';
+import { useAuth } from '../hooks/useAuth';
+import { ROLES } from '../utils/constants';
 
 const initial = {
   name: '',
@@ -18,12 +20,22 @@ const initial = {
 };
 
 const MenuItemsPage = () => {
+  const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(initial);
   const [editingId, setEditingId] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState('');
+  const [importSummary, setImportSummary] = useState(null);
+
+  const canManageMenu = useMemo(
+    () => [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER].includes(user?.role),
+    [user?.role]
+  );
 
   const load = async () => {
     setLoading(true);
@@ -47,6 +59,11 @@ const MenuItemsPage = () => {
   const submit = async (e) => {
     e.preventDefault();
     setError('');
+
+    if (!canManageMenu) {
+      setError('You do not have permission to manage menu items');
+      return;
+    }
 
     if (!form.name || !form.category || !form.price) {
       setError('Name, category, and price are required');
@@ -77,8 +94,154 @@ const MenuItemsPage = () => {
     }
   };
 
+  const getCellValue = (row, keys) => {
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(row, key) && row[key] !== null && typeof row[key] !== 'undefined') {
+        return row[key];
+      }
+    }
+    return '';
+  };
+
+  const normalizeImportRows = (rows) => {
+    return rows
+      .map((row, index) => ({
+        rowNumber: index + 2,
+        category: String(getCellValue(row, ['Category', 'category', 'CATEGORY']) || '').trim(),
+        item: String(getCellValue(row, ['Item', 'item', 'ITEM', 'Name', 'name']) || '').trim(),
+        price: getCellValue(row, ['Price (Rs.)', 'Price (Rs)', 'Price', 'price', 'PRICE']),
+        description: String(getCellValue(row, ['Description', 'description']) || '').trim(),
+        preparationTime: getCellValue(row, ['Preparation Time', 'Prep Time', 'preparationTime']),
+        isAvailable: getCellValue(row, ['Available', 'Is Available', 'isAvailable']),
+        kitchenSection: String(getCellValue(row, ['Kitchen Section', 'Section', 'kitchenSection']) || '').trim()
+      }))
+      .filter((row) => row.category || row.item || String(row.price ?? '').trim() !== '');
+  };
+
+  const downloadTemplate = async () => {
+    setImportError('');
+    const templateRows = [
+      { Category: 'MOMO', Item: 'Chicken Momo', 'Price (Rs.)': 200 },
+      { Category: 'MOMO', Item: 'Buff Momo', 'Price (Rs.)': 200 },
+      { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220 }
+    ];
+    try {
+      const XLSX = await import('xlsx');
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.json_to_sheet(templateRows);
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Food Menu');
+      XLSX.writeFile(workbook, 'vendor-menu-import-template.xlsx');
+    } catch (error) {
+      setImportError('Unable to generate template file');
+    }
+  };
+
+  const importMenuFromExcel = async (e) => {
+    e.preventDefault();
+    setImportError('');
+    setImportSummary(null);
+
+    if (!canManageMenu) {
+      setImportError('You do not have permission to import menu items');
+      return;
+    }
+
+    if (!importFile) {
+      setImportError('Please choose an Excel file first');
+      return;
+    }
+
+    try {
+      setImporting(true);
+      const XLSX = await import('xlsx');
+      const buffer = await importFile.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: 'array' });
+      const firstSheetName = workbook.SheetNames[0];
+
+      if (!firstSheetName) {
+        setImportError('No worksheet found in selected file');
+        return;
+      }
+
+      const worksheet = workbook.Sheets[firstSheetName];
+      const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+      const rows = normalizeImportRows(rawRows);
+
+      if (!rows.length) {
+        setImportError('No valid rows found. Expected columns: Category, Item, Price (Rs.)');
+        return;
+      }
+
+      const summary = await menuService.importExcel({ rows, upsert: true });
+      setImportSummary(summary);
+      setImportFile(null);
+      await load();
+    } catch (err) {
+      setImportError(err.response?.data?.message || 'Unable to import menu file');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
+      <Panel
+        title="Vendor Menu Import (Excel)"
+        subtitle="Bulk upload menu using your sample format: Category, Item, Price (Rs.)"
+      >
+        <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={importMenuFromExcel}>
+          <Input
+            label="Excel File"
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+            helperText="Use columns: Category, Item, Price (Rs.)"
+          />
+          <div className="md:col-span-2 lg:col-span-2 flex items-end gap-2">
+            <Button type="button" variant="secondary" onClick={downloadTemplate}>
+              Download Template
+            </Button>
+            <Button type="submit" variant="success" disabled={importing}>
+              {importing ? 'Importing...' : 'Import Menu'}
+            </Button>
+          </div>
+        </form>
+        {importError ? <p className="mt-2 text-sm text-rose-600">{importError}</p> : null}
+        {importSummary ? (
+          <div className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              <p className="text-sm text-slate-700">
+                Total Rows: <span className="font-semibold">{importSummary.totalRows}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Created: <span className="font-semibold text-emerald-700">{importSummary.created}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Updated: <span className="font-semibold text-blue-700">{importSummary.updated}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Skipped: <span className="font-semibold text-amber-700">{importSummary.skipped}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                New Categories: <span className="font-semibold text-violet-700">{importSummary.categoriesCreated}</span>
+              </p>
+            </div>
+            {Array.isArray(importSummary.errors) && importSummary.errors.length ? (
+              <div className="rounded-lg border border-amber-200 bg-white p-3">
+                <p className="text-sm font-semibold text-amber-800">Row Errors ({importSummary.errors.length})</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5 text-xs text-slate-700">
+                  {importSummary.errors.slice(0, 10).map((err) => (
+                    <li key={`${err.row}-${err.message}`}>
+                      Row {err.row}: {err.message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Panel>
+
       <Panel title={editingId ? 'Edit Menu Item' : 'Create Menu Item'}>
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={submit}>
           <Input label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
@@ -109,7 +272,9 @@ const MenuItemsPage = () => {
             <Input label="Description" value={form.description} onChange={(e) => setForm((p) => ({ ...p, description: e.target.value }))} />
           </div>
           <div className="md:col-span-2 lg:col-span-3 flex gap-2">
-            <Button type="submit">{editingId ? 'Update Item' : 'Create Item'}</Button>
+            <Button type="submit" disabled={!canManageMenu}>
+              {editingId ? 'Update Item' : 'Create Item'}
+            </Button>
             {editingId ? (
               <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(initial); }}>
                 Cancel
@@ -154,35 +319,39 @@ const MenuItemsPage = () => {
                   <td className="px-3 py-2">{item.preparationTime} min</td>
                   <td className="px-3 py-2">{item.isAvailable ? 'Available' : 'Unavailable'}</td>
                   <td className="px-3 py-2">
-                    <div className="flex gap-2">
-                      <Button
-                        variant="secondary"
-                        onClick={() => {
-                          setEditingId(item._id);
-                          setForm({
-                            name: item.name,
-                            category: item.category?._id || '',
-                            description: item.description || '',
-                            price: String(item.price),
-                            preparationTime: String(item.preparationTime || 0),
-                            isAvailable: String(item.isAvailable),
-                            image: null
-                          });
-                        }}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="danger"
-                        onClick={async () => {
-                          if (!window.confirm('Delete this menu item?')) return;
-                          await menuService.remove(item._id);
-                          load();
-                        }}
-                      >
-                        Delete
-                      </Button>
-                    </div>
+                    {canManageMenu ? (
+                      <div className="flex gap-2">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            setEditingId(item._id);
+                            setForm({
+                              name: item.name,
+                              category: item.category?._id || '',
+                              description: item.description || '',
+                              price: String(item.price),
+                              preparationTime: String(item.preparationTime || 0),
+                              isAvailable: String(item.isAvailable),
+                              image: null
+                            });
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          variant="danger"
+                          onClick={async () => {
+                            if (!window.confirm('Delete this menu item?')) return;
+                            await menuService.remove(item._id);
+                            load();
+                          }}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-slate-400">View only</span>
+                    )}
                   </td>
                 </tr>
               ))}

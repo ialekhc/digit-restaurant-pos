@@ -28,6 +28,7 @@ export const categoryService = {
 export const menuService = {
   list: async (params) => unwrap(await api.get('/menu-items', { params })),
   get: async (id) => unwrap(await api.get(`/menu-items/${id}`)),
+  importExcel: async (payload) => unwrap(await api.post('/menu-items/import', payload)),
   create: async (payload) => {
     const response = await api.post('/menu-items', payload, {
       headers: { 'Content-Type': 'multipart/form-data' }
@@ -74,6 +75,11 @@ export const inventoryService = {
   updateStock: async (id, quantity) => unwrap(await api.patch(`/inventory/${id}/stock`, { quantity }))
 };
 
+export const purchaseService = {
+  list: async (params) => unwrap(await api.get('/purchases', { params })),
+  create: async (payload) => unwrap(await api.post('/purchases', payload))
+};
+
 export const supplierService = {
   list: async (params) => unwrap(await api.get('/suppliers', { params })),
   create: async (payload) => unwrap(await api.post('/suppliers', payload)),
@@ -95,7 +101,9 @@ export const customerService = {
 export const reportService = {
   dashboard: async () => unwrap(await api.get('/reports/dashboard')),
   dailySales: async (params) => unwrap(await api.get('/reports/daily-sales', { params })),
+  weeklySales: async (params) => unwrap(await api.get('/reports/weekly-sales', { params })),
   monthlySales: async (params) => unwrap(await api.get('/reports/monthly-sales', { params })),
+  yearlySales: async (params) => unwrap(await api.get('/reports/yearly-sales', { params })),
   bestSelling: async () => unwrap(await api.get('/reports/best-selling-items')),
   lowStock: async () => unwrap(await api.get('/reports/low-stock')),
   superAdmin: async () => unwrap(await api.get('/reports/super-admin'))

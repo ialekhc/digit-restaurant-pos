@@ -4,6 +4,7 @@ import {
   deleteMenuItem,
   getMenuItemById,
   getMenuItems,
+  importMenuItems,
   updateMenuItem
 } from '../controllers/menuItemController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
@@ -20,6 +21,8 @@ router
   .route('/')
   .get(getMenuItems)
   .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), upload.single('image'), createMenuItem);
+
+router.post('/import', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), importMenuItems);
 
 router
   .route('/:id')

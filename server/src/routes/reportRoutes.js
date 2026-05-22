@@ -5,7 +5,9 @@ import {
   dashboardReport,
   lowStockReport,
   monthlySalesReport,
-  superAdminOverviewReport
+  superAdminOverviewReport,
+  weeklySalesReport,
+  yearlySalesReport
 } from '../controllers/reportController.js';
 import { authenticate, authorize } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
@@ -33,6 +35,18 @@ router.get(
   authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
   featureGate(FEATURE_KEYS.ADVANCED_SALES_REPORTS),
   monthlySalesReport
+);
+router.get(
+  '/weekly-sales',
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
+  featureGate(FEATURE_KEYS.ADVANCED_SALES_REPORTS),
+  weeklySalesReport
+);
+router.get(
+  '/yearly-sales',
+  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER),
+  featureGate(FEATURE_KEYS.ADVANCED_SALES_REPORTS),
+  yearlySalesReport
 );
 router.get(
   '/best-selling-items',
