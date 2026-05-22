@@ -387,6 +387,50 @@ Architecture details are documented in:
 - `docs/architecture/microservices-architecture.md`
 - `docs/architecture/design-patterns.md`
 
+## CI/CD Pipeline (GitHub Actions)
+
+This repo includes a complete CI/CD workflow:
+
+- File: `.github/workflows/ci-cd.yml`
+- Trigger:
+  - Pull requests to `main` → runs CI checks
+  - Push to `main` → runs CI checks + deploys
+  - Manual run via `workflow_dispatch`
+
+### CI (Build Validation)
+
+Runs automatically on PR/push:
+
+- Installs workspace dependencies (`npm ci`)
+- Builds frontend (`npm run build:client`)
+- Performs backend syntax checks:
+  - `server/server.js`
+  - `server/src/app.js`
+  - `services/api-gateway/src/server.js`
+  - `services/vendor-service/src/server.js`
+
+### CD (Auto Deploy on push to `main`)
+
+- **Backend (Render)**: triggers deploy using `RENDER_DEPLOY_HOOK_URL`
+- **Frontend (Vercel)**: deploys using Vercel CLI (`vercel pull`, `vercel build`, `vercel deploy --prebuilt --prod`)
+
+### Required GitHub Repository Secrets
+
+Add these in: `GitHub Repo → Settings → Secrets and variables → Actions`
+
+#### For Render deploy
+
+- `RENDER_DEPLOY_HOOK_URL`
+
+#### For Vercel deploy
+
+- `VERCEL_TOKEN`
+- `VERCEL_ORG_ID`
+- `VERCEL_PROJECT_ID`
+- `VITE_API_URL_PROD` (example: `https://digit-restaurant-pos-api.onrender.com/api`)
+
+If deploy secrets are missing, CI still runs; deploy jobs are skipped automatically.
+
 
 ## Notes
 

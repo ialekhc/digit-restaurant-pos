@@ -5,25 +5,30 @@
 @tailwind utilities;
 
 :root {
-  --surface-bg: #fffef8;
-  --surface-tint: #fff7ed;
-  --surface-soft: #f0fdfa;
+  --md-primary: #2563eb;
+  --md-primary-container: #dbeafe;
+  --md-on-primary: #ffffff;
+  --md-surface: #ffffff;
+  --md-surface-variant: #f1f5f9;
+  --md-outline: #cbd5e1;
+  --md-on-surface: #0f172a;
+  --md-on-surface-variant: #475569;
+  --surface-bg: #f8fafc;
+  --surface-tint: #eef2ff;
+  --surface-soft: #eff6ff;
   --text-main: #1f2937;
   --text-muted: #6b7280;
-  --ring-soft: rgba(249, 115, 22, 0.18);
+  --ring-soft: rgba(37, 99, 235, 0.18);
 }
 
 body {
   margin: 0;
   font-family: 'Nunito Sans', sans-serif;
   color: var(--text-main);
-  background:
-    radial-gradient(circle at 0% 0%, #ffe7d1 0%, transparent 35%),
-    radial-gradient(circle at 100% 10%, #dcfce7 0%, transparent 30%),
-    radial-gradient(circle at 40% 100%, #e0f2fe 0%, transparent 36%),
-    linear-gradient(145deg, #fffef8 0%, #fff8ee 45%, #f7fffb 100%);
+  background: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
   background-attachment: fixed;
   overflow-x: hidden;
+  -webkit-tap-highlight-color: transparent;
 }
 
 #root {
@@ -42,13 +47,10 @@ body {
 
 @layer components {
   .app-card {
-    @apply rounded-2xl border border-white bg-white shadow-sm;
-    border-color: rgba(255, 255, 255, 0.72);
-    background-color: rgba(255, 255, 255, 0.92);
+    @apply rounded-2xl border border-slate-200 bg-white shadow-sm;
     box-shadow:
-      0 16px 40px -28px rgba(15, 23, 42, 0.45),
-      0 2px 12px -8px rgba(249, 115, 22, 0.3);
-    backdrop-filter: blur(8px);
+      0 1px 2px rgba(15, 23, 42, 0.05),
+      0 6px 16px -12px rgba(15, 23, 42, 0.2);
   }
 
   .app-title {
@@ -67,8 +69,7 @@ body {
   }
 
   .table-ui thead {
-    @apply text-left text-slate-700;
-    background: linear-gradient(135deg, #fff1dc 0%, #ecfdf5 100%);
+    @apply bg-slate-50 text-left text-slate-700;
   }
 
   .table-ui th {
@@ -80,19 +81,70 @@ body {
   }
 
   .table-ui tbody tr {
-    @apply border-b border-orange-100/60;
+    @apply border-b border-slate-200;
   }
 
   .table-ui tbody tr:hover {
-    @apply bg-orange-50/55;
+    @apply bg-slate-50;
+  }
+
+  .superadmin-table {
+    @apply min-w-full overflow-hidden text-sm;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .superadmin-table thead {
+    @apply bg-slate-100 text-left text-slate-600;
+  }
+
+  .superadmin-table th {
+    @apply whitespace-nowrap border-b border-slate-200 px-3 py-3 font-semibold;
+  }
+
+  .superadmin-table td {
+    @apply border-b border-slate-200 px-3 py-3 align-middle text-slate-700;
+  }
+
+  .superadmin-table tbody tr:hover {
+    @apply bg-slate-50;
   }
 
   .page-grid {
     @apply space-y-5;
   }
+
+  .mobile-bottom-nav {
+    @apply fixed inset-x-0 bottom-0 z-40 flex items-center justify-around border-t border-slate-200 bg-white/95 px-2 pb-[calc(env(safe-area-inset-bottom,0px)+8px)] pt-2 shadow-[0_-8px_18px_-12px_rgba(15,23,42,0.35)];
+    backdrop-filter: blur(10px);
+  }
+
+  .mobile-nav-item {
+    @apply flex min-w-0 flex-1 flex-col items-center justify-center rounded-2xl px-2 py-2 text-[11px] font-medium text-slate-500 transition;
+    min-height: 52px;
+  }
+
+  .mobile-nav-item-active {
+    @apply bg-blue-50 text-blue-700;
+  }
+
+  .mobile-nav-icon {
+    @apply mb-0.5 inline-flex;
+  }
+
+  .mobile-nav-label {
+    @apply truncate leading-tight;
+    max-width: 72px;
+  }
 }
 
 @media (max-width: 767px) {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
+
   .table-ui {
     min-width: 760px;
     font-size: 12px;
@@ -110,6 +162,6 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #fb923c, #2dd4bf);
+  background: #cbd5e1;
   border-radius: 999px;
 }

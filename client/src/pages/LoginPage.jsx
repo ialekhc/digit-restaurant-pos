@@ -52,33 +52,33 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-orange-100 via-amber-50 to-cyan-50 p-4">
-      <div className="w-full max-w-5xl overflow-hidden rounded-3xl border border-white/80 bg-white/90 shadow-2xl shadow-orange-100/60 backdrop-blur lg:grid lg:grid-cols-5">
-        <div className="bg-gradient-to-br from-brand-100 via-amber-50 to-aqua-100 p-6 lg:col-span-2 lg:p-8">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-800">Restaurant RMS</h1>
-          <p className="mt-2 text-sm text-slate-600">Choose your role and login quickly with the matching account.</p>
-          <div className="mt-6 space-y-2">
+    <div className="flex min-h-screen items-center justify-center bg-slate-100 p-4 sm:p-6">
+      <div className="w-full max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-lg shadow-slate-300/30 lg:grid lg:grid-cols-5">
+        <div className="bg-slate-50 p-5 sm:p-6 lg:col-span-2 lg:p-8">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-slate-900">Restaurant RMS</h1>
+          <p className="mt-2 text-sm text-slate-600">Choose a role preset and continue with one tap.</p>
+          <div className="mt-5 flex gap-2 overflow-x-auto pb-1 lg:block lg:space-y-2 lg:overflow-visible">
             {loginPresets.map((preset) => (
               <button
                 key={preset.role}
                 type="button"
                 onClick={() => useRolePreset(preset)}
-                className={`w-full rounded-xl border px-4 py-3 text-left transition ${
+                className={`min-w-[190px] rounded-2xl border px-4 py-3 text-left transition lg:min-w-0 lg:w-full ${
                   selectedRole === preset.role
-                    ? 'border-brand-300 bg-white shadow-sm shadow-brand-100'
-                    : 'border-orange-200 bg-white/70 hover:border-brand-200 hover:bg-white'
+                    ? 'border-blue-200 bg-blue-50'
+                    : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
                 }`}
               >
                 <p className="text-sm font-semibold text-slate-800">{preset.label}</p>
                 <p className="text-xs text-slate-600">{preset.description}</p>
-                <p className="mt-1 text-xs text-slate-500">{preset.email}</p>
+                <p className="mt-1 truncate text-xs text-slate-500">{preset.email}</p>
               </button>
             ))}
           </div>
         </div>
 
-        <div className="p-6 lg:col-span-3 lg:p-8">
-          <h2 className="font-display text-2xl font-bold text-slate-900">Login</h2>
+        <div className="p-5 sm:p-6 lg:col-span-3 lg:p-8">
+          <h2 className="font-display text-2xl font-bold text-slate-900">Sign In</h2>
           <p className="mt-1 text-sm text-slate-600">Use your account credentials to continue.</p>
 
           <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
