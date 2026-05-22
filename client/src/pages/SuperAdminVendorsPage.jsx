@@ -22,7 +22,6 @@ const defaultForm = {
   startsOn: '',
   endsOn: '',
   nextBillingDate: '',
-  addons: [],
   loginName: '',
   loginEmail: '',
   loginPassword: '',
@@ -69,15 +68,6 @@ const SuperAdminVendorsPage = () => {
     });
   }, [vendors, search]);
 
-  const toggleAddon = (addonName) => {
-    setForm((prev) => ({
-      ...prev,
-      addons: prev.addons.includes(addonName)
-        ? prev.addons.filter((name) => name !== addonName)
-        : [...prev.addons, addonName]
-    }));
-  };
-
   const onSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -101,7 +91,6 @@ const SuperAdminVendorsPage = () => {
       planId: form.planId,
       billingCycle: form.billingCycle,
       status: form.status,
-      addons: form.addons,
       startsOn: form.startsOn || undefined,
       endsOn: form.endsOn || undefined,
       nextBillingDate: form.nextBillingDate || undefined,
@@ -173,7 +162,6 @@ const SuperAdminVendorsPage = () => {
       nextBillingDate: vendor.subscription?.nextBillingDate
         ? new Date(vendor.subscription.nextBillingDate).toISOString().slice(0, 10)
         : '',
-      addons: vendor.subscription?.addons || [],
       loginName: vendor.loginUser?.name || '',
       loginEmail: vendorLoginEmail,
       loginPassword: '',
@@ -181,6 +169,22 @@ const SuperAdminVendorsPage = () => {
     });
     setEditingVendorHasLogin(Boolean(vendor.loginUser || vendor.loginEmail));
     setError('');
+  };
+
+  const onDeleteVendor = async (vendor) => {
+    if (!window.confirm(`Delete vendor ${vendor.vendorName}?`)) return;
+    setError('');
+    try {
+      await vendorService.remove(vendor._id);
+      await load();
+      if (editingId === vendor._id) {
+        setEditingId('');
+        setEditingVendorHasLogin(false);
+        setForm(defaultForm);
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to delete vendor');
+    }
   };
 
   return (
@@ -276,28 +280,6 @@ const SuperAdminVendorsPage = () => {
             <Input label="Notes" value={form.notes} onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))} />
           </div>
 
-          <div className="lg:col-span-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Addons</p>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {(catalog?.addons || []).map((addon) => {
-                const checked = form.addons.includes(addon.name);
-                return (
-                  <button
-                    key={addon.name}
-                    type="button"
-                    onClick={() => toggleAddon(addon.name)}
-                    className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
-                      checked ? 'border-brand-400 bg-brand-50' : 'border-slate-200 bg-white hover:border-slate-300'
-                    }`}
-                  >
-                    <p className="font-semibold text-slate-800">{addon.name}</p>
-                    <p className="text-xs text-slate-500">{currency(addon.monthlyPrice)}/mo</p>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           <div className="lg:col-span-3 flex flex-wrap gap-2">
             <Button type="submit">{editingId ? 'Update Vendor' : 'Create Vendor'}</Button>
             {editingId ? (
@@ -369,11 +351,7 @@ const SuperAdminVendorsPage = () => {
                       <Button
                         variant="danger"
                         size="sm"
-                        onClick={async () => {
-                          if (!window.confirm(`Delete vendor ${vendor.vendorName}?`)) return;
-                          await vendorService.remove(vendor._id);
-                          await load();
-                        }}
+                        onClick={() => onDeleteVendor(vendor)}
                       >
                         Delete
                       </Button>
@@ -417,11 +395,7 @@ const SuperAdminVendorsPage = () => {
                 <Button
                   variant="danger"
                   size="sm"
-                  onClick={async () => {
-                    if (!window.confirm(`Delete vendor ${vendor.vendorName}?`)) return;
-                    await vendorService.remove(vendor._id);
-                    await load();
-                  }}
+                  onClick={() => onDeleteVendor(vendor)}
                 >
                   Delete
                 </Button>
