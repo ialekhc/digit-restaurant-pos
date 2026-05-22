@@ -12,6 +12,7 @@ import OrderCreatePage from './pages/OrderCreatePage';
 import KitchenPage from './pages/KitchenPage';
 import BillingPage from './pages/BillingPage';
 import InventoryPage from './pages/InventoryPage';
+import PurchaseFlowPage from './pages/PurchaseFlowPage';
 import SuppliersPage from './pages/SuppliersPage';
 import CustomersPage from './pages/CustomersPage';
 import ReportsPage from './pages/ReportsPage';
@@ -70,6 +71,8 @@ const App = () => {
             <Route path="/menu/categories" element={<MenuCategoriesPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
+            <Route path="/purchase-in" element={<PurchaseFlowPage />} />
+            <Route path="/purchase-out" element={<PurchaseFlowPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER]} />}>
