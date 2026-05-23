@@ -1,8 +1,9 @@
 import 'dotenv/config';
 import { app } from './src/app.js';
 import { connectDB } from './src/config/db.js';
+import { EnvExt } from './src/EnvironmentExt.js';
 
-const PORT = process.env.PORT || 5500;
+const PORT = EnvExt.PORT || 5500;
 
 const start = async () => {
   await connectDB();
