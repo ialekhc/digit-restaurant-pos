@@ -8,3 +8,4 @@ server/.env
 server/src/uploads/*
 !server/src/uploads/.gitkeep
 client/.vercel
+nginx.conf

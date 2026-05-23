@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
+    "dev": "vite --port=5400",
     "build": "vite build",
     "preview": "vite preview"
   },
@@ -20,7 +20,6 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.60.4",
     "@vitejs/plugin-react": "^4.3.2",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.47",
