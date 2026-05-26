@@ -33,6 +33,28 @@ const ensurePaymentMethodFeature = async (paymentMethod) => {
   }
 };
 
+const applyDiscountPercentToOrder = async (order, discountPercent) => {
+  if (typeof discountPercent === 'undefined' || discountPercent === null || discountPercent === '') return;
+
+  const percent = Number(discountPercent);
+  if (Number.isNaN(percent) || percent < 0 || percent > 100) {
+    throw new ApiError(400, 'Discount percent must be between 0 and 100');
+  }
+
+  await ensureFeatureEnabled(
+    FEATURE_KEYS.DISCOUNT_MANAGEMENT,
+    'Discount management is not available in the active plan'
+  );
+
+  const subtotal = Number(order.subtotal || 0);
+  const discountAmount = Number(((subtotal * percent) / 100).toFixed(2));
+  const total = Math.max(0, Number((subtotal - discountAmount).toFixed(2)));
+
+  order.discount = discountAmount;
+  order.total = total;
+  await order.save();
+};
+
 const completeOrderAfterPayment = async (order) => {
   if (!order) return;
   if (order.status !== 'COMPLETED') {
@@ -61,6 +83,7 @@ export const createPayment = asyncHandler(async (req, res) => {
     tableNumber = '',
     paymentMethod,
     amountPaid,
+    discountPercent,
     paymentStatus = 'PAID',
     dueDate,
     creditNote = ''
@@ -118,6 +141,8 @@ export const createPayment = asyncHandler(async (req, res) => {
   if (!BILLABLE_ORDER_STATUSES.includes(order.status)) {
     throw new ApiError(400, `Order must be ${BILLABLE_ORDER_STATUSES.join(' or ')} before billing`);
   }
+
+  await applyDiscountPercentToOrder(order, discountPercent);
 
   if (paymentStatus === 'UNPAID' && paid !== 0) {
     throw new ApiError(400, 'UNPAID credit record must have amount paid as 0');

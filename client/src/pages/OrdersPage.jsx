@@ -10,15 +10,6 @@ import { useAuth } from '../hooks/useAuth';
 import { ORDER_STATUSES, ORDER_TYPES } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 
-const nextStatusOptions = {
-  PENDING: ['PREPARING'],
-  PREPARING: ['READY'],
-  READY: ['SERVED'],
-  SERVED: [],
-  COMPLETED: [],
-  CANCELLED: []
-};
-
 const OrdersPage = () => {
   const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -27,6 +18,7 @@ const OrdersPage = () => {
 
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
+  const [expandedItemsByOrder, setExpandedItemsByOrder] = useState({});
   const [filters, setFilters] = useState({
     status: '',
     orderType: '',
@@ -58,30 +50,58 @@ const OrdersPage = () => {
 
   const getAllowedActions = (order) => {
     if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
-      return { statuses: [], canCancel: false };
+      return { canServe: false, canCancel: false };
     }
 
-    const role = user?.role;
-    const transitions = nextStatusOptions[order.status] || [];
+    const canServe =
+      user?.role !== 'KITCHEN' &&
+      order.items.some((item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0));
+    const canCancel = user?.role !== 'KITCHEN';
 
-    if (role === 'KITCHEN') {
-      return {
-        statuses: transitions.filter((x) => ['PREPARING', 'READY'].includes(x)),
-        canCancel: false
-      };
-    }
+    return { canServe, canCancel };
+  };
 
-    if (role === 'WAITER') {
-      return {
-        statuses: transitions.filter((x) => x === 'SERVED'),
-        canCancel: true
-      };
-    }
+  const renderItemProgress = (order, compact = false) => {
+    const isExpanded = Boolean(expandedItemsByOrder[order._id]);
+    const visibleItems = isExpanded ? order.items : order.items.slice(0, 3);
+    const hiddenCount = Math.max(0, order.items.length - 3);
 
-    return {
-      statuses: transitions,
-      canCancel: true
-    };
+    return (
+      <ul className={compact ? 'mt-2 space-y-1 text-sm' : 'space-y-1'}>
+        {visibleItems.map((item, i) => {
+          const ready = Number(item.readyQuantity || 0);
+          const served = Number(item.servedQuantity || 0);
+          return (
+            <li key={`${item.name}-${i}`}>
+              {item.quantity} x {item.name}
+              <span className="ml-1 text-xs text-slate-500">(R {ready}/{item.quantity}, S {served}/{item.quantity})</span>
+            </li>
+          );
+        })}
+        {!isExpanded && hiddenCount > 0 ? (
+          <li>
+            <button
+              type="button"
+              className="text-xs font-semibold text-sky-700 hover:text-sky-900"
+              onClick={() => setExpandedItemsByOrder((prev) => ({ ...prev, [order._id]: true }))}
+            >
+              +{hiddenCount} more
+            </button>
+          </li>
+        ) : null}
+        {isExpanded && order.items.length > 3 ? (
+          <li>
+            <button
+              type="button"
+              className="text-xs font-semibold text-slate-600 hover:text-slate-800"
+              onClick={() => setExpandedItemsByOrder((prev) => ({ ...prev, [order._id]: false }))}
+            >
+              Show less
+            </button>
+          </li>
+        ) : null}
+      </ul>
+    );
   };
 
   return (
@@ -185,31 +205,29 @@ const OrdersPage = () => {
                   <td className="px-3 py-2">{order.table?.tableNumber || '-'}</td>
                   <td className="px-3 py-2">{order.customer?.name || '-'}</td>
                   <td className="px-3 py-2">
-                    <ul className="space-y-1">
-                      {order.items.slice(0, 3).map((item, i) => (
-                        <li key={i}>{item.quantity} x {item.name}</li>
-                      ))}
-                      {order.items.length > 3 ? <li className="text-xs text-slate-500">+{order.items.length - 3} more</li> : null}
-                    </ul>
+                    {renderItemProgress(order)}
                   </td>
                   <td className="px-3 py-2">{currency(order.total)}</td>
                   <td className="px-3 py-2"><StatusBadge value={order.status} /></td>
                   <td className="px-3 py-2">{formatDateTime(order.createdAt)}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
-                      {getAllowedActions(order).statuses.map((status) => (
+                      {getAllowedActions(order).canServe ? (
                         <Button
-                          key={status}
                           variant="secondary"
                           className="px-2 py-1 text-xs"
                           onClick={async () => {
-                            await orderService.updateStatus(order._id, status);
+                            const itemIndex = order.items.findIndex(
+                              (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
+                            );
+                            if (itemIndex < 0) return;
+                            await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
                             load();
                           }}
                         >
-                          {status}
+                          Serve
                         </Button>
-                      ))}
+                      ) : null}
                       {getAllowedActions(order).canCancel ? (
                         <Button
                           variant="danger"
@@ -251,27 +269,25 @@ const OrdersPage = () => {
                 <p>Created: {formatDateTime(order.createdAt)}</p>
               </div>
 
-              <ul className="mt-2 space-y-1 text-sm">
-                {order.items.slice(0, 3).map((item, i) => (
-                  <li key={i}>{item.quantity} x {item.name}</li>
-                ))}
-                {order.items.length > 3 ? <li className="text-xs text-slate-500">+{order.items.length - 3} more</li> : null}
-              </ul>
+              {renderItemProgress(order, true)}
 
               <div className="mt-3 flex flex-wrap gap-2">
-                {getAllowedActions(order).statuses.map((status) => (
+                {getAllowedActions(order).canServe ? (
                   <Button
-                    key={status}
                     variant="secondary"
                     size="sm"
                     onClick={async () => {
-                      await orderService.updateStatus(order._id, status);
+                      const itemIndex = order.items.findIndex(
+                        (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
+                      );
+                      if (itemIndex < 0) return;
+                      await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
                       load();
                     }}
                   >
-                    {status}
+                    Serve
                   </Button>
-                ))}
+                ) : null}
                 {getAllowedActions(order).canCancel ? (
                   <Button
                     variant="danger"

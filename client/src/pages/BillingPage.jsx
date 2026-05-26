@@ -21,6 +21,7 @@ const escapeHtml = (value = '') => {
 const buildReceiptHtml = (payment, cashierName = '') => {
   const order = payment?.order || {};
   const items = Array.isArray(order.items) ? order.items : [];
+  const estimatedHeightMm = Math.max(90, Math.min(500, 62 + items.length * 8 + 58));
   const subtotal = Number(
     order.subtotal ?? items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
   );
@@ -30,6 +31,7 @@ const buildReceiptHtml = (payment, cashierName = '') => {
   const changeAmount = Number(payment?.changeAmount || 0);
   const paymentDate = payment?.createdAt ? new Date(payment.createdAt).toLocaleString('en-NP') : '-';
   const cashier = payment?.paidBy?.name || cashierName || 'Cashier';
+  const money = (value) => Number(value || 0).toFixed(2);
 
   const itemRows = items.length
     ? items
@@ -41,8 +43,8 @@ const buildReceiptHtml = (payment, cashierName = '') => {
           <td>${index + 1}</td>
           <td>${escapeHtml(item.name || '-')}</td>
           <td style="text-align:right;">${qty}</td>
-          <td style="text-align:right;">${currency(price)}</td>
-          <td style="text-align:right;">${currency(lineTotal)}</td>
+          <td style="text-align:right;">${money(price)}</td>
+          <td style="text-align:right;">${money(lineTotal)}</td>
         </tr>`;
       })
       .join('')
@@ -54,25 +56,38 @@ const buildReceiptHtml = (payment, cashierName = '') => {
   <meta charset="utf-8" />
   <title>Receipt ${escapeHtml(payment?.billNumber || '')}</title>
   <style>
-    @page { size: 57mm 40mm; margin: 0; }
+    @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
     * { box-sizing: border-box; font-family: "Courier New", monospace; color: #111827; }
-    body { margin: 0; padding: 0; width: 57mm; height: 40mm; background: #ffffff; }
-    .receipt { width: 57mm; min-height: 40mm; max-height: 40mm; margin: 0; padding: 1.5mm; overflow: hidden; }
+    html, body { margin: 0; padding: 0; width: 58mm; min-height: ${estimatedHeightMm}mm; background: #ffffff; }
+    .receipt { width: 58mm; min-height: ${estimatedHeightMm}mm; margin: 0; padding: 2mm 2mm 2.5mm; }
     .center { text-align: center; }
-    h1 { margin: 0; font-size: 9px; line-height: 1.1; }
-    .muted { color: #4b5563; font-size: 6px; margin-top: 1px; line-height: 1.1; }
-    .row { display: flex; justify-content: space-between; gap: 2px; font-size: 6px; line-height: 1.2; margin: 0.6mm 0; }
-    .divider { border-top: 1px dashed #9ca3af; margin: 1mm 0; }
-    table { width: 100%; border-collapse: collapse; font-size: 6px; }
-    th, td { border-bottom: 1px solid #e5e7eb; padding: 0.4mm; vertical-align: top; }
-    th { text-align: left; background: #f8fafc; font-size: 6px; }
-    .totals .row { font-size: 6px; }
-    .grand { font-weight: 700; font-size: 7px; }
-    .footer { text-align: center; font-size: 6px; color: #4b5563; margin-top: 1mm; line-height: 1.1; }
+    h1 { margin: 0; font-size: 12px; line-height: 1.15; letter-spacing: 0.2px; }
+    .muted { color: #4b5563; font-size: 8px; margin-top: 1px; line-height: 1.1; }
+    .row { display: flex; justify-content: space-between; gap: 4px; font-size: 9px; line-height: 1.25; margin: 0.9mm 0; }
+    .row > span:first-child { white-space: nowrap; }
+    .row > span:last-child { text-align: right; }
+    .divider { border-top: 1px dashed #9ca3af; margin: 1.2mm 0; }
+    table { width: 100%; border-collapse: collapse; font-size: 8.3px; table-layout: fixed; }
+    th, td { border-bottom: 1px solid #e5e7eb; padding: 0.65mm 0.4mm; vertical-align: top; word-wrap: break-word; }
+    th { text-align: left; background: #f8fafc; font-size: 8.4px; }
+    th:nth-child(1), td:nth-child(1) { width: 7%; }
+    th:nth-child(2), td:nth-child(2) { width: 39%; }
+    th:nth-child(3), td:nth-child(3) { width: 10%; }
+    th:nth-child(4), td:nth-child(4) { width: 22%; }
+    th:nth-child(5), td:nth-child(5) { width: 22%; }
+    th:nth-child(1), td:nth-child(1),
+    th:nth-child(3), td:nth-child(3),
+    th:nth-child(4), td:nth-child(4),
+    th:nth-child(5), td:nth-child(5) { white-space: nowrap; }
+    td:nth-child(3), td:nth-child(4), td:nth-child(5) { text-align: right; }
+    td { overflow: hidden; }
+    .totals .row { font-size: 9px; }
+    .grand { font-weight: 700; font-size: 10px; }
+    .footer { text-align: center; font-size: 8px; color: #4b5563; margin-top: 1.4mm; line-height: 1.2; }
     @media print {
-      @page { size: 57mm 40mm; margin: 0; }
-      html, body { width: 57mm; height: 40mm; }
-      .receipt { width: 57mm; min-height: 40mm; max-height: 40mm; }
+      @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
+      html, body { width: 58mm; min-height: ${estimatedHeightMm}mm; }
+      .receipt { width: 58mm; min-height: ${estimatedHeightMm}mm; }
     }
   </style>
 </head>
@@ -141,6 +156,7 @@ const BillingPage = () => {
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PAID');
+  const [discountPercent, setDiscountPercent] = useState('');
 
   const [historySearch, setHistorySearch] = useState('');
   const [historyMethod, setHistoryMethod] = useState('');
@@ -203,6 +219,22 @@ const BillingPage = () => {
   }, [filteredPayableOrders, selectedOrderId, amountPaid]);
 
   const selectedOrder = payableOrders.find((x) => x._id === selectedOrderId);
+  const selectedOrderSubtotal = Number(selectedOrder?.subtotal || 0);
+  const parsedDiscountPercent = Number(discountPercent || 0);
+  const validDiscountPercent =
+    Number.isFinite(parsedDiscountPercent) && parsedDiscountPercent >= 0
+      ? Math.min(parsedDiscountPercent, 100)
+      : 0;
+  const discountedTotal = selectedOrder
+    ? Math.max(0, Number((selectedOrderSubtotal * (1 - validDiscountPercent / 100)).toFixed(2)))
+    : 0;
+
+  useEffect(() => {
+    if (!selectedOrder) return;
+    if (paymentStatus !== 'PAID') return;
+    if (discountPercent === '') return;
+    setAmountPaid(String(discountedTotal));
+  }, [selectedOrder, paymentStatus, discountPercent, discountedTotal]);
 
   const totalPaidToday = useMemo(() => {
     const today = new Date();
@@ -305,6 +337,7 @@ const BillingPage = () => {
         amountPaid: Number(amountPaid),
         paymentStatus
       };
+      if (discountPercent !== '') payload.discountPercent = validDiscountPercent;
 
       if (selectedOrderId) payload.order = selectedOrderId;
       if (lookupOrderNumber.trim()) payload.orderNumber = lookupOrderNumber.trim();
@@ -317,6 +350,7 @@ const BillingPage = () => {
       setAmountPaid('');
       setPaymentMethod('CASH');
       setPaymentStatus('PAID');
+      setDiscountPercent('');
       setLookupOrderNumber('');
       setLookupTableNumber('');
       await load();
@@ -489,6 +523,17 @@ const BillingPage = () => {
             </div>
 
             <Input
+              label="Discount (%)"
+              type="number"
+              min="0"
+              max="100"
+              step="0.01"
+              value={discountPercent}
+              onChange={(e) => setDiscountPercent(e.target.value)}
+              helperText="Optional. Applied before payment is recorded."
+            />
+
+            <Input
               label="Amount Paid"
               type="number"
               step="0.01"
@@ -500,7 +545,9 @@ const BillingPage = () => {
               <div className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm">
                 <p className="font-semibold text-slate-800">Selected Order: {selectedOrder.orderNumber}</p>
                 <p>Table: {selectedOrder.table?.tableNumber || '-'}</p>
-                <p>Total: {currency(selectedOrder.total)}</p>
+                <p>Subtotal: {currency(selectedOrderSubtotal)}</p>
+                <p>Discount: {validDiscountPercent}%</p>
+                <p>Total: {currency(discountPercent === '' ? selectedOrder.total : discountedTotal)}</p>
                 <p>Items: {selectedOrder.items.length}</p>
               </div>
             ) : null}

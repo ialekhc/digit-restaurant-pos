@@ -8,7 +8,9 @@ const orderItemSchema = new mongoose.Schema(
     price: { type: Number, required: true, min: 0 },
     quantity: { type: Number, required: true, min: 1 },
     notes: { type: String, default: '' },
-    kitchenSection: { type: String, enum: KITCHEN_SECTIONS, default: 'FOOD' }
+    kitchenSection: { type: String, enum: KITCHEN_SECTIONS, default: 'FOOD' },
+    readyQuantity: { type: Number, default: 0, min: 0 },
+    servedQuantity: { type: Number, default: 0, min: 0 }
   },
   { _id: false }
 );
