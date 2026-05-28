@@ -26,6 +26,41 @@ const assertValidTransition = (currentStatus, nextStatus) => {
   }
 };
 
+const ensureItemProgressBounds = (order) => {
+  order.items.forEach((item) => {
+    const quantity = Number(item.quantity || 0);
+    item.readyQuantity = Math.min(quantity, Math.max(0, Number(item.readyQuantity || 0)));
+    item.servedQuantity = Math.min(item.readyQuantity, Math.max(0, Number(item.servedQuantity || 0)));
+  });
+};
+
+const allItemsReady = (order) =>
+  order.items.every((item) => Number(item.readyQuantity || 0) >= Number(item.quantity || 0));
+
+const allItemsServed = (order) =>
+  order.items.every((item) => Number(item.servedQuantity || 0) >= Number(item.quantity || 0));
+
+const reconcileOrderStatusFromItems = async (order) => {
+  if (!order || order.status === 'CANCELLED' || order.status === 'COMPLETED') return order;
+
+  ensureItemProgressBounds(order);
+
+  const wasStatus = order.status;
+  if (allItemsServed(order)) {
+    order.status = 'SERVED';
+  } else if (allItemsReady(order)) {
+    order.status = 'READY';
+  } else if (order.status === 'READY' || order.status === 'SERVED') {
+    order.status = 'PREPARING';
+  }
+
+  if (order.isModified('items') || order.status !== wasStatus) {
+    await order.save();
+  }
+
+  return order;
+};
+
 export const getOrders = asyncHandler(async (req, res) => {
   const { status = '', orderType = '', table = '', date = '', search = '', kitchenSection = '' } = req.query;
 
@@ -54,6 +89,8 @@ export const getOrders = asyncHandler(async (req, res) => {
     .populate('customer')
     .populate('createdBy', 'name role')
     .sort({ createdAt: -1 });
+
+  await Promise.all(data.map((order) => reconcileOrderStatusFromItems(order)));
 
   res.json({ data });
 });
@@ -127,7 +164,9 @@ export const createOrder = asyncHandler(async (req, res) => {
       price: menu.price,
       quantity,
       notes: item.notes || '',
-      kitchenSection: menu.kitchenSection || 'FOOD'
+      kitchenSection: menu.kitchenSection || 'FOOD',
+      readyQuantity: 0,
+      servedQuantity: 0
     };
   });
 
@@ -164,11 +203,12 @@ export const getOrderById = asyncHandler(async (req, res) => {
     .populate('createdBy', 'name role');
 
   if (!data) throw new ApiError(404, 'Order not found');
+  await reconcileOrderStatusFromItems(data);
   res.json({ data });
 });
 
 export const updateOrderStatus = asyncHandler(async (req, res) => {
-  const { status } = req.body;
+  const { status, itemIndex, quantity = 1 } = req.body;
   if (!ORDER_STATUSES.includes(status)) {
     throw new ApiError(400, `Invalid status. Allowed: ${ORDER_STATUSES.join(', ')}`);
   }
@@ -195,9 +235,65 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, `Cannot update status for ${currentStatus} order`);
   }
 
-  assertValidTransition(currentStatus, status);
-  order.status = status;
-  await order.save();
+  ensureItemProgressBounds(order);
+
+  if (status === 'READY') {
+    if (role !== ROLES.KITCHEN && role !== ROLES.ADMIN && role !== ROLES.RESTAURANT_OWNER && role !== ROLES.MANAGER) {
+      throw new ApiError(403, 'Only kitchen/admin roles can mark dishes ready');
+    }
+    if (currentStatus !== 'PREPARING' && currentStatus !== 'READY') {
+      throw new ApiError(400, 'Order must be PREPARING or READY to mark dishes ready');
+    }
+    if (!Number.isInteger(Number(itemIndex))) {
+      throw new ApiError(400, 'itemIndex is required to mark a dish ready');
+    }
+
+    const idx = Number(itemIndex);
+    const dish = order.items[idx];
+    if (!dish) throw new ApiError(400, 'Invalid itemIndex');
+
+    const step = Number(quantity);
+    if (!Number.isFinite(step) || step <= 0) {
+      throw new ApiError(400, 'quantity must be a positive number');
+    }
+
+    dish.readyQuantity = Math.min(Number(dish.quantity || 0), Number(dish.readyQuantity || 0) + step);
+    if (Number(dish.servedQuantity || 0) > Number(dish.readyQuantity || 0)) {
+      dish.servedQuantity = Number(dish.readyQuantity || 0);
+    }
+
+    order.status = allItemsReady(order) ? 'READY' : 'PREPARING';
+    await order.save();
+  } else if (status === 'SERVED') {
+    if (currentStatus !== 'PREPARING' && currentStatus !== 'READY' && currentStatus !== 'SERVED') {
+      throw new ApiError(400, 'Order must be PREPARING, READY or SERVED to mark dishes served');
+    }
+    if (!Number.isInteger(Number(itemIndex))) {
+      throw new ApiError(400, 'itemIndex is required to mark a dish served');
+    }
+
+    const idx = Number(itemIndex);
+    const dish = order.items[idx];
+    if (!dish) throw new ApiError(400, 'Invalid itemIndex');
+
+    const step = Number(quantity);
+    if (!Number.isFinite(step) || step <= 0) {
+      throw new ApiError(400, 'quantity must be a positive number');
+    }
+
+    const maxServeable = Math.max(0, Number(dish.readyQuantity || 0) - Number(dish.servedQuantity || 0));
+    if (maxServeable <= 0) {
+      throw new ApiError(400, 'This dish has no ready quantity left to serve');
+    }
+    dish.servedQuantity = Math.min(Number(dish.readyQuantity || 0), Number(dish.servedQuantity || 0) + step);
+
+    order.status = allItemsServed(order) ? 'SERVED' : 'READY';
+    await order.save();
+  } else {
+    assertValidTransition(currentStatus, status);
+    order.status = status;
+    await order.save();
+  }
 
   await syncTableStatusFromOrders(order.table);
 

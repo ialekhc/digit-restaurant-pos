@@ -18,8 +18,9 @@ const orderAgeLabel = (value) => {
 const byCreatedOldestFirst = (a, b) => new Date(a.createdAt) - new Date(b.createdAt);
 const byCreatedNewestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
 const byUpdatedNewestFirst = (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
+const byOrderCreatedOldestFirst = (a, b) => new Date(a.orderCreatedAt) - new Date(b.orderCreatedAt);
 
-const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReady }) => (
+const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReadyItem, onServeItem }) => (
   <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
     <div className="mb-3 flex items-start justify-between gap-2">
       <div>
@@ -40,7 +41,28 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
       {order.items.map((item, idx) => (
         <li key={idx} className="rounded-lg border border-slate-200 p-2">
           <p className="font-semibold text-slate-800">{item.quantity} x {item.name}</p>
+          <p className="text-xs text-slate-500">
+            Ready: {Number(item.readyQuantity || 0)}/{item.quantity} | Served: {Number(item.servedQuantity || 0)}/{item.quantity}
+          </p>
           {item.notes ? <p className="text-xs text-slate-500">Note: {item.notes}</p> : null}
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            <Button
+              variant="success"
+              size="sm"
+              disabled={(order.status !== 'PREPARING' && order.status !== 'READY') || Number(item.readyQuantity || 0) >= Number(item.quantity || 0) || updatingId === order._id}
+              onClick={() => onReadyItem(order._id, idx)}
+            >
+              +1 Ready
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              disabled={(order.status !== 'READY' && order.status !== 'SERVED') || Number(item.servedQuantity || 0) >= Number(item.readyQuantity || 0) || updatingId === order._id}
+              onClick={() => onServeItem(order._id, idx)}
+            >
+              +1 Served
+            </Button>
+          </div>
         </li>
       ))}
     </ul>
@@ -59,15 +81,27 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
       >
         Mark Preparing
       </Button>
-      <Button
-        variant="success"
-        className="py-2.5 text-sm"
-        disabled={order.status !== 'PREPARING' || updatingId === order._id}
-        onClick={() => onReady(order._id)}
-      >
-        Mark Ready
-      </Button>
+      <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-xs text-slate-600">
+        Mark dishes one by one using +1 Ready / +1 Served.
+      </div>
     </div>
+  </article>
+);
+
+const ReadyDishCard = ({ dish }) => (
+  <article className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+    <div className="flex items-start justify-between gap-2">
+      <div>
+        <p className="text-xs font-semibold text-cyan-800">{dish.orderNumber}</p>
+        <p className="text-sm font-bold text-slate-800">
+          {dish.orderType} {dish.tableNumber ? `- ${dish.tableNumber}` : ''}
+        </p>
+      </div>
+    </div>
+    <p className="mt-2 text-sm font-semibold text-slate-800">{dish.remainingToServe} x {dish.itemName}</p>
+    <p className="text-xs text-slate-600">
+      Ready: {dish.readyQuantity}/{dish.quantity} | Served: {dish.servedQuantity}/{dish.quantity}
+    </p>
   </article>
 );
 
@@ -94,10 +128,33 @@ const KitchenPage = () => {
     () => orders.filter((x) => x.status === 'PREPARING').sort(byCreatedOldestFirst),
     [orders]
   );
-  const readyOrders = useMemo(
-    () => orders.filter((x) => x.status === 'READY').sort(byCreatedOldestFirst),
-    [orders]
-  );
+  const readyDishes = useMemo(() => {
+    const rows = [];
+    orders.forEach((order) => {
+      if (!['PREPARING', 'READY', 'SERVED'].includes(order.status)) return;
+      order.items.forEach((item, itemIndex) => {
+        const readyQuantity = Number(item.readyQuantity || 0);
+        const servedQuantity = Number(item.servedQuantity || 0);
+        const remainingToServe = Math.max(0, readyQuantity - servedQuantity);
+        if (remainingToServe <= 0) return;
+        rows.push({
+          orderId: order._id,
+          orderNumber: order.orderNumber,
+          orderType: order.orderType,
+          tableNumber: order.table?.tableNumber || '',
+          orderStatus: order.status,
+          orderCreatedAt: order.createdAt,
+          itemIndex,
+          itemName: item.name,
+          quantity: Number(item.quantity || 0),
+          readyQuantity,
+          servedQuantity,
+          remainingToServe
+        });
+      });
+    });
+    return rows.sort(byOrderCreatedOldestFirst);
+  }, [orders]);
   const completedOrders = useMemo(
     () => orders.filter((x) => x.status === 'COMPLETED').sort(byUpdatedNewestFirst).slice(0, 12),
     [orders]
@@ -116,10 +173,10 @@ const KitchenPage = () => {
     }, {});
   }, [activeOrders]);
 
-  const updateStatus = async (id, status) => {
+  const updateStatus = async (id, status, extra = {}) => {
     setUpdatingId(id);
     try {
-      await orderService.updateStatus(id, status);
+      await orderService.updateStatus(id, status, extra);
       await load();
     } finally {
       setUpdatingId('');
@@ -147,7 +204,7 @@ const KitchenPage = () => {
         </div>
         <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-3 py-2">
           <p className="text-xs font-semibold uppercase text-cyan-800">Ready</p>
-          <p className="text-xl font-bold text-cyan-900">{readyOrders.length}</p>
+          <p className="text-xl font-bold text-cyan-900">{readyDishes.length}</p>
         </div>
         <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2">
           <p className="text-xs font-semibold uppercase text-emerald-800">Recent Completed</p>
@@ -156,19 +213,15 @@ const KitchenPage = () => {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title={`Ready Orders (${readyOrders.length})`} subtitle="Serve these first">
+        <Panel title={`Ready Orders (${readyDishes.length})`} subtitle="Serve ready dishes first">
           <div className="space-y-3">
-            {readyOrders.map((order) => (
-              <KitchenOrderCard
-                key={order._id}
-                order={order}
-                activeCountByTable={activeCountByTable}
-                updatingId={updatingId}
-                onPreparing={(id) => updateStatus(id, 'PREPARING')}
-                onReady={(id) => updateStatus(id, 'READY')}
+            {readyDishes.map((dish) => (
+              <ReadyDishCard
+                key={`${dish.orderId}-${dish.itemIndex}`}
+                dish={dish}
               />
             ))}
-            {!readyOrders.length ? <p className="rounded-xl bg-cyan-50 p-4 text-sm text-cyan-800">No ready orders.</p> : null}
+            {!readyDishes.length ? <p className="rounded-xl bg-cyan-50 p-4 text-sm text-cyan-800">No ready dishes.</p> : null}
           </div>
         </Panel>
 
@@ -181,7 +234,8 @@ const KitchenPage = () => {
                 activeCountByTable={activeCountByTable}
                 updatingId={updatingId}
                 onPreparing={(id) => updateStatus(id, 'PREPARING')}
-                onReady={(id) => updateStatus(id, 'READY')}
+                onReadyItem={(id, itemIndex) => updateStatus(id, 'READY', { itemIndex, quantity: 1 })}
+                onServeItem={(id, itemIndex) => updateStatus(id, 'SERVED', { itemIndex, quantity: 1 })}
               />
             ))}
             {!preparingOrders.length ? <p className="rounded-xl bg-indigo-50 p-4 text-sm text-indigo-800">No preparing orders.</p> : null}
@@ -197,7 +251,8 @@ const KitchenPage = () => {
                 activeCountByTable={activeCountByTable}
                 updatingId={updatingId}
                 onPreparing={(id) => updateStatus(id, 'PREPARING')}
-                onReady={(id) => updateStatus(id, 'READY')}
+                onReadyItem={(id, itemIndex) => updateStatus(id, 'READY', { itemIndex, quantity: 1 })}
+                onServeItem={(id, itemIndex) => updateStatus(id, 'SERVED', { itemIndex, quantity: 1 })}
               />
             ))}
             {!pendingOrders.length ? <p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-800">No new orders.</p> : null}
