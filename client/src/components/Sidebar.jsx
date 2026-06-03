@@ -22,12 +22,14 @@ const navItems = [
   { path: '/inventory', label: 'Inventory', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
   { path: '/suppliers', label: 'Suppliers', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER], featureKey: FEATURE_KEYS.SUPPLIER_MANAGEMENT },
   { path: '/customers', label: 'Customers', group: 'Resources', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER], featureKey: FEATURE_KEYS.CUSTOMER_MANAGEMENT },
+  { path: '/register-dashboard', label: 'Register Dashboard', group: 'Cash Register', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_BILLING },
+  { path: '/cash-register', label: 'Cash Register', group: 'Cash Register', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_BILLING },
   { path: '/reports', label: 'Reports', group: 'Insights', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER], featureKey: FEATURE_KEYS.BASIC_REPORTS },
   { path: '/users', label: 'Users', group: 'System', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER] },
   { path: '/settings', label: 'Settings', group: 'System', roles: [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN] }
 ];
 
-const navGroups = ['Super Admin', 'Overview', 'Operations', 'Billing', 'Restaurant Setup', 'Resources', 'Insights', 'System'];
+const navGroups = ['Super Admin', 'Overview', 'Operations', 'Billing', 'Restaurant Setup', 'Resources', 'Cash Register', 'Insights', 'System'];
 const linkBase = 'block rounded-xl px-4 py-2.5 text-sm font-semibold transition border';
 
 const Sidebar = ({ userRole, open, onClose }) => {

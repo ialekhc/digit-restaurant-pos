@@ -76,11 +76,11 @@ const planFeatureMap = {
     FEATURE_KEYS.ADVANCED_SALES_REPORTS,
     FEATURE_KEYS.DAILY_MONTHLY_ANALYTICS,
     FEATURE_KEYS.LOW_STOCK_ALERTS,
+    FEATURE_KEYS.SUPPLIER_MANAGEMENT,
     FEATURE_KEYS.STAFF_ACTIVITY_LOGS
   ],
   PREMIUM: [
     FEATURE_KEYS.ADVANCED_INVENTORY_TRACKING,
-    FEATURE_KEYS.SUPPLIER_MANAGEMENT,
     FEATURE_KEYS.LOYALTY_POINTS_SYSTEM,
     FEATURE_KEYS.ADVANCED_ANALYTICS,
     FEATURE_KEYS.PERFORMANCE_REPORTS,
@@ -158,6 +158,7 @@ const plans = [
       'Advanced Sales Reports',
       'Daily & Monthly Analytics',
       'Low Stock Alerts',
+      'Supplier Management',
       'Staff Activity Logs'
     ],
     support: { prioritySupport: true, trainingIncluded: true },
@@ -173,7 +174,6 @@ const plans = [
     features: [
       'Everything in Standard',
       'Advanced Inventory Tracking',
-      'Supplier Management',
       'Loyalty Points System',
       'Advanced Analytics',
       'Performance Reports',

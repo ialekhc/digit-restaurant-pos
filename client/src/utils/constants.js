@@ -82,6 +82,8 @@ export const PAGE_TITLES = {
   '/orders/create': 'Create Order',
   '/kitchen': 'Kitchen Display',
   '/billing': 'Billing & Payments',
+  '/register-dashboard': 'Register Dashboard',
+  '/cash-register': 'Cash Register',
   '/purchase-in': 'Purchase In',
   '/purchase-out': 'Purchase Out',
   '/inventory': 'Inventory',
