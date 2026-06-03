@@ -12,6 +12,8 @@ import OrdersPage from './pages/OrdersPage';
 import OrderCreatePage from './pages/OrderCreatePage';
 import KitchenPage from './pages/KitchenPage';
 import BillingPage from './pages/BillingPage';
+import RegisterDashboardPage from './pages/RegisterDashboardPage';
+import CashRegisterPage from './pages/CashRegisterPage';
 import InventoryPage from './pages/InventoryPage';
 import PurchaseFlowPage from './pages/PurchaseFlowPage';
 import SuppliersPage from './pages/SuppliersPage';
@@ -93,6 +95,8 @@ const App = () => {
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER]} />}>
             <Route path="/billing" element={<BillingPage />} />
+            <Route path="/register-dashboard" element={<RegisterDashboardPage />} />
+            <Route path="/cash-register" element={<CashRegisterPage />} />
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
 
