@@ -16,6 +16,17 @@ const initialState = {
 };
 
 const activeFlowStatuses = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
+const orderMenuTabs = [
+  { label: 'Food Menu', value: 'FOOD' },
+  { label: 'Drink Menu', value: 'DRINK' },
+  { label: 'Smoke Menu', value: 'SMOKE' }
+];
+const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
+const menuTypeLabels = {
+  FOOD: 'Food',
+  DRINK: 'Drink',
+  SMOKE: 'Smoke'
+};
 
 const OrderCreatePage = () => {
   const [searchParams] = useSearchParams();
@@ -29,6 +40,7 @@ const OrderCreatePage = () => {
   const [orders, setOrders] = useState([]);
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [orderState, setOrderState] = useState(initialState);
+  const [activeMenuType, setActiveMenuType] = useState('FOOD');
   const [selectedMenu, setSelectedMenu] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
@@ -110,6 +122,18 @@ const OrderCreatePage = () => {
   const total = useMemo(() => {
     return Math.max(0, subtotal - Number(orderState.discount || 0));
   }, [subtotal, orderState.discount]);
+
+  const visibleMenuItems = useMemo(() => {
+    return menuItems.filter((item) => getMenuType(item) === activeMenuType);
+  }, [activeMenuType, menuItems]);
+
+  useEffect(() => {
+    if (!selectedMenu) return;
+    const existsInVisibleMenu = visibleMenuItems.some((item) => item._id === selectedMenu);
+    if (!existsInVisibleMenu) {
+      setSelectedMenu('');
+    }
+  }, [selectedMenu, visibleMenuItems]);
 
   const addItem = () => {
     setError('');
@@ -255,13 +279,27 @@ const OrderCreatePage = () => {
         ) : null}
       </Panel>
 
-      <Panel title="Add Items">
+      <Panel title="Add Items" subtitle="Choose whether you are adding food or drinks for this order">
+        <div className="mb-4 flex flex-wrap gap-2">
+          {orderMenuTabs.map((tab) => (
+            <Button
+              key={tab.value}
+              variant={activeMenuType === tab.value ? 'primary' : 'secondary'}
+              onClick={() => setActiveMenuType(tab.value)}
+            >
+              {tab.label}
+            </Button>
+          ))}
+        </div>
         <div className="grid gap-3 md:grid-cols-4">
           <Select
-            label="Menu Item"
+            label={`${menuTypeLabels[activeMenuType] || 'Menu'} Item`}
             value={selectedMenu}
             options={[{ label: 'Select menu item', value: '' }].concat(
-              menuItems.map((m) => ({ label: `${m.name} - ${currency(m.price)}`, value: m._id }))
+              visibleMenuItems.map((m) => ({
+                label: `${m.name}${m.category?.name ? ` (${m.category.name})` : ''} - ${currency(m.price)}`,
+                value: m._id
+              }))
             )}
             onChange={(e) => setSelectedMenu(e.target.value)}
           />
@@ -271,6 +309,11 @@ const OrderCreatePage = () => {
             <Button className="w-full py-3 text-base" onClick={addItem}>Add Item</Button>
           </div>
         </div>
+        {!visibleMenuItems.length ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No {(menuTypeLabels[activeMenuType] || 'menu').toLowerCase()} items are available right now.
+          </p>
+        ) : null}
 
         <div className="mt-4 hidden overflow-x-auto md:block">
           <table className="table-ui">

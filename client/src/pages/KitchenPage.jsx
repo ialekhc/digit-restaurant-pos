@@ -3,6 +3,7 @@ import { orderService } from '../api/services';
 import Button from '../components/ui/Button';
 import Panel from '../components/ui/Panel';
 import StatusBadge from '../components/StatusBadge';
+import { useAuth } from '../hooks/useAuth';
 import { formatDateTime } from '../utils/format';
 
 const orderAgeLabel = (value) => {
@@ -19,8 +20,11 @@ const byCreatedOldestFirst = (a, b) => new Date(a.createdAt) - new Date(b.create
 const byCreatedNewestFirst = (a, b) => new Date(b.createdAt) - new Date(a.createdAt);
 const byUpdatedNewestFirst = (a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt);
 const byOrderCreatedOldestFirst = (a, b) => new Date(a.orderCreatedAt) - new Date(b.orderCreatedAt);
+const isItemFullyReady = (item) => Number(item.readyQuantity || 0) >= Number(item.quantity || 0);
+const isItemFullyServed = (item) => Number(item.servedQuantity || 0) >= Number(item.quantity || 0);
+const ACTIVE_ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
 
-const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReadyItem, onServeItem }) => (
+const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReadyItem, onServeItem, allowServeActions }) => (
   <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
     <div className="mb-3 flex items-start justify-between gap-2">
       <div>
@@ -38,8 +42,8 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
     </div>
 
     <ul className="space-y-2">
-      {order.items.map((item, idx) => (
-        <li key={idx} className="rounded-lg border border-slate-200 p-2">
+      {order.items.map((item) => (
+        <li key={item.orderItemIndex} className="rounded-lg border border-slate-200 p-2">
           <p className="font-semibold text-slate-800">{item.quantity} x {item.name}</p>
           <p className="text-xs text-slate-500">
             Ready: {Number(item.readyQuantity || 0)}/{item.quantity} | Served: {Number(item.servedQuantity || 0)}/{item.quantity}
@@ -50,15 +54,15 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
               variant="success"
               size="sm"
               disabled={(order.status !== 'PREPARING' && order.status !== 'READY') || Number(item.readyQuantity || 0) >= Number(item.quantity || 0) || updatingId === order._id}
-              onClick={() => onReadyItem(order._id, idx)}
+              onClick={() => onReadyItem(order._id, item.orderItemIndex)}
             >
               +1 Ready
             </Button>
             <Button
               variant="secondary"
               size="sm"
-              disabled={(order.status !== 'READY' && order.status !== 'SERVED') || Number(item.servedQuantity || 0) >= Number(item.readyQuantity || 0) || updatingId === order._id}
-              onClick={() => onServeItem(order._id, idx)}
+              disabled={!allowServeActions || (order.status !== 'READY' && order.status !== 'SERVED') || Number(item.servedQuantity || 0) >= Number(item.readyQuantity || 0) || updatingId === order._id}
+              onClick={() => onServeItem(order._id, item.orderItemIndex)}
             >
               +1 Served
             </Button>
@@ -88,7 +92,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
   </article>
 );
 
-const ReadyDishCard = ({ dish }) => (
+const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => (
   <article className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
     <div className="flex items-start justify-between gap-2">
       <div>
@@ -102,12 +106,41 @@ const ReadyDishCard = ({ dish }) => (
     <p className="text-xs text-slate-600">
       Ready: {dish.readyQuantity}/{dish.quantity} | Served: {dish.servedQuantity}/{dish.quantity}
     </p>
+    {allowServeActions ? (
+      <Button
+        variant="secondary"
+        size="sm"
+        className="mt-3"
+        disabled={updatingId === dish.orderId || dish.remainingToServe <= 0}
+        onClick={() => onServeItem(dish.orderId, dish.itemIndex)}
+      >
+        Serve
+      </Button>
+    ) : null}
   </article>
 );
 
-const KitchenPage = () => {
+const stationConfig = {
+  FOOD: {
+    title: 'Kitchen Display',
+    emptyLabel: 'No kitchen orders available.'
+  },
+  BAR: {
+    title: 'Bar Display',
+    emptyLabel: 'No bar orders available.'
+  },
+  SMOKE: {
+    title: 'Smoke Display',
+    emptyLabel: 'No smoke orders available.'
+  }
+};
+
+const KitchenPage = ({ station = 'FOOD' }) => {
+  const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [updatingId, setUpdatingId] = useState('');
+  const config = stationConfig[station] || stationConfig.FOOD;
+  const allowServeActions = !['KITCHEN', 'BARISTA'].includes(user?.role);
 
   const load = async () => {
     const data = await orderService.list();
@@ -120,19 +153,60 @@ const KitchenPage = () => {
     return () => clearInterval(timer);
   }, []);
 
+  const stationOrders = useMemo(() => {
+    return orders
+      .map((order) => ({
+        ...order,
+        items: (order.items || [])
+          .map((item, itemIndex) => ({ ...item, orderItemIndex: itemIndex }))
+          .filter((item) => item.kitchenSection === station)
+      }))
+      .filter((order) => order.items.length > 0);
+  }, [orders, station]);
+
+  const stationOrderMeta = useMemo(() => {
+    return stationOrders.map((order) => {
+      const globallyClosed = ['COMPLETED', 'CANCELLED'].includes(order.status);
+      const allServed = order.items.every(isItemFullyServed);
+      const allReady = order.items.every(isItemFullyReady);
+      const anyReadyToServe = order.items.some(
+        (item) => Number(item.readyQuantity || 0) > Number(item.servedQuantity || 0)
+      );
+      const anyUnready = order.items.some((item) => !isItemFullyReady(item));
+      const isPending = !globallyClosed && order.status === 'PENDING' && !anyReadyToServe && anyUnready;
+      const isPreparing = !globallyClosed && ACTIVE_ORDER_STATUSES.includes(order.status) && !allServed && !isPending && anyUnready;
+      const isCompletedForStation = globallyClosed || allServed;
+      const completedItems = order.items.filter((item) => Number(item.servedQuantity || 0) > 0);
+
+      return {
+        ...order,
+        stationMeta: {
+          allServed,
+          allReady,
+          anyReadyToServe,
+          anyUnready,
+          isPending,
+          isPreparing,
+          isCompletedForStation,
+          completedItems
+        }
+      };
+    });
+  }, [stationOrders]);
+
   const pendingOrders = useMemo(
-    () => orders.filter((x) => x.status === 'PENDING').sort(byCreatedNewestFirst),
-    [orders]
+    () => stationOrderMeta.filter((x) => x.stationMeta.isPending).sort(byCreatedNewestFirst),
+    [stationOrderMeta]
   );
   const preparingOrders = useMemo(
-    () => orders.filter((x) => x.status === 'PREPARING').sort(byCreatedOldestFirst),
-    [orders]
+    () => stationOrderMeta.filter((x) => x.stationMeta.isPreparing).sort(byCreatedOldestFirst),
+    [stationOrderMeta]
   );
   const readyDishes = useMemo(() => {
     const rows = [];
-    orders.forEach((order) => {
-      if (!['PREPARING', 'READY', 'SERVED'].includes(order.status)) return;
-      order.items.forEach((item, itemIndex) => {
+    stationOrderMeta.forEach((order) => {
+      if (!order.stationMeta.anyReadyToServe) return;
+      order.items.forEach((item) => {
         const readyQuantity = Number(item.readyQuantity || 0);
         const servedQuantity = Number(item.servedQuantity || 0);
         const remainingToServe = Math.max(0, readyQuantity - servedQuantity);
@@ -144,7 +218,7 @@ const KitchenPage = () => {
           tableNumber: order.table?.tableNumber || '',
           orderStatus: order.status,
           orderCreatedAt: order.createdAt,
-          itemIndex,
+          itemIndex: item.orderItemIndex,
           itemName: item.name,
           quantity: Number(item.quantity || 0),
           readyQuantity,
@@ -154,14 +228,18 @@ const KitchenPage = () => {
       });
     });
     return rows.sort(byOrderCreatedOldestFirst);
-  }, [orders]);
+  }, [stationOrderMeta]);
   const completedOrders = useMemo(
-    () => orders.filter((x) => x.status === 'COMPLETED').sort(byUpdatedNewestFirst).slice(0, 12),
-    [orders]
+    () =>
+      stationOrderMeta
+        .filter((x) => x.stationMeta.isCompletedForStation)
+        .sort(byUpdatedNewestFirst)
+        .slice(0, 12),
+    [stationOrderMeta]
   );
   const activeOrders = useMemo(
-    () => orders.filter((x) => ['PENDING', 'PREPARING', 'READY'].includes(x.status)),
-    [orders]
+    () => stationOrderMeta.filter((x) => !x.stationMeta.isCompletedForStation),
+    [stationOrderMeta]
   );
 
   const activeCountByTable = useMemo(() => {
@@ -187,7 +265,7 @@ const KitchenPage = () => {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h2 className="text-xl font-bold text-slate-800">Kitchen Display</h2>
+          <h2 className="text-xl font-bold text-slate-800">{config.title}</h2>
           <p className="text-xs text-slate-500">Auto-refresh every 15 seconds</p>
         </div>
         <Button onClick={load}>Refresh</Button>
@@ -219,6 +297,9 @@ const KitchenPage = () => {
               <ReadyDishCard
                 key={`${dish.orderId}-${dish.itemIndex}`}
                 dish={dish}
+                updatingId={updatingId}
+                allowServeActions={allowServeActions}
+                onServeItem={(id, itemIndex) => updateStatus(id, 'SERVED', { itemIndex, quantity: 1 })}
               />
             ))}
             {!readyDishes.length ? <p className="rounded-xl bg-cyan-50 p-4 text-sm text-cyan-800">No ready dishes.</p> : null}
@@ -233,6 +314,7 @@ const KitchenPage = () => {
                 order={order}
                 activeCountByTable={activeCountByTable}
                 updatingId={updatingId}
+                allowServeActions={allowServeActions}
                 onPreparing={(id) => updateStatus(id, 'PREPARING')}
                 onReadyItem={(id, itemIndex) => updateStatus(id, 'READY', { itemIndex, quantity: 1 })}
                 onServeItem={(id, itemIndex) => updateStatus(id, 'SERVED', { itemIndex, quantity: 1 })}
@@ -250,6 +332,7 @@ const KitchenPage = () => {
                 order={order}
                 activeCountByTable={activeCountByTable}
                 updatingId={updatingId}
+                allowServeActions={allowServeActions}
                 onPreparing={(id) => updateStatus(id, 'PREPARING')}
                 onReadyItem={(id, itemIndex) => updateStatus(id, 'READY', { itemIndex, quantity: 1 })}
                 onServeItem={(id, itemIndex) => updateStatus(id, 'SERVED', { itemIndex, quantity: 1 })}
@@ -270,8 +353,13 @@ const KitchenPage = () => {
                   <p className="text-xs text-emerald-800">
                     {order.orderType} {order.table?.tableNumber ? `- ${order.table.tableNumber}` : ''}
                   </p>
+                  <p className="mt-1 text-xs text-emerald-900">
+                    Items: {order.stationMeta.completedItems.length
+                      ? order.stationMeta.completedItems.map((item) => `${item.servedQuantity}/${item.quantity} ${item.name}`).join(', ')
+                      : order.items.map((item) => `${item.quantity} ${item.name}`).join(', ')}
+                  </p>
                 </div>
-                <StatusBadge value={order.status} />
+                <StatusBadge value="COMPLETED" />
               </div>
               <p className="mt-1 text-xs text-emerald-800">
                 Completed: {formatDateTime(order.updatedAt || order.createdAt)} ({orderAgeLabel(order.updatedAt || order.createdAt)})
@@ -286,7 +374,7 @@ const KitchenPage = () => {
 
       {!activeOrders.length && !completedOrders.length ? (
         <p className="rounded-xl bg-white p-6 text-center text-slate-500 shadow-sm ring-1 ring-slate-200">
-          No kitchen orders available.
+          {config.emptyLabel}
         </p>
       ) : null}
     </div>

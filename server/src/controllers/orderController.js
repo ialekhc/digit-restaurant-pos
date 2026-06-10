@@ -40,6 +40,39 @@ const allItemsReady = (order) =>
 const allItemsServed = (order) =>
   order.items.every((item) => Number(item.servedQuantity || 0) >= Number(item.quantity || 0));
 
+const includesAny = (value, patterns) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return patterns.some((pattern) => normalized.includes(pattern));
+};
+
+const isInstantServeSmokeItem = (menu) => {
+  const menuType = String(menu.menuType || '').toUpperCase();
+  if (menuType !== 'SMOKE') return false;
+
+  const categoryName = menu.category?.name || '';
+  const itemName = menu.name || '';
+  return includesAny(categoryName, ['cigarette', 'cigar']) || includesAny(itemName, ['cigarette', 'cigar']);
+};
+
+const resolveProductionSection = (menu) => {
+  const menuType = String(menu.menuType || '').toUpperCase();
+  const categoryName = menu.category?.name || '';
+  const itemName = menu.name || '';
+
+  if (menuType === 'DRINK') {
+    if (includesAny(categoryName, ['liquor']) || includesAny(itemName, ['beer', 'vodka', 'whisky', 'whiskey', 'rum', 'gin', 'tequila', 'brandy', 'wine'])) {
+      return 'BAR';
+    }
+    return 'FOOD';
+  }
+
+  if (menuType === 'SMOKE') {
+    return 'SMOKE';
+  }
+
+  return menu.kitchenSection || 'FOOD';
+};
+
 const reconcileOrderStatusFromItems = async (order) => {
   if (!order || order.status === 'CANCELLED' || order.status === 'COMPLETED') return order;
 
@@ -143,7 +176,7 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 
   const menuIds = items.map((item) => item.menuItem);
-  const menuItems = await MenuItem.find({ _id: { $in: menuIds } });
+  const menuItems = await MenuItem.find({ _id: { $in: menuIds } }).populate('category', 'name');
   const menuMap = new Map(menuItems.map((m) => [String(m._id), m]));
 
   const normalizedItems = items.map((item) => {
@@ -158,20 +191,25 @@ export const createOrder = asyncHandler(async (req, res) => {
     const quantity = Number(item.quantity || 1);
     if (quantity <= 0) throw new ApiError(400, 'Item quantity must be at least 1');
 
+    const kitchenSection = resolveProductionSection(menu);
+    const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
       name: menu.name,
       price: menu.price,
       quantity,
       notes: item.notes || '',
-      kitchenSection: menu.kitchenSection || 'FOOD',
-      readyQuantity: 0,
+      kitchenSection,
+      readyQuantity: instantServe ? quantity : 0,
       servedQuantity: 0
     };
   });
 
   const subtotal = normalizedItems.reduce((sum, item) => sum + item.price * item.quantity, 0);
   const total = Math.max(0, subtotal - Number(discount || 0));
+  const initialStatus = normalizedItems.every((item) => Number(item.readyQuantity || 0) >= Number(item.quantity || 0))
+    ? 'READY'
+    : 'PENDING';
 
   const data = await Order.create({
     orderNumber: generateOrderNumber(),
@@ -182,7 +220,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     subtotal,
     discount: Number(discount || 0),
     total,
-    status: 'PENDING',
+    status: initialStatus,
     createdBy: req.user._id
   });
 
@@ -214,10 +252,10 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   const role = req.user?.role;
-  if (role === ROLES.KITCHEN && !['PREPARING', 'READY'].includes(status)) {
-    throw new ApiError(403, 'Kitchen can only mark orders as PREPARING or READY');
+  if ([ROLES.KITCHEN, ROLES.BARISTA].includes(role) && !['PREPARING', 'READY'].includes(status)) {
+    throw new ApiError(403, 'Kitchen and bar can only mark orders as PREPARING or READY');
   }
-  if (role === ROLES.KITCHEN) {
+  if ([ROLES.KITCHEN, ROLES.BARISTA].includes(role)) {
     await ensureFeatureEnabled(
       FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM,
       'Kitchen display is not available in the active plan'
@@ -238,8 +276,8 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   ensureItemProgressBounds(order);
 
   if (status === 'READY') {
-    if (role !== ROLES.KITCHEN && role !== ROLES.ADMIN && role !== ROLES.RESTAURANT_OWNER && role !== ROLES.MANAGER) {
-      throw new ApiError(403, 'Only kitchen/admin roles can mark dishes ready');
+    if (![ROLES.KITCHEN, ROLES.BARISTA, ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER].includes(role)) {
+      throw new ApiError(403, 'Only kitchen, bar, or admin roles can mark dishes ready');
     }
     if (currentStatus !== 'PREPARING' && currentStatus !== 'READY') {
       throw new ApiError(400, 'Order must be PREPARING or READY to mark dishes ready');

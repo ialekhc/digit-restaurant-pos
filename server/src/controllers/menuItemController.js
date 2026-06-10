@@ -1,4 +1,4 @@
-import { MenuItem } from '../models/MenuItem.js';
+import { MenuItem, MENU_TYPES } from '../models/MenuItem.js';
 import { Category } from '../models/Category.js';
 import { KITCHEN_SECTIONS } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -11,6 +11,7 @@ const DESCRIPTION_KEYS = ['description', 'Description', 'DESCRIPTION'];
 const PREPARATION_TIME_KEYS = ['preparationTime', 'Preparation Time', 'Prep Time', 'prepTime'];
 const AVAILABILITY_KEYS = ['isAvailable', 'Is Available', 'Available', 'Status'];
 const KITCHEN_SECTION_KEYS = ['kitchenSection', 'Kitchen Section', 'Section'];
+const MENU_TYPE_KEYS = ['menuType', 'Menu Type', 'Type', 'type'];
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -57,25 +58,99 @@ const normalizeKitchenSection = (value) => {
   return 'FOOD';
 };
 
-export const getMenuItems = asyncHandler(async (req, res) => {
-  const { search = '', category = '', available } = req.query;
+const includesAny = (value, patterns) => {
+  const normalized = String(value ?? '').trim().toLowerCase();
+  return patterns.some((pattern) => normalized.includes(pattern));
+};
 
-  const query = {};
-  if (search) {
-    query.$or = [
-      { name: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } }
-    ];
+const inferKitchenSection = ({ menuType, categoryName = '', itemName = '' }) => {
+  if (menuType === 'DRINK') {
+    if (includesAny(categoryName, ['liquor']) || includesAny(itemName, ['beer', 'vodka', 'whisky', 'whiskey', 'rum', 'gin', 'tequila', 'brandy', 'wine'])) {
+      return 'BAR';
+    }
+    return 'FOOD';
   }
-  if (category) query.category = category;
-  if (typeof available !== 'undefined') query.isAvailable = available === 'true';
+
+  if (menuType === 'SMOKE') {
+    return 'SMOKE';
+  }
+
+  return 'FOOD';
+};
+
+const normalizeMenuType = (value, fallback = 'FOOD') => {
+  const normalized = String(value ?? fallback).trim().toUpperCase();
+  if (MENU_TYPES.includes(normalized)) return normalized;
+  return fallback;
+};
+
+const resolveMenuType = (value, kitchenSection, fallback = 'FOOD') => {
+  if (value !== '' && value !== null && typeof value !== 'undefined') {
+    return normalizeMenuType(value, fallback);
+  }
+  if (String(kitchenSection ?? '').trim().toUpperCase() === 'BAR') {
+    return 'DRINK';
+  }
+  return fallback;
+};
+
+const resolveKitchenSection = (value, menuType, categoryName = '', itemName = '') => {
+  if (value !== '' && value !== null && typeof value !== 'undefined') {
+    return normalizeKitchenSection(value);
+  }
+  return inferKitchenSection({ menuType, categoryName, itemName });
+};
+
+const buildMenuTypeFilter = (menuType) => {
+  if (menuType === 'DRINK') {
+    return {
+      $or: [
+        { menuType: 'DRINK' },
+        { menuType: { $exists: false }, kitchenSection: 'BAR' },
+        { menuType: null, kitchenSection: 'BAR' }
+      ]
+    };
+  }
+
+  if (menuType === 'SMOKE') {
+    return {
+      $or: [{ menuType: 'SMOKE' }]
+    };
+  }
+
+  return {
+    $or: [
+      { menuType: 'FOOD' },
+      { menuType: { $exists: false }, kitchenSection: { $ne: 'BAR' } },
+      { menuType: null, kitchenSection: { $ne: 'BAR' } }
+    ]
+  };
+};
+
+export const getMenuItems = asyncHandler(async (req, res) => {
+  const { search = '', category = '', available, menuType = '' } = req.query;
+
+  const andConditions = [];
+  if (search) {
+    andConditions.push({
+      $or: [
+        { name: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
+      ]
+    });
+  }
+  if (category) andConditions.push({ category });
+  if (typeof available !== 'undefined') andConditions.push({ isAvailable: available === 'true' });
+  if (menuType) andConditions.push(buildMenuTypeFilter(normalizeMenuType(menuType)));
+
+  const query = andConditions.length ? { $and: andConditions } : {};
 
   const data = await MenuItem.find(query).populate('category').sort({ createdAt: -1 });
   res.json({ data });
 });
 
 export const createMenuItem = asyncHandler(async (req, res) => {
-  const { name, category, description, price, preparationTime, isAvailable, kitchenSection } = req.body;
+  const { name, category, description, price, preparationTime, isAvailable, kitchenSection, menuType } = req.body;
 
   if (!name || !category || typeof price === 'undefined') {
     throw new ApiError(400, 'Name, category and price are required');
@@ -85,6 +160,13 @@ export const createMenuItem = asyncHandler(async (req, res) => {
   if (!categoryExists) throw new ApiError(404, 'Category not found');
 
   const image = req.file ? `/uploads/${req.file.filename}` : '';
+  const resolvedMenuType = resolveMenuType(menuType, kitchenSection, 'FOOD');
+  const resolvedKitchenSection = resolveKitchenSection(
+    kitchenSection,
+    resolvedMenuType,
+    categoryExists.name,
+    name
+  );
 
   const data = await MenuItem.create({
     name,
@@ -93,7 +175,8 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     price,
     preparationTime,
     isAvailable: typeof isAvailable === 'string' ? isAvailable === 'true' : isAvailable,
-    kitchenSection: kitchenSection || 'FOOD',
+    menuType: resolvedMenuType,
+    kitchenSection: resolvedKitchenSection,
     image
   });
 
@@ -149,7 +232,9 @@ export const importMenuItems = asyncHandler(async (req, res) => {
 
       const preparationTime = parsePreparationTime(getFirstValue(row, PREPARATION_TIME_KEYS));
       const isAvailable = parseAvailability(getFirstValue(row, AVAILABILITY_KEYS), true);
-      const kitchenSection = normalizeKitchenSection(getFirstValue(row, KITCHEN_SECTION_KEYS));
+      const rawKitchenSection = getFirstValue(row, KITCHEN_SECTION_KEYS);
+      const menuType = resolveMenuType(getFirstValue(row, MENU_TYPE_KEYS), rawKitchenSection, 'FOOD');
+      const kitchenSection = resolveKitchenSection(rawKitchenSection, menuType, categoryName, itemName);
       const description = getTrimmedString(row, DESCRIPTION_KEYS);
 
       const categoryKey = categoryName.toLowerCase();
@@ -166,7 +251,8 @@ export const importMenuItems = asyncHandler(async (req, res) => {
 
       const existing = await MenuItem.findOne({
         category: categoryDoc._id,
-        name: new RegExp(`^${escapeRegex(itemName)}$`, 'i')
+        name: new RegExp(`^${escapeRegex(itemName)}$`, 'i'),
+        ...buildMenuTypeFilter(menuType)
       });
 
       const payload = {
@@ -176,6 +262,7 @@ export const importMenuItems = asyncHandler(async (req, res) => {
         price,
         preparationTime,
         isAvailable,
+        menuType,
         kitchenSection
       };
 
@@ -212,6 +299,8 @@ export const getMenuItemById = asyncHandler(async (req, res) => {
 
 export const updateMenuItem = asyncHandler(async (req, res) => {
   const payload = { ...req.body };
+  const existingItem = await MenuItem.findById(req.params.id).populate('category');
+  if (!existingItem) throw new ApiError(404, 'Menu item not found');
 
   if (typeof payload.isAvailable === 'string') {
     payload.isAvailable = payload.isAvailable === 'true';
@@ -219,6 +308,23 @@ export const updateMenuItem = asyncHandler(async (req, res) => {
 
   if (req.file) {
     payload.image = `/uploads/${req.file.filename}`;
+  }
+
+  const resolvedMenuType = resolveMenuType(payload.menuType, payload.kitchenSection, undefined);
+  if (resolvedMenuType) {
+    let categoryName = existingItem.category?.name || '';
+    if (payload.category) {
+      const categoryDoc = await Category.findById(payload.category).select('name');
+      categoryName = categoryDoc?.name || '';
+    }
+    const itemName = payload.name || existingItem.name;
+    payload.menuType = resolvedMenuType;
+    payload.kitchenSection = resolveKitchenSection(
+      payload.kitchenSection,
+      resolvedMenuType,
+      categoryName,
+      itemName
+    );
   }
 
   const data = await MenuItem.findByIdAndUpdate(req.params.id, payload, {

@@ -19,7 +19,37 @@ const initial = {
   image: null
 };
 
-const MenuItemsPage = () => {
+const menuTypeConfig = {
+  FOOD: {
+    pageTitle: 'Menu Items',
+    createTitle: 'Create Menu Item',
+    editTitle: 'Edit Menu Item',
+    listSubtitle: 'Manage food items',
+    importTitle: 'Food Menu Import (Excel)',
+    importSubtitle: 'Bulk upload food items using your sample format: Category, Item, Price (Rs.)',
+    badgeText: 'Food Menu'
+  },
+  DRINK: {
+    pageTitle: 'Drink Items',
+    createTitle: 'Create Drink Item',
+    editTitle: 'Edit Drink Item',
+    listSubtitle: 'Manage drink items',
+    importTitle: 'Drink Menu Import (Excel)',
+    importSubtitle: 'Bulk upload drink items using your sample format: Category, Item, Price (Rs.)',
+    badgeText: 'Drink Menu'
+  },
+  SMOKE: {
+    pageTitle: 'Smoke Items',
+    createTitle: 'Create Smoke Item',
+    editTitle: 'Edit Smoke Item',
+    listSubtitle: 'Manage smoke items',
+    importTitle: 'Smoke Menu Import (Excel)',
+    importSubtitle: 'Bulk upload smoke items using your sample format: Category, Item, Price (Rs.)',
+    badgeText: 'Smoke Menu'
+  }
+};
+
+const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -36,11 +66,12 @@ const MenuItemsPage = () => {
     () => [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER].includes(user?.role),
     [user?.role]
   );
+  const config = menuTypeConfig[menuType] || menuTypeConfig.FOOD;
 
   const load = async () => {
     setLoading(true);
     try {
-      const [menuData, categoryData] = await Promise.all([menuService.list(), categoryService.list()]);
+      const [menuData, categoryData] = await Promise.all([menuService.list({ menuType }), categoryService.list()]);
       setItems(menuData);
       setCategories(categoryData);
     } finally {
@@ -50,7 +81,7 @@ const MenuItemsPage = () => {
 
   useEffect(() => {
     load();
-  }, []);
+  }, [menuType]);
 
   const categoryOptions = [{ label: 'Select Category', value: '' }].concat(
     categories.map((c) => ({ label: c.name, value: c._id }))
@@ -77,6 +108,7 @@ const MenuItemsPage = () => {
     body.append('price', Number(form.price));
     body.append('preparationTime', Number(form.preparationTime || 0));
     body.append('isAvailable', form.isAvailable === 'true');
+    body.append('menuType', menuType);
     if (form.image) body.append('image', form.image);
 
     try {
@@ -113,7 +145,8 @@ const MenuItemsPage = () => {
         description: String(getCellValue(row, ['Description', 'description']) || '').trim(),
         preparationTime: getCellValue(row, ['Preparation Time', 'Prep Time', 'preparationTime']),
         isAvailable: getCellValue(row, ['Available', 'Is Available', 'isAvailable']),
-        kitchenSection: String(getCellValue(row, ['Kitchen Section', 'Section', 'kitchenSection']) || '').trim()
+        kitchenSection: String(getCellValue(row, ['Kitchen Section', 'Section', 'kitchenSection']) || '').trim(),
+        menuType
       }))
       .filter((row) => row.category || row.item || String(row.price ?? '').trim() !== '');
   };
@@ -123,13 +156,17 @@ const MenuItemsPage = () => {
     const templateRows = [
       { Category: 'MOMO', Item: 'Chicken Momo', 'Price (Rs.)': 200 },
       { Category: 'MOMO', Item: 'Buff Momo', 'Price (Rs.)': 200 },
-      { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220 }
+      menuType === 'DRINK'
+        ? { Category: 'MOCKTAILS', Item: 'Mint Lemonade', 'Price (Rs.)': 180 }
+        : menuType === 'SMOKE'
+          ? { Category: 'CIGARETTES', Item: 'Classic Gold', 'Price (Rs.)': 40 }
+          : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220 }
     ];
     try {
       const XLSX = await import('xlsx');
       const workbook = XLSX.utils.book_new();
       const worksheet = XLSX.utils.json_to_sheet(templateRows);
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Food Menu');
+      XLSX.utils.book_append_sheet(workbook, worksheet, config.badgeText);
       XLSX.writeFile(workbook, 'vendor-menu-import-template.xlsx');
     } catch (error) {
       setImportError('Unable to generate template file');
@@ -186,8 +223,8 @@ const MenuItemsPage = () => {
   return (
     <div className="space-y-5">
       <Panel
-        title="Vendor Menu Import (Excel)"
-        subtitle="Bulk upload menu using your sample format: Category, Item, Price (Rs.)"
+        title={config.importTitle}
+        subtitle={config.importSubtitle}
       >
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={importMenuFromExcel}>
           <Input
@@ -202,7 +239,7 @@ const MenuItemsPage = () => {
               Download Template
             </Button>
             <Button type="submit" variant="success" disabled={importing}>
-              {importing ? 'Importing...' : 'Import Menu'}
+              {importing ? 'Importing...' : `Import ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Menu`}
             </Button>
           </div>
         </form>
@@ -242,7 +279,10 @@ const MenuItemsPage = () => {
         ) : null}
       </Panel>
 
-      <Panel title={editingId ? 'Edit Menu Item' : 'Create Menu Item'}>
+      <Panel
+        title={editingId ? config.editTitle : config.createTitle}
+        right={<span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-orange-700">{config.badgeText}</span>}
+      >
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={submit}>
           <Input label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />
           <Select
@@ -273,7 +313,7 @@ const MenuItemsPage = () => {
           </div>
           <div className="md:col-span-2 lg:col-span-3 flex gap-2">
             <Button type="submit" disabled={!canManageMenu}>
-              {editingId ? 'Update Item' : 'Create Item'}
+              {editingId ? 'Update Item' : `Create ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Item`}
             </Button>
             {editingId ? (
               <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(initial); }}>
@@ -285,7 +325,7 @@ const MenuItemsPage = () => {
         {error ? <p className="mt-2 text-sm text-rose-600">{error}</p> : null}
       </Panel>
 
-      <Panel title="Menu Items" subtitle="Manage food and drink items">
+      <Panel title={config.pageTitle} subtitle={config.listSubtitle}>
         <div className="overflow-x-auto">
           <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">

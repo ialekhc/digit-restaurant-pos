@@ -7,10 +7,14 @@ import DashboardPage from './pages/DashboardPage';
 import UsersPage from './pages/UsersPage';
 import MenuCategoriesPage from './pages/MenuCategoriesPage';
 import MenuItemsPage from './pages/MenuItemsPage';
+import DrinkItemsPage from './pages/DrinkItemsPage';
+import SmokeItemsPage from './pages/SmokeItemsPage';
 import TablesPage from './pages/TablesPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderCreatePage from './pages/OrderCreatePage';
 import KitchenPage from './pages/KitchenPage';
+import BarDisplayPage from './pages/BarDisplayPage';
+import SmokeDisplayPage from './pages/SmokeDisplayPage';
 import BillingPage from './pages/BillingPage';
 import RegisterDashboardPage from './pages/RegisterDashboardPage';
 import CashRegisterPage from './pages/CashRegisterPage';
@@ -36,7 +40,8 @@ const allStaff = [
   ROLES.MANAGER,
   ROLES.CASHIER,
   ROLES.WAITER,
-  ROLES.KITCHEN
+  ROLES.KITCHEN,
+  ROLES.BARISTA
 ];
 
 const RoleHomeRedirect = () => {
@@ -81,6 +86,8 @@ const App = () => {
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER]} />}>
             <Route path="/menu/items" element={<MenuItemsPage />} />
+            <Route path="/drink/items" element={<DrinkItemsPage />} />
+            <Route path="/smoke/items" element={<SmokeItemsPage />} />
             <Route path="/tables" element={<TablesPage />} />
             <Route path="/orders/create" element={<OrderCreatePage />} />
           </Route>
@@ -91,6 +98,14 @@ const App = () => {
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.KITCHEN]} />}>
             <Route path="/kitchen" element={<KitchenPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.BARISTA]} />}>
+            <Route path="/bar" element={<BarDisplayPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.KITCHEN, ROLES.BARISTA]} />}>
+            <Route path="/smoke-display" element={<SmokeDisplayPage />} />
           </Route>
 
           <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER]} />}>

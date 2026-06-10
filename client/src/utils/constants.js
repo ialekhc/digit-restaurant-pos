@@ -6,6 +6,7 @@ export const ROLES = {
   CASHIER: 'CASHIER',
   WAITER: 'WAITER',
   KITCHEN: 'KITCHEN',
+  BARISTA: 'BARISTA',
   CUSTOMER: 'CUSTOMER'
 };
 
@@ -58,6 +59,13 @@ export const ROLE_LOGIN_PRESETS = [
     email: 'kitchen@restaurant.local',
     password: 'Kitchen@12345',
     description: 'Kitchen display and order prep updates'
+  },
+  {
+    role: ROLES.BARISTA,
+    label: 'Barista',
+    email: 'barista@restaurant.local',
+    password: 'Barista@12345',
+    description: 'Bar display and liquor preparation updates'
   }
 ];
 
@@ -65,6 +73,7 @@ export const ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPL
 export const ORDER_TYPES = ['DINE_IN', 'TAKEAWAY', 'DELIVERY'];
 export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'];
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'SPLIT'];
+export const MENU_TYPES = ['FOOD', 'DRINK', 'SMOKE'];
 
 export const PAGE_TITLES = {
   '/super-admin': 'Super Admin',
@@ -77,10 +86,14 @@ export const PAGE_TITLES = {
   '/users': 'Users',
   '/menu/categories': 'Menu Categories',
   '/menu/items': 'Menu Items',
+  '/drink/items': 'Drink Items',
+  '/smoke/items': 'Smoke Items',
   '/tables': 'Tables',
   '/orders': 'Orders',
   '/orders/create': 'Create Order',
   '/kitchen': 'Kitchen Display',
+  '/bar': 'Bar Display',
+  '/smoke-display': 'Smoke Display',
   '/billing': 'Billing & Payments',
   '/register-dashboard': 'Register Dashboard',
   '/cash-register': 'Cash Register',
@@ -101,6 +114,7 @@ export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.CASHIER]: '/billing',
   [ROLES.WAITER]: '/orders/create',
   [ROLES.KITCHEN]: '/kitchen',
+  [ROLES.BARISTA]: '/bar',
   [ROLES.CUSTOMER]: '/orders'
 };
 

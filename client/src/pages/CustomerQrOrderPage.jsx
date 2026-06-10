@@ -6,11 +6,24 @@ import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { currency } from '../utils/format';
 
+const menuTabs = [
+  { label: 'Food Menu', value: 'FOOD' },
+  { label: 'Drink Menu', value: 'DRINK' },
+  { label: 'Smoke Menu', value: 'SMOKE' }
+];
+const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
+const menuTypeLabels = {
+  FOOD: 'Food',
+  DRINK: 'Drink',
+  SMOKE: 'Smoke'
+};
+
 const CustomerQrOrderPage = () => {
   const { tableId } = useParams();
   const [table, setTable] = useState(null);
   const [menuItems, setMenuItems] = useState([]);
   const [items, setItems] = useState([]);
+  const [activeMenuType, setActiveMenuType] = useState('FOOD');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
@@ -35,13 +48,15 @@ const CustomerQrOrderPage = () => {
   }, [items]);
 
   const groupedMenu = useMemo(() => {
-    return menuItems.reduce((acc, item) => {
-      const key = item.category?.name || 'General';
-      if (!acc[key]) acc[key] = [];
-      acc[key].push(item);
-      return acc;
-    }, {});
-  }, [menuItems]);
+    return menuItems
+      .filter((item) => getMenuType(item) === activeMenuType)
+      .reduce((acc, item) => {
+        const key = item.category?.name || 'General';
+        if (!acc[key]) acc[key] = [];
+        acc[key].push(item);
+        return acc;
+      }, {});
+  }, [activeMenuType, menuItems]);
 
   const addToCart = (menuItem) => {
     setItems((prev) => {
@@ -101,8 +116,24 @@ const CustomerQrOrderPage = () => {
           {!error && !menuItems.length ? <p className="text-sm text-slate-600">No menu items available right now.</p> : null}
         </Panel>
 
-        <Panel title="Menu by Type">
+        <Panel title="Menu by Type" subtitle="Choose a menu first, then add items to your table order">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {menuTabs.map((tab) => (
+              <Button
+                key={tab.value}
+                variant={activeMenuType === tab.value ? 'primary' : 'secondary'}
+                onClick={() => setActiveMenuType(tab.value)}
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
           <div className="space-y-5">
+            {!Object.keys(groupedMenu).length ? (
+              <p className="text-sm text-slate-600">
+                No {(menuTypeLabels[activeMenuType] || 'menu').toLowerCase()} items are available right now.
+              </p>
+            ) : null}
             {Object.keys(groupedMenu).map((groupName) => (
               <section key={groupName}>
                 <h4 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-600">{groupName}</h4>
