@@ -28,6 +28,7 @@ const schema = z.object({
     'CUSTOMER_SUPPORT',
     'ADMIN',
     'KITCHEN',
+    'BARISTA',
     'CUSTOMER'
   ]),
   isActive: z.enum(['true', 'false'])
@@ -54,6 +55,7 @@ const allRoleOptions = [
   'CUSTOMER_SUPPORT',
   'ADMIN',
   'KITCHEN',
+  'BARISTA',
   'CUSTOMER'
 ].map((x) => ({
   label: x,
@@ -69,7 +71,8 @@ const vendorAdminRoleOptions = [
   'ACCOUNTANT',
   'DELIVERY_PARTNER',
   'CUSTOMER_SUPPORT',
-  'KITCHEN'
+  'KITCHEN',
+  'BARISTA'
 ].map((x) => ({
   label: x,
   value: x

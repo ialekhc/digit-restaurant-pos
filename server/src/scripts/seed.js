@@ -77,6 +77,13 @@ const seed = async () => {
       phone: '+10000000005'
     },
     {
+      name: 'Lead Barista',
+      email: 'barista@restaurant.local',
+      password: 'Barista@12345',
+      role: ROLES.BARISTA,
+      phone: '+10000000007'
+    },
+    {
       name: 'Inventory Lead',
       email: 'inventory@restaurant.local',
       password: 'Inventory@12345',

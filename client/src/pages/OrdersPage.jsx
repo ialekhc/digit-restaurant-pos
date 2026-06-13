@@ -55,8 +55,9 @@ const OrdersPage = () => {
 
     const canServe =
       user?.role !== 'KITCHEN' &&
+      user?.role !== 'BARISTA' &&
       order.items.some((item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0));
-    const canCancel = user?.role !== 'KITCHEN';
+    const canCancel = user?.role !== 'KITCHEN' && user?.role !== 'BARISTA';
 
     return { canServe, canCancel };
   };
