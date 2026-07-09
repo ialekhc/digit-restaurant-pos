@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import DashboardLayout from './layouts/DashboardLayout';
 import ProtectedRoute from './routes/ProtectedRoute';
+import HomePage from './pages/HomePage';
 import LoginPage from './pages/LoginPage';
 import CustomerQrOrderPage from './pages/CustomerQrOrderPage';
 import DashboardPage from './pages/DashboardPage';
@@ -30,8 +31,7 @@ import SuperAdminSubscriptionsPage from './pages/SuperAdminSubscriptionsPage';
 import SuperAdminPlansPage from './pages/SuperAdminPlansPage';
 import SuperAdminUsersPage from './pages/SuperAdminUsersPage';
 import NotFoundPage from './pages/NotFoundPage';
-import { useAuth } from './hooks/useAuth';
-import { ROLES, getDefaultRouteForRole } from './utils/constants';
+import { ROLES } from './utils/constants';
 
 const allStaff = [
   ROLES.SUPER_ADMIN,
@@ -44,21 +44,15 @@ const allStaff = [
   ROLES.BARISTA
 ];
 
-const RoleHomeRedirect = () => {
-  const { user } = useAuth();
-  return <Navigate to={getDefaultRouteForRole(user?.role)} replace />;
-};
-
 const App = () => {
   return (
     <Routes>
+      <Route path="/" element={<HomePage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/scan/:tableId" element={<CustomerQrOrderPage />} />
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/" element={<RoleHomeRedirect />} />
-
           <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
             <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
             <Route path="/super-admin/dashboard" element={<SuperAdminDashboardPage />} />
