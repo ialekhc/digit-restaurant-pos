@@ -5,130 +5,104 @@ import { InventoryItem } from '../models/InventoryItem.js';
 import { User } from '../models/User.js';
 import { Vendor } from '../models/Vendor.js';
 
+const sumBy = (rows, selector) => rows.reduce((sum, row) => sum + Number(selector(row) || 0), 0);
+
+const groupCount = (rows, selector) => {
+  const map = new Map();
+  rows.forEach((row) => {
+    const key = selector(row) || 'UNKNOWN';
+    map.set(key, (map.get(key) || 0) + 1);
+  });
+  return Array.from(map.entries()).map(([_id, count]) => ({ _id, count }));
+};
+
+const groupPaymentMethods = (payments) => {
+  const map = new Map();
+  payments.forEach((payment) => {
+    const key = payment.paymentMethod || 'UNKNOWN';
+    const current = map.get(key) || { _id: key, count: 0, totalAmount: 0 };
+    current.count += 1;
+    current.totalAmount += Number(payment.amountPaid || 0);
+    map.set(key, current);
+  });
+  return Array.from(map.values()).sort((a, b) => b.totalAmount - a.totalAmount);
+};
+
+const bestSellingFromOrders = (orders, limit = 10) => {
+  const map = new Map();
+  orders.forEach((order) => {
+    (order.items || []).forEach((item) => {
+      const key = item.name;
+      const current = map.get(key) || { _id: key, totalQuantity: 0 };
+      current.totalQuantity += Number(item.quantity || 0);
+      map.set(key, current);
+    });
+  });
+  return Array.from(map.values()).sort((a, b) => b.totalQuantity - a.totalQuantity).slice(0, limit);
+};
+
+const dailyRevenueFromPayments = (payments) => {
+  const map = new Map();
+  payments.forEach((payment) => {
+    const date = new Date(payment.createdAt);
+    if (Number.isNaN(date.getTime())) return;
+    const key = date.toISOString().slice(0, 10);
+    map.set(key, (map.get(key) || 0) + Number(payment.amountPaid || 0));
+  });
+  return Array.from(map.entries())
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-14)
+    .map(([date, total]) => ({ date, total }));
+};
+
 export const getDashboardData = async () => {
   const [
-    totalSalesAgg,
-    totalOrders,
-    pendingOrders,
-    completedOrders,
-    cancelledOrders,
-    availableTables,
-    occupiedTables,
-    lowStockItems,
-    bestSellingItems,
-    dailyRevenue
+    payments,
+    orders,
+    tables,
+    inventoryItems
   ] = await Promise.all([
-    Payment.aggregate([{ $group: { _id: null, total: { $sum: '$amountPaid' } } }]),
-    Order.countDocuments(),
-    Order.countDocuments({ status: { $in: ['PENDING', 'PREPARING', 'READY', 'SERVED'] } }),
-    Order.countDocuments({ status: 'COMPLETED' }),
-    Order.countDocuments({ status: 'CANCELLED' }),
-    Table.countDocuments({ status: 'AVAILABLE' }),
-    Table.countDocuments({ status: 'OCCUPIED' }),
-    InventoryItem.find({
-      $expr: { $lte: ['$quantity', '$minimumStockLevel'] }
-    }).limit(10),
-    Order.aggregate([
-      { $unwind: '$items' },
-      {
-        $group: {
-          _id: '$items.name',
-          totalQuantity: { $sum: '$items.quantity' }
-        }
-      },
-      { $sort: { totalQuantity: -1 } },
-      { $limit: 10 }
-    ]),
-    Payment.aggregate([
-      {
-        $group: {
-          _id: {
-            year: { $year: '$createdAt' },
-            month: { $month: '$createdAt' },
-            day: { $dayOfMonth: '$createdAt' }
-          },
-          total: { $sum: '$amountPaid' }
-        }
-      },
-      { $sort: { '_id.year': 1, '_id.month': 1, '_id.day': 1 } },
-      { $limit: 14 }
-    ])
+    Payment.find({}),
+    Order.find({}),
+    Table.find({}),
+    InventoryItem.find({})
   ]);
 
   return {
-    totalSales: totalSalesAgg[0]?.total || 0,
-    totalOrders,
-    pendingOrders,
-    completedOrders,
-    cancelledOrders,
-    availableTables,
-    occupiedTables,
-    lowStockItems,
-    bestSellingItems,
-    dailyRevenue: dailyRevenue.map((d) => ({
-      date: `${d._id.year}-${String(d._id.month).padStart(2, '0')}-${String(d._id.day).padStart(2, '0')}`,
-      total: d.total
-    }))
+    totalSales: sumBy(payments, (payment) => payment.amountPaid),
+    totalOrders: orders.length,
+    pendingOrders: orders.filter((order) => ['PENDING', 'PREPARING', 'READY', 'SERVED'].includes(order.status)).length,
+    completedOrders: orders.filter((order) => order.status === 'COMPLETED').length,
+    cancelledOrders: orders.filter((order) => order.status === 'CANCELLED').length,
+    availableTables: tables.filter((table) => table.status === 'AVAILABLE').length,
+    occupiedTables: tables.filter((table) => table.status === 'OCCUPIED').length,
+    lowStockItems: inventoryItems
+      .filter((item) => Number(item.quantity || 0) <= Number(item.minimumStockLevel || 0))
+      .slice(0, 10),
+    bestSellingItems: bestSellingFromOrders(orders, 10),
+    dailyRevenue: dailyRevenueFromPayments(payments)
   };
 };
 
 export const getSuperAdminOverviewData = async () => {
   const [
-    totalUsers,
-    activeUsers,
-    usersByRole,
-    totalOrders,
-    ordersByStatus,
-    totalPayments,
-    paymentsByMethod,
-    totalRevenueAgg,
-    totalVendors,
-    activeVendors,
-    vendorsByPlan,
-    vendorsBySubscriptionStatus,
-    vendorIncomeAgg,
-    lowStockCount,
-    tablesByStatus,
+    users,
+    orders,
+    payments,
+    vendors,
+    inventoryItems,
+    tables,
     recentUsers,
     recentOrders,
     recentPayments,
     recentVendors
   ] = await Promise.all([
-    User.countDocuments(),
-    User.countDocuments({ isActive: true }),
-    User.aggregate([
-      { $group: { _id: '$role', count: { $sum: 1 } } },
-      { $sort: { count: -1, _id: 1 } }
-    ]),
-    Order.countDocuments(),
-    Order.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]),
-    Payment.countDocuments(),
-    Payment.aggregate([
-      { $group: { _id: '$paymentMethod', count: { $sum: 1 }, totalAmount: { $sum: '$amountPaid' } } },
-      { $sort: { totalAmount: -1 } }
-    ]),
-    Payment.aggregate([{ $group: { _id: null, total: { $sum: '$amountPaid' } } }]),
-    Vendor.countDocuments(),
-    Vendor.countDocuments({ isActive: true }),
-    Vendor.aggregate([
-      { $group: { _id: '$subscription.planId', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]),
-    Vendor.aggregate([
-      { $group: { _id: '$subscription.status', count: { $sum: 1 } } },
-      { $sort: { count: -1 } }
-    ]),
-    Vendor.aggregate([{ $group: { _id: null, total: { $sum: '$totalPaid' } } }]),
-    InventoryItem.countDocuments({
-      $expr: { $lte: ['$quantity', '$minimumStockLevel'] }
-    }),
-    Table.aggregate([
-      { $group: { _id: '$status', count: { $sum: 1 } } },
-      { $sort: { _id: 1 } }
-    ]),
+    User.find({}),
+    Order.find({}),
+    Payment.find({}),
+    Vendor.find({}),
+    InventoryItem.find({}),
+    Table.find({}),
     User.find({}).select('name email role isActive createdAt').sort({ createdAt: -1 }).limit(6),
     Order.find({})
       .select('orderNumber orderType status total createdAt')
@@ -148,34 +122,37 @@ export const getSuperAdminOverviewData = async () => {
       .limit(8)
   ]);
 
+  const activeUsers = users.filter((user) => user.isActive).length;
+  const activeVendors = vendors.filter((vendor) => vendor.isActive).length;
+
   return {
     summary: {
-      totalUsers,
+      totalUsers: users.length,
       activeUsers,
-      inactiveUsers: Math.max(0, totalUsers - activeUsers),
-      totalOrders,
-      totalPayments,
-      totalRevenue: totalRevenueAgg[0]?.total || 0,
-      totalVendors,
+      inactiveUsers: Math.max(0, users.length - activeUsers),
+      totalOrders: orders.length,
+      totalPayments: payments.length,
+      totalRevenue: sumBy(payments, (payment) => payment.amountPaid),
+      totalVendors: vendors.length,
       activeVendors,
-      inactiveVendors: Math.max(0, totalVendors - activeVendors),
-      totalVendorSubscriptionIncome: vendorIncomeAgg[0]?.total || 0,
-      lowStockCount
+      inactiveVendors: Math.max(0, vendors.length - activeVendors),
+      totalVendorSubscriptionIncome: sumBy(vendors, (vendor) => vendor.totalPaid),
+      lowStockCount: inventoryItems.filter((item) => Number(item.quantity || 0) <= Number(item.minimumStockLevel || 0)).length
     },
     distributions: {
-      usersByRole: usersByRole.map((row) => ({ role: row._id, count: row.count })),
-      ordersByStatus: ordersByStatus.map((row) => ({ status: row._id, count: row.count })),
-      paymentsByMethod: paymentsByMethod.map((row) => ({
+      usersByRole: groupCount(users, (user) => user.role).map((row) => ({ role: row._id, count: row.count })),
+      ordersByStatus: groupCount(orders, (order) => order.status).map((row) => ({ status: row._id, count: row.count })),
+      paymentsByMethod: groupPaymentMethods(payments).map((row) => ({
         method: row._id,
         count: row.count,
         totalAmount: row.totalAmount
       })),
-      vendorsByPlan: vendorsByPlan.map((row) => ({ planId: row._id, count: row.count })),
-      vendorsBySubscriptionStatus: vendorsBySubscriptionStatus.map((row) => ({
+      vendorsByPlan: groupCount(vendors, (vendor) => vendor.subscription?.planId).map((row) => ({ planId: row._id, count: row.count })),
+      vendorsBySubscriptionStatus: groupCount(vendors, (vendor) => vendor.subscription?.status).map((row) => ({
         status: row._id,
         count: row.count
       })),
-      tablesByStatus: tablesByStatus.map((row) => ({ status: row._id, count: row.count }))
+      tablesByStatus: groupCount(tables, (table) => table.status).map((row) => ({ status: row._id, count: row.count }))
     },
     recent: {
       users: recentUsers,

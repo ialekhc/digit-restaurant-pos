@@ -1,6 +1,6 @@
-# Restaurant Management System (MERN)
+# Restaurant Management System
 
-A complete restaurant management web application built with MongoDB, Express, React (Vite), and Node.js.
+A complete restaurant management web application built with PostgreSQL, Express, React (Vite), and Node.js.
 
 ## Features
 
@@ -34,7 +34,7 @@ A complete restaurant management web application built with MongoDB, Express, Re
 ### Backend
 
 - Node.js + Express
-- MongoDB + Mongoose
+- PostgreSQL + pg
 - JWT Auth
 - Bcrypt password hashing
 - Multer image upload
@@ -89,50 +89,50 @@ README.md
 ## Prerequisites
 
 - Node.js 18+
-- MongoDB (local or Atlas)
+- PostgreSQL 16+ or Docker
 
 ## Database Setup
 
-You can run MongoDB in either of these ways:
+You can run PostgreSQL in either of these ways:
 
-### Option A: Local MongoDB (already used in this setup)
+The backend stores the existing application documents in PostgreSQL using the `app_documents` JSONB table. This keeps the current API contracts stable on PostgreSQL.
 
-- Ensure MongoDB is running on `127.0.0.1:27017`
-- Default backend URI already points to:
+## Quick Start
 
-```env
-MONGO_URI=mongodb://127.0.0.1:27017/restaurant_pos
-```
-
-### Option B: Docker MongoDB
-
-At project root:
+From the project root:
 
 ```bash
-docker compose up -d
+npm install
+docker compose up -d postgres
+npm run seed --workspace server
+npm run dev:server
+npm run dev:client
 ```
 
-This uses `docker-compose.yml` and exposes MongoDB on `127.0.0.1:27017`.
+Open:
 
-### Option C: MongoDB Atlas
+- Frontend: `http://localhost:5400`
+- Backend health: `http://localhost:5500/api/health`
 
-1. Create a cluster in Atlas.
-2. Create a database user.
-3. In Atlas Network Access, allow your current IP (or `0.0.0.0/0` for development only).
-4. Copy `server/.env.atlas.example` to `server/.env`.
-5. Replace `MONGO_URI` with your Atlas URI.
+Use `npm run seed --workspace server` only for a fresh development database. It clears the app data and recreates sample records.
 
-Example:
+### Option A: Docker PostgreSQL
 
-```env
-MONGO_URI=mongodb+srv://<db_user>:<db_password>@<cluster-name>.mongodb.net/restaurant_pos?retryWrites=true&w=majority&appName=<app-name>
-```
-
-Or use the helper script:
+At the project root:
 
 ```bash
-cd server
-ATLAS_URI="mongodb+srv://<db_user>:<db_password>@<cluster-name>.mongodb.net/restaurant_pos?retryWrites=true&w=majority" npm run atlas:use
+docker compose up -d postgres
+```
+
+This uses `docker-compose.yml` and exposes PostgreSQL on `127.0.0.1:5432`.
+
+### Option B: Local PostgreSQL
+
+Create a local database named `restaurant_pos`, then set:
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_SSL=false
 ```
 
 ## Backend Setup
@@ -159,10 +159,11 @@ cp .env.example .env
 
 ```env
 PORT=5500
-MONGO_URI=mongodb://127.0.0.1:27017/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_SSL=false
 JWT_SECRET=supersecretkey
 JWT_EXPIRES_IN=7d
-CLIENT_URL=http://localhost:5173
+CLIENT_URL=http://localhost:5400
 ```
 
 5. Seed sample data:
@@ -209,7 +210,7 @@ npm run dev
 
 Frontend runs at:
 
-- `http://localhost:5173`
+- `http://localhost:5400`
 
 ## Port Conflict Fix (`EADDRINUSE`)
 
@@ -224,6 +225,22 @@ use port `5500`:
 - In `server/.env`, set `PORT=5500`
 - In `client/.env`, set `VITE_API_URL=http://localhost:5500/api`
 - Restart backend and frontend
+
+## PostgreSQL Troubleshooting
+
+If the backend prints `PostgreSQL is not reachable`, check:
+
+- Docker Desktop is running.
+- `docker compose up -d postgres` completed successfully.
+- `server/.env` has `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos`.
+- Port `5432` is not already used by another local PostgreSQL instance.
+
+For hosted PostgreSQL, set:
+
+```bash
+cd server
+DATABASE_URL="postgresql://user:password@host:5432/database" npm run db:use
+```
 
 ## Seed Admin Credentials
 
@@ -269,6 +286,7 @@ Additional seeded users:
 
 - `GET /api/menu-items`
 - `POST /api/menu-items`
+- `POST /api/menu-items/import`
 - `GET /api/menu-items/:id`
 - `PUT /api/menu-items/:id`
 - `DELETE /api/menu-items/:id`
@@ -279,6 +297,7 @@ Additional seeded users:
 - `POST /api/tables`
 - `PUT /api/tables/:id`
 - `DELETE /api/tables/:id`
+- `PATCH /api/tables/transfer`
 - `PATCH /api/tables/:id/status`
 
 ### Orders
@@ -303,6 +322,11 @@ Additional seeded users:
 - `DELETE /api/inventory/:id`
 - `PATCH /api/inventory/:id/stock`
 
+### Purchases
+
+- `GET /api/purchases`
+- `POST /api/purchases`
+
 ### Suppliers
 
 - `GET /api/suppliers`
@@ -321,7 +345,9 @@ Additional seeded users:
 
 - `GET /api/reports/dashboard`
 - `GET /api/reports/daily-sales`
+- `GET /api/reports/weekly-sales`
 - `GET /api/reports/monthly-sales`
+- `GET /api/reports/yearly-sales`
 - `GET /api/reports/best-selling-items`
 - `GET /api/reports/low-stock`
 - `GET /api/reports/super-admin` (SUPER_ADMIN only)
@@ -331,6 +357,39 @@ Additional seeded users:
 - `GET /api/plans/catalog`
 - `GET /api/plans/active`
 - `PUT /api/plans/active`
+
+### Vendors
+
+- `GET /api/vendors/overview`
+- `GET /api/vendors`
+- `POST /api/vendors`
+- `GET /api/vendors/:id`
+- `PUT /api/vendors/:id`
+- `DELETE /api/vendors/:id`
+- `PUT /api/vendors/:id/subscription`
+- `POST /api/vendors/:id/subscription/payments`
+- `PUT /api/vendors/:id/subscription/payments/:paymentId`
+- `DELETE /api/vendors/:id/subscription/payments/:paymentId`
+
+### Public QR Ordering
+
+- `GET /api/public/qr-menu/:tableId`
+- `GET /api/public/qr-meta/:tableId`
+- `POST /api/public/qr-menu/:tableId/orders`
+
+## Smoke Test Checklist
+
+After starting the app:
+
+1. Login as `admin@restaurant.local` / `Admin@12345`.
+2. Open dashboard and confirm cards load.
+3. Open tables and confirm color/status cards render.
+4. Create a dine-in order from a table.
+5. Open kitchen and move the order through `PREPARING` and `READY`.
+6. Open billing and create payment by table/order.
+7. Open purchases and create a purchase-in or purchase-out entry.
+8. Open reports and switch daily, weekly, monthly, and yearly views.
+9. Login as `superadmin@restaurant.local` / `SuperAdmin@12345` and verify vendors, subscriptions, plans, and users.
 
 ## Microservices Mode (Architecture)
 

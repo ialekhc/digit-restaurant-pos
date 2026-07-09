@@ -1,11 +1,6 @@
-import mongoose from 'mongoose';
+import { connectPostgres } from '../../../../server/src/config/postgres.js';
 
 export const connectDB = async () => {
-  const mongoURI = process.env.MONGO_URI;
-  if (!mongoURI) {
-    throw new Error('MONGO_URI is required for vendor-service');
-  }
-
-  await mongoose.connect(mongoURI);
-  console.log(`[vendor-service] MongoDB connected: ${mongoose.connection.host}`);
+  await connectPostgres();
+  console.log('[vendor-service] PostgreSQL connected');
 };

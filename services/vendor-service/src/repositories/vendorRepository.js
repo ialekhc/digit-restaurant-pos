@@ -10,7 +10,7 @@ export const vendorRepository = {
   },
 
   findById(id) {
-    return this.baseQuery({ _id: id }).findOne();
+    return Vendor.findById(id).populate('createdBy', 'name role').populate('loginUser', 'name email role isActive');
   },
 
   create(payload) {

@@ -1,6 +1,8 @@
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { connectDB } from '../config/db.js';
+import { pool } from '../config/postgres.js';
 import { User } from '../models/User.js';
 import { Category } from '../models/Category.js';
 import { MenuItem } from '../models/MenuItem.js';
@@ -14,7 +16,9 @@ import { PlanConfig } from '../models/PlanConfig.js';
 import { Vendor } from '../models/Vendor.js';
 import { ROLES } from '../config/constants.js';
 
-dotenv.config();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 
 const seed = async () => {
   await connectDB();
@@ -547,11 +551,11 @@ const seed = async () => {
     vendors: vendors.length
   });
 
-  await mongoose.connection.close();
+  await pool.end();
 };
 
 seed().catch(async (error) => {
   console.error('Seed failed', error);
-  await mongoose.connection.close();
+  await pool.end();
   process.exit(1);
 });

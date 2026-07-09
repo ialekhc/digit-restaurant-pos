@@ -48,7 +48,7 @@ This preserves frontend compatibility while services are extracted.
 
 ## Local Startup (Microservices Mode)
 
-1. Start MongoDB.
+1. Start PostgreSQL.
 2. Install dependencies at root:
    - `npm install`
 3. Start all services:

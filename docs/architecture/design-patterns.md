@@ -9,7 +9,7 @@ Each domain is owned by one service/module only.
 - `core-service`: restaurant operations
 - `vendor-service`: vendor + subscription + vendor payment records
 
-No cross-service writes to another service's database collections.
+No cross-service writes to another service's owned persistence documents.
 
 ## 2) API Gateway Pattern
 
@@ -64,7 +64,7 @@ Configuration is environment-only. No secrets/constants hardcoded in logic.
 
 Required env groups:
 - Runtime: `PORT`
-- Data: `MONGO_URI`
+- Data: `DATABASE_URL`, `DATABASE_SSL`
 - Auth: `JWT_SECRET`, `JWT_EXPIRES_IN`
 - Routing: `CORE_SERVICE_URL`, `VENDOR_SERVICE_URL`
 
