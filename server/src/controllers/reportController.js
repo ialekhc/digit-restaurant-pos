@@ -28,6 +28,8 @@ const getISOWeekRange = (year, week) => {
   return { start: monday, end: sunday };
 };
 
+const sumPayments = (payments) => payments.reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0);
+
 export const dashboardReport = asyncHandler(async (_req, res) => {
   const data = await getDashboardData();
   res.json({ data });
@@ -64,19 +66,16 @@ export const monthlySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(`${year}-01-01T00:00:00.000Z`);
   const end = new Date(`${year + 1}-01-01T00:00:00.000Z`);
 
-  const rows = await Payment.aggregate([
-    { $match: { createdAt: { $gte: start, $lt: end } } },
-    {
-      $group: {
-        _id: { month: { $month: '$createdAt' } },
-        totalSales: { $sum: '$amountPaid' },
-        transactionCount: { $sum: 1 }
-      }
-    },
-    { $sort: { '_id.month': 1 } }
-  ]);
+  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
+  const byMonth = new Map();
+  payments.forEach((payment) => {
+    const month = new Date(payment.createdAt).getUTCMonth() + 1;
+    const row = byMonth.get(month) || { totalSales: 0, transactionCount: 0 };
+    row.totalSales += Number(payment.amountPaid || 0);
+    row.transactionCount += 1;
+    byMonth.set(month, row);
+  });
 
-  const byMonth = new Map(rows.map((item) => [item._id.month, item]));
   const data = Array.from({ length: 12 }, (_, index) => {
     const month = index + 1;
     const row = byMonth.get(month);
@@ -100,24 +99,18 @@ export const weeklySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0));
 
-  const rows = await Payment.aggregate([
-    { $match: { createdAt: { $gte: start, $lt: end } } },
-    {
-      $group: {
-        _id: {
-          isoYear: { $isoWeekYear: '$createdAt' },
-          isoWeek: { $isoWeek: '$createdAt' }
-        },
-        totalSales: { $sum: '$amountPaid' },
-        transactionCount: { $sum: 1 }
-      }
-    },
-    { $match: { '_id.isoYear': year } },
-    { $sort: { '_id.isoWeek': 1 } }
-  ]);
-
+  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
   const lastWeek = getISOWeek(new Date(Date.UTC(year, 11, 28)));
-  const byWeek = new Map(rows.map((item) => [item._id.isoWeek, item]));
+  const byWeek = new Map();
+  payments.forEach((payment) => {
+    const date = new Date(payment.createdAt);
+    if (date.getUTCFullYear() !== year && getISOWeek(date) === 1) return;
+    const week = getISOWeek(date);
+    const row = byWeek.get(week) || { totalSales: 0, transactionCount: 0 };
+    row.totalSales += Number(payment.amountPaid || 0);
+    row.transactionCount += 1;
+    byWeek.set(week, row);
+  });
 
   const data = Array.from({ length: lastWeek }, (_, index) => {
     const week = index + 1;
@@ -152,19 +145,16 @@ export const yearlySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(Date.UTC(fromYear, 0, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(toYear + 1, 0, 1, 0, 0, 0, 0));
 
-  const rows = await Payment.aggregate([
-    { $match: { createdAt: { $gte: start, $lt: end } } },
-    {
-      $group: {
-        _id: { year: { $year: '$createdAt' } },
-        totalSales: { $sum: '$amountPaid' },
-        transactionCount: { $sum: 1 }
-      }
-    },
-    { $sort: { '_id.year': 1 } }
-  ]);
+  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
+  const byYear = new Map();
+  payments.forEach((payment) => {
+    const year = new Date(payment.createdAt).getUTCFullYear();
+    const row = byYear.get(year) || { totalSales: 0, transactionCount: 0 };
+    row.totalSales += Number(payment.amountPaid || 0);
+    row.transactionCount += 1;
+    byYear.set(year, row);
+  });
 
-  const byYear = new Map(rows.map((item) => [item._id.year, item]));
   const data = [];
   for (let year = fromYear; year <= toYear; year += 1) {
     const row = byYear.get(year);
@@ -181,21 +171,20 @@ export const yearlySalesReport = asyncHandler(async (req, res) => {
 });
 
 export const bestSellingItemsReport = asyncHandler(async (_req, res) => {
-  const data = await Order.aggregate([
-    { $unwind: '$items' },
-    {
-      $group: {
-        _id: '$items.name',
-        quantitySold: { $sum: '$items.quantity' },
-        revenue: { $sum: { $multiply: ['$items.quantity', '$items.price'] } }
-      }
-    },
-    { $sort: { quantitySold: -1 } },
-    { $limit: 20 }
-  ]);
+  const orders = await Order.find({});
+  const byItem = new Map();
+
+  orders.forEach((order) => {
+    (order.items || []).forEach((item) => {
+      const current = byItem.get(item.name) || { name: item.name, quantitySold: 0, revenue: 0 };
+      current.quantitySold += Number(item.quantity || 0);
+      current.revenue += Number(item.quantity || 0) * Number(item.price || 0);
+      byItem.set(item.name, current);
+    });
+  });
 
   res.json({
-    data: data.map((x) => ({ name: x._id, quantitySold: x.quantitySold, revenue: x.revenue }))
+    data: Array.from(byItem.values()).sort((a, b) => b.quantitySold - a.quantitySold).slice(0, 20)
   });
 });
 
