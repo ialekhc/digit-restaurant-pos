@@ -32,6 +32,14 @@ const statusRowClass = {
   CLEANING: 'border-cyan-200 bg-cyan-50/80'
 };
 
+const statusFilterLabels = {
+  ALL: 'All',
+  AVAILABLE: 'Available',
+  OCCUPIED: 'Occupied',
+  RESERVED: 'Reserved',
+  CLEANING: 'Cleaning'
+};
+
 const tableNumberValue = (tableNumber) => {
   const numeric = String(tableNumber || '').match(/\d+/);
   return numeric ? Number(numeric[0]) : Number.MAX_SAFE_INTEGER;
@@ -52,6 +60,7 @@ const TablesPage = () => {
   const [qrTable, setQrTable] = useState(null);
   const [qrVersion, setQrVersion] = useState('0');
   const [qrLoading, setQrLoading] = useState(false);
+  const [statusFilter, setStatusFilter] = useState('ALL');
   const canManageTables = [ROLES.ADMIN, ROLES.MANAGER].includes(user?.role);
   const canPlaceOrders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER].includes(user?.role);
   const canTransferTables = canPlaceOrders;
@@ -76,6 +85,11 @@ const TablesPage = () => {
       return tableNumberValue(a.tableNumber) - tableNumberValue(b.tableNumber);
     });
   }, [tables]);
+
+  const visibleTables = useMemo(() => {
+    if (statusFilter === 'ALL') return sortedTables;
+    return sortedTables.filter((table) => table.status === statusFilter);
+  }, [sortedTables, statusFilter]);
 
   const statusCounts = useMemo(() => {
     return TABLE_STATUSES.reduce((acc, status) => {
@@ -271,6 +285,24 @@ const TablesPage = () => {
           ))}
         </div>
 
+        <div className="mb-4 flex flex-wrap gap-2">
+          {['ALL', ...TABLE_STATUSES].map((status) => {
+            const isActive = statusFilter === status;
+            const count = status === 'ALL' ? tables.length : statusCounts[status] || 0;
+            return (
+              <Button
+                key={status}
+                type="button"
+                variant={isActive ? 'primary' : 'secondary'}
+                className="min-w-[110px] justify-center"
+                onClick={() => setStatusFilter(status)}
+              >
+                {statusFilterLabels[status]} ({count})
+              </Button>
+            );
+          })}
+        </div>
+
         {canTransferTables ? (
           <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
             <h4 className="text-sm font-semibold text-orange-900">Transfer Table</h4>
@@ -350,7 +382,7 @@ const TablesPage = () => {
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {sortedTables.map((item) => (
+          {visibleTables.map((item) => (
             <article
               key={item._id}
               className={`rounded-2xl border p-4 shadow-sm transition hover:shadow-md ${statusRowClass[item.status] || 'border-slate-200 bg-white'}`}
@@ -472,6 +504,11 @@ const TablesPage = () => {
             </article>
           ))}
         </div>
+        {!visibleTables.length ? (
+          <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm font-semibold text-slate-500">
+            No {statusFilterLabels[statusFilter].toLowerCase()} tables found.
+          </div>
+        ) : null}
 
       </Panel>
 
