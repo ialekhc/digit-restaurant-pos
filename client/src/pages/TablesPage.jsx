@@ -7,8 +7,8 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
-import { useAuth } from '../hooks/useAuth';
-import { ROLES, TABLE_STATUSES } from '../utils/constants';
+import { usePermissions } from '../hooks/usePermissions';
+import { PERMISSIONS, TABLE_STATUSES } from '../utils/constants';
 
 const defaultForm = {
   tableNumber: '',
@@ -38,7 +38,7 @@ const tableNumberValue = (tableNumber) => {
 };
 
 const TablesPage = () => {
-  const { user } = useAuth();
+  const { hasAnyPermission } = usePermissions();
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(defaultForm);
@@ -52,9 +52,9 @@ const TablesPage = () => {
   const [qrTable, setQrTable] = useState(null);
   const [qrVersion, setQrVersion] = useState('0');
   const [qrLoading, setQrLoading] = useState(false);
-  const canManageTables = [ROLES.ADMIN, ROLES.MANAGER].includes(user?.role);
-  const canPlaceOrders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER].includes(user?.role);
-  const canTransferTables = canPlaceOrders;
+  const canManageTables = hasAnyPermission([PERMISSIONS.TABLE_MANAGE]);
+  const canPlaceOrders = hasAnyPermission([PERMISSIONS.ORDER_CREATE]);
+  const canTransferTables = hasAnyPermission([PERMISSIONS.ORDER_TRANSFER]);
 
   const load = async () => {
     const [tableData, orderData] = await Promise.all([

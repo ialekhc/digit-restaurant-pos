@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
   }, [token, clearSession]);
 
   useEffect(() => {
-    if (token && !user) {
+    if (token && (!user || !Array.isArray(user.permissions))) {
       refreshProfile();
     }
   }, [token, user, refreshProfile]);

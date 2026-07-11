@@ -2,13 +2,14 @@ import { Order } from '../models/Order.js';
 import { MenuItem } from '../models/MenuItem.js';
 import { Table } from '../models/Table.js';
 import { Customer } from '../models/Customer.js';
-import { ORDER_STATUSES, ORDER_TYPES, ROLES } from '../config/constants.js';
+import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateOrderNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
+import { hasPermission } from '../services/permissionService.js';
 
 const validTransitions = {
   PENDING: ['PREPARING', 'CANCELLED'],
@@ -251,18 +252,16 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     throw new ApiError(400, `Invalid status. Allowed: ${ORDER_STATUSES.join(', ')}`);
   }
 
-  const role = req.user?.role;
-  if ([ROLES.KITCHEN, ROLES.BARISTA].includes(role) && !['PREPARING', 'READY'].includes(status)) {
+  const canKitchenUpdate = hasPermission(req.user, PERMISSIONS.KITCHEN_UPDATE_STATUS);
+  const canOrderUpdate = hasPermission(req.user, PERMISSIONS.ORDER_UPDATE);
+  if (canKitchenUpdate && !canOrderUpdate && !['PREPARING', 'READY'].includes(status)) {
     throw new ApiError(403, 'Kitchen and bar can only mark orders as PREPARING or READY');
   }
-  if ([ROLES.KITCHEN, ROLES.BARISTA].includes(role)) {
+  if (canKitchenUpdate) {
     await ensureFeatureEnabled(
       FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM,
       'Kitchen display is not available in the active plan'
     );
-  }
-  if (role === ROLES.WAITER && status !== 'SERVED') {
-    throw new ApiError(403, 'Waiter can only mark orders as SERVED');
   }
 
   const order = await Order.findById(req.params.id);
@@ -276,7 +275,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   ensureItemProgressBounds(order);
 
   if (status === 'READY') {
-    if (![ROLES.KITCHEN, ROLES.BARISTA, ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER].includes(role)) {
+    if (!canKitchenUpdate) {
       throw new ApiError(403, 'Only kitchen, bar, or admin roles can mark dishes ready');
     }
     if (currentStatus !== 'PREPARING' && currentStatus !== 'READY') {

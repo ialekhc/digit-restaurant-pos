@@ -452,3 +452,88 @@ Architecture details are documented in:
 - Menu images are stored in `server/src/uploads` and served via `/uploads/*`.
 - `register` is restricted to `ADMIN` users after authentication.
 - Customer role is optional and not enabled in frontend routing by default.
+
+## Normalized PostgreSQL Database
+
+The project now includes a normalized PostgreSQL schema while retaining the legacy `app_documents` JSONB table as a migration fallback.
+
+### Service Ownership
+
+- `services/vendor-service` owns vendor lifecycle tables: `restaurants`, `subscription_plans`, `restaurant_subscriptions`, `subscription_payments`, `vendor_onboarding_events`.
+- `server` owns core restaurant operations: users/RBAC, branches, menu, tables, orders, payments, kitchen, inventory, suppliers, customers, reports, and audit logs.
+- The API gateway routing remains unchanged:
+  - `/api/vendors/**` -> vendor-service
+  - `/api/**` -> core-service
+
+### Environment Variables
+
+```env
+DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+CORE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+VENDOR_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_SSL=false
+USE_LEGACY_DOCUMENT_STORAGE=false
+```
+
+If `CORE_DATABASE_URL` or `VENDOR_DATABASE_URL` is not set, the services fall back to `DATABASE_URL`.
+
+### Migration Commands
+
+Run vendor migrations before core migrations:
+
+```bash
+npm run db:migrate
+npm run db:status
+npm run db:seed
+```
+
+Per service:
+
+```bash
+npm run db:migrate --workspace @pos/vendor-service
+npm run db:migrate --workspace server
+npm run db:seed --workspace @pos/vendor-service
+npm run db:seed --workspace server
+```
+
+### JSONB Migration Commands
+
+Dry run:
+
+```bash
+npm run db:migrate:documents:dry-run
+```
+
+Execute staged migration:
+
+```bash
+npm run db:migrate:documents
+```
+
+Verify counts:
+
+```bash
+npm run db:migrate:documents:verify
+```
+
+The JSONB migration does not drop `app_documents`. Failed rows are recorded in `app_document_migration_failures`.
+
+### Database Documentation
+
+- `docs/database/postgresql-schema.md`
+- `docs/database/migrations.md`
+- `docs/database/jsonb-migration.md`
+- `docs/database/backup-restore.md`
+- `docs/database/service-table-ownership.md`
+
+### Development Credentials
+
+Development seed credentials are for local development only:
+
+- Super Admin: `superadmin@restaurant.local` / `SuperAdmin@12345`
+- Owner: `owner@restaurant.local` / `Owner@12345`
+- Admin: `admin@restaurant.local` / `Admin@12345`
+- Manager: `manager@restaurant.local` / `Manager@12345`
+- Cashier: `cashier@restaurant.local` / `Cashier@12345`
+- Waiter: `waiter@restaurant.local` / `Waiter@12345`
+- Kitchen: `kitchen@restaurant.local` / `Kitchen@12345`

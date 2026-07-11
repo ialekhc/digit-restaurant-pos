@@ -6,29 +6,23 @@ import {
   getCustomers,
   updateCustomer
 } from '../controllers/customerController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
-import { ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 router.use(authenticate, featureGate(FEATURE_KEYS.CUSTOMER_MANAGEMENT));
 
-router
-  .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), getCustomers)
-  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), createCustomer);
+router.route('/').get(requirePermission(PERMISSIONS.CUSTOMER_VIEW), getCustomers).post(requirePermission(PERMISSIONS.CUSTOMER_CREATE), createCustomer);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), updateCustomer)
-  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteCustomer);
+  .put(requirePermission(PERMISSIONS.CUSTOMER_UPDATE), updateCustomer)
+  .delete(requirePermission(PERMISSIONS.CUSTOMER_DELETE), deleteCustomer);
 
-router.get(
-  '/:id/order-history',
-  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER),
-  getCustomerOrderHistory
-);
+router.get('/:id/order-history', requirePermission(PERMISSIONS.CUSTOMER_VIEW), getCustomerOrderHistory);
 
 export default router;

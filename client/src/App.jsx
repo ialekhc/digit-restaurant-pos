@@ -31,18 +31,7 @@ import SuperAdminSubscriptionsPage from './pages/SuperAdminSubscriptionsPage';
 import SuperAdminPlansPage from './pages/SuperAdminPlansPage';
 import SuperAdminUsersPage from './pages/SuperAdminUsersPage';
 import NotFoundPage from './pages/NotFoundPage';
-import { ROLES } from './utils/constants';
-
-const allStaff = [
-  ROLES.SUPER_ADMIN,
-  ROLES.RESTAURANT_OWNER,
-  ROLES.ADMIN,
-  ROLES.MANAGER,
-  ROLES.CASHIER,
-  ROLES.WAITER,
-  ROLES.KITCHEN,
-  ROLES.BARISTA
-];
+import { PERMISSIONS } from './utils/constants';
 
 const App = () => {
   return (
@@ -53,7 +42,7 @@ const App = () => {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.SUPER_ADMIN]} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.PLATFORM_VIEW, PERMISSIONS.PLATFORM_MANAGE]} />}>
             <Route path="/super-admin" element={<Navigate to="/super-admin/dashboard" replace />} />
             <Route path="/super-admin/dashboard" element={<SuperAdminDashboardPage />} />
             <Route path="/super-admin/vendors" element={<SuperAdminVendorsPage />} />
@@ -62,15 +51,15 @@ const App = () => {
             <Route path="/super-admin/users" element={<SuperAdminUsersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.DASHBOARD_VIEW} />}>
             <Route path="/dashboard" element={<DashboardPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.USER_VIEW} />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER]} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.MENU_VIEW, PERMISSIONS.INVENTORY_VIEW, PERMISSIONS.SUPPLIER_VIEW, PERMISSIONS.PURCHASE_VIEW]} />}>
             <Route path="/menu/categories" element={<MenuCategoriesPage />} />
             <Route path="/suppliers" element={<SuppliersPage />} />
             <Route path="/inventory" element={<InventoryPage />} />
@@ -78,7 +67,7 @@ const App = () => {
             <Route path="/purchase-out" element={<PurchaseFlowPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER]} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.MENU_VIEW, PERMISSIONS.TABLE_VIEW, PERMISSIONS.ORDER_CREATE]} />}>
             <Route path="/menu/items" element={<MenuItemsPage />} />
             <Route path="/drink/items" element={<DrinkItemsPage />} />
             <Route path="/smoke/items" element={<SmokeItemsPage />} />
@@ -86,36 +75,34 @@ const App = () => {
             <Route path="/orders/create" element={<OrderCreatePage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={allStaff} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]} />}>
             <Route path="/orders" element={<OrdersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.KITCHEN]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.KITCHEN_VIEW_ORDERS} />}>
             <Route path="/kitchen" element={<KitchenPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.BARISTA]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.KITCHEN_VIEW_ORDERS} />}>
             <Route path="/bar" element={<BarDisplayPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.KITCHEN, ROLES.BARISTA]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.KITCHEN_VIEW_ORDERS} />}>
             <Route path="/smoke-display" element={<SmokeDisplayPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER]} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.PAYMENT_VIEW, PERMISSIONS.CASH_REGISTER_VIEW, PERMISSIONS.REPORT_OWN_SHIFT, PERMISSIONS.REPORT_BRANCH_SALES]} />}>
             <Route path="/billing" element={<BillingPage />} />
             <Route path="/register-dashboard" element={<RegisterDashboardPage />} />
             <Route path="/cash-register" element={<CashRegisterPage />} />
             <Route path="/reports" element={<ReportsPage />} />
           </Route>
 
-          <Route
-            element={<ProtectedRoute allowedRoles={[ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER]} />}
-          >
+          <Route element={<ProtectedRoute permission={PERMISSIONS.CUSTOMER_VIEW} />}>
             <Route path="/customers" element={<CustomersPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute allowedRoles={allStaff} />}>
+          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]} />}>
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
 

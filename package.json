@@ -14,6 +14,15 @@
     "dev:vendor-service": "npm run dev --workspace @pos/vendor-service",
     "dev:microservices": "node scripts/dev-microservices.js",
     "build:client": "npm run build --workspace client",
-    "seed": "npm run seed --workspace server"
+    "seed": "npm run seed --workspace server",
+    "db:migrate": "npm run db:migrate --workspace @pos/vendor-service && npm run db:migrate --workspace server",
+    "db:migrate:core": "npm run db:migrate --workspace server",
+    "db:migrate:vendor": "npm run db:migrate --workspace @pos/vendor-service",
+    "db:rollback": "npm run db:rollback --workspace server && npm run db:rollback --workspace @pos/vendor-service",
+    "db:seed": "npm run db:seed --workspace @pos/vendor-service && npm run db:seed --workspace server",
+    "db:status": "npm run db:status --workspace @pos/vendor-service && npm run db:status --workspace server",
+    "db:migrate:documents": "npm run db:migrate:documents --workspace @pos/vendor-service -- --execute && npm run db:migrate:documents --workspace server -- --execute",
+    "db:migrate:documents:dry-run": "npm run db:migrate:documents --workspace @pos/vendor-service -- --dry-run && npm run db:migrate:documents --workspace server -- --dry-run",
+    "db:migrate:documents:verify": "npm run db:migrate:documents --workspace @pos/vendor-service -- --verify && npm run db:migrate:documents --workspace server -- --verify"
   }
 }

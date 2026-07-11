@@ -5,20 +5,17 @@ import {
   getSuppliers,
   updateSupplier
 } from '../controllers/supplierController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
-import { ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
-router.use(
-  authenticate,
-  featureGate(FEATURE_KEYS.SUPPLIER_MANAGEMENT),
-  authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER)
-);
+router.use(authenticate, featureGate(FEATURE_KEYS.SUPPLIER_MANAGEMENT));
 
-router.route('/').get(getSuppliers).post(createSupplier);
-router.route('/:id').put(updateSupplier).delete(deleteSupplier);
+router.route('/').get(requirePermission(PERMISSIONS.SUPPLIER_VIEW), getSuppliers).post(requirePermission(PERMISSIONS.SUPPLIER_CREATE), createSupplier);
+router.route('/:id').put(requirePermission(PERMISSIONS.SUPPLIER_UPDATE), updateSupplier).delete(requirePermission(PERMISSIONS.SUPPLIER_DELETE), deleteSupplier);
 
 export default router;

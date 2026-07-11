@@ -23,16 +23,15 @@ const makeProxy = (target, serviceName) =>
   });
 
 app.get('/health', (_req, res) => {
-  const upstreams = Object.fromEntries(
-    ['core', 'vendor'].map((serviceName) => [serviceName, resolveUpstreamUrl(serviceName)])
-  );
-
   res.json({
-    status: 'ok',
-    service: 'api-gateway',
-    pattern: 'api-gateway',
-    upstreams,
-    timestamp: new Date().toISOString()
+    success: true,
+    data: {
+      service: 'api-gateway',
+      upstreams: {
+        core: Boolean(resolveUpstreamUrl('core')),
+        vendor: Boolean(resolveUpstreamUrl('vendor'))
+      }
+    }
   });
 });
 

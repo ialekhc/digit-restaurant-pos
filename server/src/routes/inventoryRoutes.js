@@ -6,25 +6,23 @@ import {
   updateInventoryItem,
   updateStock
 } from '../controllers/inventoryController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
-import { ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 router.use(authenticate, featureGate(FEATURE_KEYS.INVENTORY_MANAGEMENT));
 
-router
-  .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), getInventory)
-  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), createInventoryItem);
+router.route('/').get(requirePermission(PERMISSIONS.INVENTORY_VIEW), getInventory).post(requirePermission(PERMISSIONS.INVENTORY_MANAGE), createInventoryItem);
 
 router
   .route('/:id')
-  .put(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateInventoryItem)
-  .delete(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), deleteInventoryItem);
+  .put(requirePermission(PERMISSIONS.INVENTORY_MANAGE), updateInventoryItem)
+  .delete(requirePermission(PERMISSIONS.INVENTORY_MANAGE), deleteInventoryItem);
 
-router.patch('/:id/stock', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER), updateStock);
+router.patch('/:id/stock', requireAnyPermission([PERMISSIONS.INVENTORY_ADJUST, PERMISSIONS.INVENTORY_MANAGE]), updateStock);
 
 export default router;

@@ -1,11 +1,12 @@
-import { ROLES } from '../config/constants.js';
+import { PERMISSIONS } from '../config/constants.js';
 import { isFeatureEnabled } from '../services/planService.js';
+import { hasPermission } from '../services/permissionService.js';
 import { ApiError } from '../utils/ApiError.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 
 export const featureGate = (featureKey, message) =>
   asyncHandler(async (req, _res, next) => {
-    if (req.user?.role === ROLES.SUPER_ADMIN) return next();
+    if (hasPermission(req.user, PERMISSIONS.PLATFORM_MANAGE)) return next();
 
     const enabled = await isFeatureEnabled(featureKey);
     if (!enabled) {
@@ -13,4 +14,3 @@ export const featureGate = (featureKey, message) =>
     }
     next();
   });
-
