@@ -237,13 +237,16 @@ export const importMenuItems = asyncHandler(async (req, res) => {
       const kitchenSection = resolveKitchenSection(rawKitchenSection, menuType, categoryName, itemName);
       const description = getTrimmedString(row, DESCRIPTION_KEYS);
 
-      const categoryKey = categoryName.toLowerCase();
+      const categoryKey = `${menuType}:${categoryName.toLowerCase()}`;
       let categoryDoc = categoryCache.get(categoryKey);
 
       if (!categoryDoc) {
-        categoryDoc = await Category.findOne({ name: new RegExp(`^${escapeRegex(categoryName)}$`, 'i') });
+        categoryDoc = await Category.findOne({
+          name: new RegExp(`^${escapeRegex(categoryName)}$`, 'i'),
+          menuType
+        });
         if (!categoryDoc) {
-          categoryDoc = await Category.create({ name: categoryName });
+          categoryDoc = await Category.create({ name: categoryName, menuType });
           summary.categoriesCreated += 1;
         }
         categoryCache.set(categoryKey, categoryDoc);
