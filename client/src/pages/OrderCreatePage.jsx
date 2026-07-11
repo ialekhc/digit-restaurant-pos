@@ -22,6 +22,8 @@ const orderMenuTabs = [
   { label: 'Smoke Menu', value: 'SMOKE' }
 ];
 const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
+const getCategoryId = (item) => item.category?._id || item.category || '';
+const getCategoryName = (item) => item.category?.name || 'Uncategorized';
 const menuTypeLabels = {
   FOOD: 'Food',
   DRINK: 'Drink',
@@ -41,6 +43,7 @@ const OrderCreatePage = () => {
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [orderState, setOrderState] = useState(initialState);
   const [activeMenuType, setActiveMenuType] = useState('FOOD');
+  const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMenu, setSelectedMenu] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
@@ -123,9 +126,36 @@ const OrderCreatePage = () => {
     return Math.max(0, subtotal - Number(orderState.discount || 0));
   }, [subtotal, orderState.discount]);
 
-  const visibleMenuItems = useMemo(() => {
+  const activeMenuItems = useMemo(() => {
     return menuItems.filter((item) => getMenuType(item) === activeMenuType);
   }, [activeMenuType, menuItems]);
+
+  const categoryOptions = useMemo(() => {
+    const categoriesById = new Map();
+    activeMenuItems.forEach((item) => {
+      const categoryId = getCategoryId(item);
+      if (categoryId && !categoriesById.has(categoryId)) {
+        categoriesById.set(categoryId, getCategoryName(item));
+      }
+    });
+
+    return [...categoriesById.entries()]
+      .sort((left, right) => left[1].localeCompare(right[1]))
+      .map(([value, label]) => ({ value, label }));
+  }, [activeMenuItems]);
+
+  const visibleMenuItems = useMemo(() => {
+    if (!selectedCategory) return [];
+    return activeMenuItems
+      .filter((item) => getCategoryId(item) === selectedCategory)
+      .sort((left, right) => left.name.localeCompare(right.name));
+  }, [activeMenuItems, selectedCategory]);
+
+  const changeMenuType = (menuType) => {
+    setActiveMenuType(menuType);
+    setSelectedCategory('');
+    setSelectedMenu('');
+  };
 
   useEffect(() => {
     if (!selectedMenu) return;
@@ -279,22 +309,32 @@ const OrderCreatePage = () => {
         ) : null}
       </Panel>
 
-      <Panel title="Add Items" subtitle="Choose whether you are adding food or drinks for this order">
+      <Panel title="Add Items" subtitle="Choose a menu, then a category, and finally an item">
         <div className="mb-4 flex flex-wrap gap-2">
           {orderMenuTabs.map((tab) => (
             <Button
               key={tab.value}
               variant={activeMenuType === tab.value ? 'primary' : 'secondary'}
-              onClick={() => setActiveMenuType(tab.value)}
+              onClick={() => changeMenuType(tab.value)}
             >
               {tab.label}
             </Button>
           ))}
         </div>
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
+          <Select
+            label={`${menuTypeLabels[activeMenuType] || 'Menu'} Category`}
+            value={selectedCategory}
+            options={[{ label: 'Select category', value: '' }].concat(categoryOptions)}
+            onChange={(e) => {
+              setSelectedCategory(e.target.value);
+              setSelectedMenu('');
+            }}
+          />
           <Select
             label={`${menuTypeLabels[activeMenuType] || 'Menu'} Item`}
             value={selectedMenu}
+            disabled={!selectedCategory}
             options={[{ label: 'Select menu item', value: '' }].concat(
               visibleMenuItems.map((m) => ({
                 label: `${m.name}${m.category?.name ? ` (${m.category.name})` : ''} - ${currency(m.price)}`,
@@ -309,10 +349,12 @@ const OrderCreatePage = () => {
             <Button className="w-full py-3 text-base" onClick={addItem}>Add Item</Button>
           </div>
         </div>
-        {!visibleMenuItems.length ? (
+        {!activeMenuItems.length ? (
           <p className="mt-3 text-sm text-slate-500">
             No {(menuTypeLabels[activeMenuType] || 'menu').toLowerCase()} items are available right now.
           </p>
+        ) : selectedCategory && !visibleMenuItems.length ? (
+          <p className="mt-3 text-sm text-slate-500">No items are available in the selected category.</p>
         ) : null}
 
         <div className="mt-4 hidden overflow-x-auto md:block">

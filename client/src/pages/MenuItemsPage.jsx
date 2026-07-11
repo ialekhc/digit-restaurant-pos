@@ -49,6 +49,19 @@ const menuTypeConfig = {
   }
 };
 
+const importSheetNames = {
+  FOOD: ['food menu', 'food'],
+  DRINK: ['drink menu', 'drinks menu', 'drink', 'drinks'],
+  SMOKE: ['smoke menu', 'smoke']
+};
+
+const normalizeSheetName = (value) => String(value || '').trim().toLowerCase();
+
+const findImportSheetName = (sheetNames, menuType) => {
+  const expectedNames = importSheetNames[menuType] || importSheetNames.FOOD;
+  return sheetNames.find((sheetName) => expectedNames.includes(normalizeSheetName(sheetName))) || '';
+};
+
 const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const { user } = useAuth();
   const [items, setItems] = useState([]);
@@ -71,7 +84,10 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const load = async () => {
     setLoading(true);
     try {
-      const [menuData, categoryData] = await Promise.all([menuService.list({ menuType }), categoryService.list()]);
+      const [menuData, categoryData] = await Promise.all([
+        menuService.list({ menuType }),
+        categoryService.list({ menuType })
+      ]);
       setItems(menuData);
       setCategories(categoryData);
     } finally {
@@ -193,14 +209,17 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
       const XLSX = await import('xlsx');
       const buffer = await importFile.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: 'array' });
-      const firstSheetName = workbook.SheetNames[0];
+      const matchingSheetName = findImportSheetName(workbook.SheetNames, menuType);
+      const sheetName = matchingSheetName || (workbook.SheetNames.length === 1 ? workbook.SheetNames[0] : '');
 
-      if (!firstSheetName) {
-        setImportError('No worksheet found in selected file');
+      if (!sheetName) {
+        setImportError(
+          `No ${config.badgeText} worksheet found. Expected a sheet named ${importSheetNames[menuType].join(' or ')}.`
+        );
         return;
       }
 
-      const worksheet = workbook.Sheets[firstSheetName];
+      const worksheet = workbook.Sheets[sheetName];
       const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
       const rows = normalizeImportRows(rawRows);
 
