@@ -4,16 +4,16 @@ import {
   getPlanCatalogController,
   updateActivePlanController
 } from '../controllers/planController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
-import { ROLES } from '../config/constants.js';
+import { authenticate } from '../middleware/auth.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 router.use(authenticate);
 
-router.get('/catalog', getPlanCatalogController);
+router.get('/catalog', requireAnyPermission([PERMISSIONS.SUBSCRIPTION_VIEW, PERMISSIONS.PLATFORM_VIEW, PERMISSIONS.SETTINGS_VIEW]), getPlanCatalogController);
 router.get('/active', getActivePlanController);
-router.put('/active', authorize(ROLES.SUPER_ADMIN, ROLES.ADMIN), updateActivePlanController);
+router.put('/active', requireAnyPermission([PERMISSIONS.SUBSCRIPTION_MANAGE, PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE]), updateActivePlanController);
 
 export default router;
-

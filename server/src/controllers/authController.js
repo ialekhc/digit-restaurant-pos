@@ -2,17 +2,9 @@ import { User } from '../models/User.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generateToken } from '../utils/generateToken.js';
+import { buildPublicUser } from '../services/permissionService.js';
 
-const sanitizeUser = (user) => ({
-  _id: user._id,
-  name: user.name,
-  email: user.email,
-  role: user.role,
-  phone: user.phone,
-  isActive: user.isActive,
-  createdAt: user.createdAt,
-  updatedAt: user.updatedAt
-});
+const sanitizeUser = (user) => buildPublicUser(user);
 
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password, role, phone } = req.body;
@@ -64,7 +56,7 @@ export const login = asyncHandler(async (req, res) => {
 });
 
 export const getProfile = asyncHandler(async (req, res) => {
-  res.json({ data: req.user });
+  res.json({ data: sanitizeUser(req.user) });
 });
 
 export const changePassword = asyncHandler(async (req, res) => {

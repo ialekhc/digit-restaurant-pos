@@ -6,8 +6,8 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { API_BASE_URL } from '../api/axios';
 import { currency } from '../utils/format';
-import { useAuth } from '../hooks/useAuth';
-import { ROLES } from '../utils/constants';
+import { usePermissions } from '../hooks/usePermissions';
+import { PERMISSIONS } from '../utils/constants';
 
 const initial = {
   name: '',
@@ -63,7 +63,7 @@ const findImportSheetName = (sheetNames, menuType) => {
 };
 
 const MenuItemsPage = ({ menuType = 'FOOD' }) => {
-  const { user } = useAuth();
+  const { hasAnyPermission } = usePermissions();
   const [items, setItems] = useState([]);
   const [categories, setCategories] = useState([]);
   const [form, setForm] = useState(initial);
@@ -75,10 +75,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const [importError, setImportError] = useState('');
   const [importSummary, setImportSummary] = useState(null);
 
-  const canManageMenu = useMemo(
-    () => [ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER].includes(user?.role),
-    [user?.role]
-  );
+  const canManageMenu = hasAnyPermission([PERMISSIONS.MENU_CREATE, PERMISSIONS.MENU_UPDATE]);
   const config = menuTypeConfig[menuType] || menuTypeConfig.FOOD;
 
   const load = async () => {

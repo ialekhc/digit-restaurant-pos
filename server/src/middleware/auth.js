@@ -2,7 +2,8 @@ import jwt from 'jsonwebtoken';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { User } from '../models/User.js';
-import { ROLES } from '../config/constants.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { hasPermission } from '../services/permissionService.js';
 
 export const authenticate = asyncHandler(async (req, res, next) => {
   const authHeader = req.headers.authorization;
@@ -34,7 +35,7 @@ export const authorize = (...allowedRoles) => {
       throw new ApiError(401, 'Unauthorized');
     }
 
-    if (req.user.role === ROLES.SUPER_ADMIN) {
+    if (hasPermission(req.user, PERMISSIONS.PLATFORM_MANAGE)) {
       return next();
     }
 

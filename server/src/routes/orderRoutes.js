@@ -6,10 +6,11 @@ import {
   getOrders,
   updateOrderStatus
 } from '../controllers/orderController.js';
-import { authenticate, authorize } from '../middleware/auth.js';
+import { authenticate } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
-import { ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
+import { PERMISSIONS } from '../config/constants.js';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
@@ -17,14 +18,12 @@ router.use(authenticate, featureGate(FEATURE_KEYS.ORDER_HISTORY));
 
 router
   .route('/')
-  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN, ROLES.BARISTA), getOrders)
-  .post(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER), createOrder);
+  .get(requireAnyPermission([PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]), getOrders)
+  .post(requirePermission(PERMISSIONS.ORDER_CREATE), createOrder);
 
-router
-  .route('/:id')
-  .get(authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.CASHIER, ROLES.WAITER, ROLES.KITCHEN, ROLES.BARISTA), getOrderById);
+router.route('/:id').get(requireAnyPermission([PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]), getOrderById);
 
-router.patch('/:id/status', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.KITCHEN, ROLES.BARISTA), updateOrderStatus);
-router.patch('/:id/cancel', authorize(ROLES.ADMIN, ROLES.RESTAURANT_OWNER, ROLES.MANAGER, ROLES.WAITER, ROLES.CASHIER), cancelOrder);
+router.patch('/:id/status', requireAnyPermission([PERMISSIONS.ORDER_UPDATE, PERMISSIONS.KITCHEN_UPDATE_STATUS]), updateOrderStatus);
+router.patch('/:id/cancel', requireAnyPermission([PERMISSIONS.ORDER_CANCEL, PERMISSIONS.ORDER_VOID]), cancelOrder);
 
 export default router;

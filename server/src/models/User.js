@@ -7,7 +7,14 @@ export const User = createPostgresModel('User', {
     role: 'WAITER',
     phone: '',
     isActive: true,
-    ownerUser: null
+    ownerUser: null,
+    restaurantId: null,
+    branchIds: [],
+    additionalPermissions: [],
+    deniedPermissions: [],
+    discountLimitPercent: undefined,
+    refundLimitAmount: undefined,
+    voidLimitAmount: undefined
   },
   preSave: hashUserPasswordIfChanged,
   methods: userMethods

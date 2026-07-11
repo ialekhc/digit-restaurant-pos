@@ -14,8 +14,21 @@ export const authService = {
 export const userService = {
   list: async (params) => unwrap(await api.get('/users', { params })),
   create: async (payload) => unwrap(await api.post('/users', payload)),
+  access: async (id) => unwrap(await api.get(`/users/${id}/access`)),
+  assignRole: async (id, payload) => unwrap(await api.patch(`/users/${id}/roles`, payload)),
+  updatePermissions: async (id, payload) => unwrap(await api.patch(`/users/${id}/permissions`, payload)),
+  updateBranchAccess: async (id, payload) => unwrap(await api.patch(`/users/${id}/branch-access`, payload)),
+  updateApprovalLimits: async (id, payload) => unwrap(await api.patch(`/users/${id}/approval-limits`, payload)),
   update: async (id, payload) => unwrap(await api.put(`/users/${id}`, payload)),
   remove: async (id) => unwrap(await api.delete(`/users/${id}`))
+};
+
+export const permissionService = {
+  list: async () => unwrap(await api.get('/permissions')),
+  roles: async () => unwrap(await api.get('/roles')),
+  rolePermissions: async (role) => unwrap(await api.get(`/roles/${role}/permissions`)),
+  mine: async () => unwrap(await api.get('/me/permissions')),
+  scope: async () => unwrap(await api.get('/me/access-scope'))
 };
 
 export const categoryService = {

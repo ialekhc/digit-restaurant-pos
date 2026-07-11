@@ -8,7 +8,12 @@
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node src/scripts/seed.js",
-    "db:use": "node src/scripts/setDatabaseUrl.js"
+    "db:use": "node src/scripts/setDatabaseUrl.js",
+    "db:migrate": "node src/database/migrationRunner.js up",
+    "db:rollback": "node src/database/migrationRunner.js down",
+    "db:status": "node src/database/migrationRunner.js status",
+    "db:seed": "node src/database/seedRunner.js",
+    "db:migrate:documents": "node src/database/migrateDocuments.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

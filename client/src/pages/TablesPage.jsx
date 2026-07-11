@@ -7,8 +7,8 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
-import { useAuth } from '../hooks/useAuth';
-import { ROLES, TABLE_STATUSES } from '../utils/constants';
+import { usePermissions } from '../hooks/usePermissions';
+import { PERMISSIONS, TABLE_STATUSES } from '../utils/constants';
 
 const defaultForm = {
   tableNumber: '',
@@ -46,7 +46,7 @@ const tableNumberValue = (tableNumber) => {
 };
 
 const TablesPage = () => {
-  const { user } = useAuth();
+  const { hasAnyPermission } = usePermissions();
   const [tables, setTables] = useState([]);
   const [orders, setOrders] = useState([]);
   const [form, setForm] = useState(defaultForm);

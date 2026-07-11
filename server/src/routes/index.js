@@ -14,10 +14,16 @@ import reportRoutes from './reportRoutes.js';
 import planRoutes from './planRoutes.js';
 import vendorRoutes from './vendorRoutes.js';
 import publicRoutes from './publicRoutes.js';
+import permissionRoutes from './permissionRoutes.js';
+import roleRoutes from './roleRoutes.js';
+import meRoutes from './meRoutes.js';
 
 const router = Router();
 
 router.use('/auth', authRoutes);
+router.use('/me', meRoutes);
+router.use('/permissions', permissionRoutes);
+router.use('/roles', roleRoutes);
 router.use('/users', userRoutes);
 router.use('/categories', categoryRoutes);
 router.use('/menu-items', menuItemRoutes);
