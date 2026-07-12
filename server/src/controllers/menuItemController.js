@@ -3,6 +3,7 @@ import { Category } from '../models/Category.js';
 import { KITCHEN_SECTIONS } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 const CATEGORY_KEYS = ['category', 'Category', 'CATEGORY'];
 const ITEM_KEYS = ['item', 'Item', 'ITEM', 'name', 'Name', 'NAME'];
@@ -143,7 +144,7 @@ export const getMenuItems = asyncHandler(async (req, res) => {
   if (typeof available !== 'undefined') andConditions.push({ isAvailable: available === 'true' });
   if (menuType) andConditions.push(buildMenuTypeFilter(normalizeMenuType(menuType)));
 
-  const query = andConditions.length ? { $and: andConditions } : {};
+  const query = await buildTenantScopedQuery(req.user, andConditions.length ? { $and: andConditions } : {});
 
   const data = await MenuItem.find(query).populate('category').sort({ createdAt: -1 });
   res.json({ data });
@@ -168,7 +169,7 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     name
   );
 
-  const data = await MenuItem.create({
+  const data = await MenuItem.create(await withTenantFields(req.user, {
     name,
     category,
     description,
@@ -178,7 +179,7 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     menuType: resolvedMenuType,
     kitchenSection: resolvedKitchenSection,
     image
-  });
+  }));
 
   const populated = await MenuItem.findById(data._id).populate('category');
   res.status(201).json({ data: populated });
@@ -241,24 +242,28 @@ export const importMenuItems = asyncHandler(async (req, res) => {
       let categoryDoc = categoryCache.get(categoryKey);
 
       if (!categoryDoc) {
-        categoryDoc = await Category.findOne({
-          name: new RegExp(`^${escapeRegex(categoryName)}$`, 'i'),
-          menuType
-        });
+        categoryDoc = await Category.findOne(
+          await buildTenantScopedQuery(req.user, {
+            name: new RegExp(`^${escapeRegex(categoryName)}$`, 'i'),
+            menuType
+          })
+        );
         if (!categoryDoc) {
-          categoryDoc = await Category.create({ name: categoryName, menuType });
+          categoryDoc = await Category.create(await withTenantFields(req.user, { name: categoryName, menuType }));
           summary.categoriesCreated += 1;
         }
         categoryCache.set(categoryKey, categoryDoc);
       }
 
-      const existing = await MenuItem.findOne({
-        category: categoryDoc._id,
-        name: new RegExp(`^${escapeRegex(itemName)}$`, 'i'),
-        ...buildMenuTypeFilter(menuType)
-      });
+      const existing = await MenuItem.findOne(
+        await buildTenantScopedQuery(req.user, {
+          category: categoryDoc._id,
+          name: new RegExp(`^${escapeRegex(itemName)}$`, 'i'),
+          ...buildMenuTypeFilter(menuType)
+        })
+      );
 
-      const payload = {
+      const payload = await withTenantFields(req.user, {
         name: itemName,
         category: categoryDoc._id,
         description,
@@ -267,7 +272,7 @@ export const importMenuItems = asyncHandler(async (req, res) => {
         isAvailable,
         menuType,
         kitchenSection
-      };
+      });
 
       if (existing) {
         if (!upsert) {

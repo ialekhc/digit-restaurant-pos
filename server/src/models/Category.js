@@ -9,5 +9,5 @@ export const Category = createPostgresModel('Category', {
     menuType: 'FOOD',
     isActive: true
   },
-  unique: [['name', 'menuType']]
+  unique: [['restaurantId', 'name', 'menuType']]
 });

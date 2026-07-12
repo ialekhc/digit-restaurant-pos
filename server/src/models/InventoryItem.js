@@ -10,5 +10,5 @@ export const InventoryItem = createPostgresModel('InventoryItem', {
     supplier: null,
     purchasePrice: 0
   },
-  unique: [['name']]
+  unique: [['restaurantId', 'name']]
 });

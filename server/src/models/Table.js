@@ -5,5 +5,5 @@ export const Table = createPostgresModel('Table', {
   defaults: {
     status: 'AVAILABLE'
   },
-  unique: [['tableNumber']]
+  unique: [['restaurantId', 'tableNumber']]
 });

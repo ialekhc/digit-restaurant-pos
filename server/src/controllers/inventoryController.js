@@ -2,6 +2,7 @@ import { InventoryItem } from '../models/InventoryItem.js';
 import { Supplier } from '../models/Supplier.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 export const getInventory = asyncHandler(async (req, res) => {
   const { search = '', lowStock = '' } = req.query;
@@ -15,7 +16,8 @@ export const getInventory = asyncHandler(async (req, res) => {
     ];
   }
 
-  let data = await InventoryItem.find(query).populate('supplier').sort({ createdAt: -1 });
+  const scopedQuery = await buildTenantScopedQuery(req.user, query);
+  let data = await InventoryItem.find(scopedQuery).populate('supplier').sort({ createdAt: -1 });
 
   if (lowStock === 'true') {
     data = data.filter((item) => item.quantity <= item.minimumStockLevel);
@@ -32,7 +34,7 @@ export const createInventoryItem = asyncHandler(async (req, res) => {
     if (!supplier) throw new ApiError(404, 'Supplier not found');
   }
 
-  const data = await InventoryItem.create(payload);
+  const data = await InventoryItem.create(await withTenantFields(req.user, payload));
   const populated = await InventoryItem.findById(data._id).populate('supplier');
 
   res.status(201).json({ data: populated });

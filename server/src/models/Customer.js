@@ -7,5 +7,5 @@ export const Customer = createPostgresModel('Customer', {
     address: '',
     loyaltyPoints: 0
   },
-  unique: [['phone']]
+  unique: [['restaurantId', 'phone']]
 });

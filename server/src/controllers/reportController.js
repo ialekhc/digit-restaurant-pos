@@ -3,6 +3,7 @@ import { Payment } from '../models/Payment.js';
 import { Order } from '../models/Order.js';
 import { InventoryItem } from '../models/InventoryItem.js';
 import { getDashboardData, getSuperAdminOverviewData } from '../services/reportService.js';
+import { buildTenantScopedQuery } from '../services/tenantScopeService.js';
 
 const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -30,8 +31,8 @@ const getISOWeekRange = (year, week) => {
 
 const sumPayments = (payments) => payments.reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0);
 
-export const dashboardReport = asyncHandler(async (_req, res) => {
-  const data = await getDashboardData();
+export const dashboardReport = asyncHandler(async (req, res) => {
+  const data = await getDashboardData(req.user);
   res.json({ data });
 });
 
@@ -41,9 +42,12 @@ export const dailySalesReport = asyncHandler(async (req, res) => {
   const to = new Date(dateParam);
   to.setDate(to.getDate() + 1);
 
-  const payments = await Payment.find({
-    createdAt: { $gte: from, $lt: to }
-  }).populate('order');
+  const query = await buildTenantScopedQuery(
+    req.user,
+    { createdAt: { $gte: from, $lt: to } },
+    { userFields: ['paidBy', 'receivedBy'] }
+  );
+  const payments = await Payment.find(query).populate('order');
 
   const totalSales = payments.reduce((sum, p) => sum + p.amountPaid, 0);
 
@@ -66,7 +70,12 @@ export const monthlySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(`${year}-01-01T00:00:00.000Z`);
   const end = new Date(`${year + 1}-01-01T00:00:00.000Z`);
 
-  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
+  const query = await buildTenantScopedQuery(
+    req.user,
+    { createdAt: { $gte: start, $lt: end } },
+    { userFields: ['paidBy', 'receivedBy'] }
+  );
+  const payments = await Payment.find(query);
   const byMonth = new Map();
   payments.forEach((payment) => {
     const month = new Date(payment.createdAt).getUTCMonth() + 1;
@@ -99,7 +108,12 @@ export const weeklySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(Date.UTC(year, 0, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(year + 1, 0, 1, 0, 0, 0, 0));
 
-  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
+  const query = await buildTenantScopedQuery(
+    req.user,
+    { createdAt: { $gte: start, $lt: end } },
+    { userFields: ['paidBy', 'receivedBy'] }
+  );
+  const payments = await Payment.find(query);
   const lastWeek = getISOWeek(new Date(Date.UTC(year, 11, 28)));
   const byWeek = new Map();
   payments.forEach((payment) => {
@@ -145,7 +159,12 @@ export const yearlySalesReport = asyncHandler(async (req, res) => {
   const start = new Date(Date.UTC(fromYear, 0, 1, 0, 0, 0, 0));
   const end = new Date(Date.UTC(toYear + 1, 0, 1, 0, 0, 0, 0));
 
-  const payments = await Payment.find({ createdAt: { $gte: start, $lt: end } });
+  const query = await buildTenantScopedQuery(
+    req.user,
+    { createdAt: { $gte: start, $lt: end } },
+    { userFields: ['paidBy', 'receivedBy'] }
+  );
+  const payments = await Payment.find(query);
   const byYear = new Map();
   payments.forEach((payment) => {
     const year = new Date(payment.createdAt).getUTCFullYear();
@@ -170,8 +189,9 @@ export const yearlySalesReport = asyncHandler(async (req, res) => {
   });
 });
 
-export const bestSellingItemsReport = asyncHandler(async (_req, res) => {
-  const orders = await Order.find({});
+export const bestSellingItemsReport = asyncHandler(async (req, res) => {
+  const query = await buildTenantScopedQuery(req.user, {}, { userFields: ['createdBy'] });
+  const orders = await Order.find(query);
   const byItem = new Map();
 
   orders.forEach((order) => {
@@ -188,10 +208,11 @@ export const bestSellingItemsReport = asyncHandler(async (_req, res) => {
   });
 });
 
-export const lowStockReport = asyncHandler(async (_req, res) => {
-  const data = await InventoryItem.find({
+export const lowStockReport = asyncHandler(async (req, res) => {
+  const query = await buildTenantScopedQuery(req.user, {
     $expr: { $lte: ['$quantity', '$minimumStockLevel'] }
-  }).populate('supplier');
+  });
+  const data = await InventoryItem.find(query).populate('supplier');
 
   res.json({ data });
 });

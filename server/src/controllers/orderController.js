@@ -10,6 +10,7 @@ import { generateOrderNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
 import { hasPermission } from '../services/permissionService.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 const validTransitions = {
   PENDING: ['PREPARING', 'CANCELLED'],
@@ -118,7 +119,8 @@ export const getOrders = asyncHandler(async (req, res) => {
     ];
   }
 
-  const data = await Order.find(query)
+  const scopedQuery = await buildTenantScopedQuery(req.user, query, { userFields: ['createdBy'] });
+  const data = await Order.find(scopedQuery)
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role')
@@ -212,7 +214,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     ? 'READY'
     : 'PENDING';
 
-  const data = await Order.create({
+  const data = await Order.create(await withTenantFields(req.user, {
     orderNumber: generateOrderNumber(),
     orderType,
     table: table || undefined,
@@ -223,7 +225,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     total,
     status: initialStatus,
     createdBy: req.user._id
-  });
+  }));
 
   await syncTableStatusFromOrders(data.table);
 

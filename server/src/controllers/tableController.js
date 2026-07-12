@@ -4,6 +4,7 @@ import { ACTIVE_ORDER_STATUSES, TABLE_STATUSES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 export const getTables = asyncHandler(async (req, res) => {
   const { status = '', search = '' } = req.query;
@@ -12,7 +13,8 @@ export const getTables = asyncHandler(async (req, res) => {
   if (status) query.status = status;
   if (search) query.tableNumber = { $regex: search, $options: 'i' };
 
-  const data = await Table.find(query).sort({ tableNumber: 1 });
+  const scopedQuery = await buildTenantScopedQuery(req.user, query);
+  const data = await Table.find(scopedQuery).sort({ tableNumber: 1 });
   res.json({ data });
 });
 
@@ -22,7 +24,7 @@ export const createTable = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Table number and seating capacity are required');
   }
 
-  const data = await Table.create({ tableNumber, seatingCapacity, status });
+  const data = await Table.create(await withTenantFields(req.user, { tableNumber, seatingCapacity, status }));
   res.status(201).json({ data });
 });
 

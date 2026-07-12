@@ -4,6 +4,7 @@ import { Table } from '../models/Table.js';
 import { InventoryItem } from '../models/InventoryItem.js';
 import { User } from '../models/User.js';
 import { Vendor } from '../models/Vendor.js';
+import { buildTenantScopedQuery } from './tenantScopeService.js';
 
 const sumBy = (rows, selector) => rows.reduce((sum, row) => sum + Number(selector(row) || 0), 0);
 
@@ -55,17 +56,24 @@ const dailyRevenueFromPayments = (payments) => {
     .map(([date, total]) => ({ date, total }));
 };
 
-export const getDashboardData = async () => {
+export const getDashboardData = async (user) => {
+  const [paymentQuery, orderQuery, tableQuery, inventoryQuery] = await Promise.all([
+    buildTenantScopedQuery(user, {}, { userFields: ['paidBy', 'receivedBy'] }),
+    buildTenantScopedQuery(user, {}, { userFields: ['createdBy'] }),
+    buildTenantScopedQuery(user, {}),
+    buildTenantScopedQuery(user, {})
+  ]);
+
   const [
     payments,
     orders,
     tables,
     inventoryItems
   ] = await Promise.all([
-    Payment.find({}),
-    Order.find({}),
-    Table.find({}),
-    InventoryItem.find({})
+    Payment.find(paymentQuery),
+    Order.find(orderQuery),
+    Table.find(tableQuery),
+    InventoryItem.find(inventoryQuery)
   ]);
 
   return {

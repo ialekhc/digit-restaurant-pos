@@ -218,7 +218,7 @@ export const PAGE_TITLES = {
 
 export const DEFAULT_ROUTE_BY_ROLE = {
   [ROLES.SUPER_ADMIN]: '/super-admin/dashboard',
-  [ROLES.RESTAURANT_OWNER]: '/orders',
+  [ROLES.RESTAURANT_OWNER]: '/dashboard',
   [ROLES.ADMIN]: '/dashboard',
   [ROLES.MANAGER]: '/orders',
   [ROLES.CASHIER]: '/billing',

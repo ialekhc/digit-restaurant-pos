@@ -9,6 +9,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { generateBillNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -164,7 +165,7 @@ export const createPayment = asyncHandler(async (req, res) => {
 
   const changeAmount = paid > order.total ? paid - order.total : 0;
 
-  const data = await Payment.create({
+  const data = await Payment.create(await withTenantFields(req.user, {
     order: order._id,
     billNumber: generateBillNumber(),
     paymentMethod,
@@ -185,7 +186,7 @@ export const createPayment = asyncHandler(async (req, res) => {
           }
         ]
         : []
-  });
+  }));
 
   if (paymentStatus === 'PAID') {
     await completeOrderAfterPayment(order);
@@ -213,7 +214,8 @@ export const getPayments = asyncHandler(async (req, res) => {
     query.createdAt = { $gte: from, $lt: to };
   }
 
-  const data = await Payment.find(query)
+  const scopedQuery = await buildTenantScopedQuery(req.user, query, { userFields: ['paidBy', 'receivedBy'] });
+  const data = await Payment.find(scopedQuery)
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
     .populate('paidBy', 'name role')
     .populate('creditHistory.receivedBy', 'name role')

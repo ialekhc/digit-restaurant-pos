@@ -1,6 +1,7 @@
 import { Category, CATEGORY_MENU_TYPES } from '../models/Category.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 const normalizeMenuType = (value, fallback = 'FOOD') => {
   const normalized = String(value ?? fallback).trim().toUpperCase();
@@ -36,7 +37,7 @@ export const getCategories = asyncHandler(async (req, res) => {
   if (search) andConditions.push({ name: { $regex: search, $options: 'i' } });
   if (menuType) andConditions.push(buildCategoryMenuTypeFilter(normalizeMenuType(menuType)));
 
-  const query = andConditions.length ? { $and: andConditions } : {};
+  const query = await buildTenantScopedQuery(req.user, andConditions.length ? { $and: andConditions } : {});
   const data = await Category.find(query).sort({ name: 1 });
   res.json({ data });
 });
@@ -45,7 +46,7 @@ export const createCategory = asyncHandler(async (req, res) => {
   const { name, description, menuType } = req.body;
   if (!name) throw new ApiError(400, 'Category name is required');
 
-  const data = await Category.create({ name, description, menuType: normalizeMenuType(menuType) });
+  const data = await Category.create(await withTenantFields(req.user, { name, description, menuType: normalizeMenuType(menuType) }));
   res.status(201).json({ data });
 });
 

@@ -5,6 +5,7 @@ import { Supplier } from '../models/Supplier.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { generatePurchaseNumber } from '../utils/serialGenerators.js';
+import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
 
 const PURCHASE_PAYMENT_MODES = ['CASH', 'CREDIT', 'CARD', 'ONLINE', 'OTHER'];
 
@@ -46,7 +47,8 @@ export const getPurchases = asyncHandler(async (req, res) => {
 
   const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 1000);
 
-  const data = await PurchaseEntry.find(query)
+  const scopedQuery = await buildTenantScopedQuery(req.user, query, { userFields: ['createdBy'] });
+  const data = await PurchaseEntry.find(scopedQuery)
     .populate('inventoryItem', 'name category unit')
     .populate('supplier', 'name companyName')
     .populate('createdBy', 'name email role')
@@ -112,7 +114,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Invalid transaction date');
   }
 
-  const created = await PurchaseEntry.create({
+  const created = await PurchaseEntry.create(await withTenantFields(req.user, {
     purchaseNumber: generatePurchaseNumber(),
     type,
     inventoryItem: inventoryDoc._id,
@@ -130,7 +132,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
     nextStock,
     transactionDate: parsedTransactionDate,
     createdBy: req.user._id
-  });
+  }));
 
   inventoryDoc.quantity = nextStock;
   if (type === 'IN') {
