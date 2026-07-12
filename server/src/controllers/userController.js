@@ -11,13 +11,18 @@ const OWNER_MANAGEABLE_ROLES = [
   ROLES.MANAGER,
   ROLES.CASHIER,
   ROLES.WAITER,
-  ROLES.CHEF,
-  ROLES.INVENTORY_MANAGER,
-  ROLES.ACCOUNTANT,
-  ROLES.DELIVERY_PARTNER,
-  ROLES.CUSTOMER_SUPPORT,
   ROLES.KITCHEN,
   ROLES.BARISTA
+];
+const USER_MANAGEMENT_ASSIGNABLE_ROLES = [
+  ROLES.RESTAURANT_OWNER,
+  ROLES.ADMIN,
+  ROLES.MANAGER,
+  ROLES.CASHIER,
+  ROLES.WAITER,
+  ROLES.KITCHEN,
+  ROLES.BARISTA,
+  ROLES.CUSTOMER
 ];
 
 const isRestaurantOwner = (req) => req.user?.role === ROLES.RESTAURANT_OWNER;
@@ -84,6 +89,9 @@ const ensureOwnerCanManageRole = (req, role) => {
 };
 
 const ensureActorCanAssignRole = (req, role) => {
+  if (!USER_MANAGEMENT_ASSIGNABLE_ROLES.includes(role)) {
+    throw new ApiError(400, 'This role is not available in user management');
+  }
   ensureOwnerCanManageRole(req, role);
   if (!canAssignRole(req.user, role)) {
     throw new ApiError(403, 'Forbidden: you cannot assign this role');
