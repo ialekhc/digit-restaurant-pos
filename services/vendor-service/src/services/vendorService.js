@@ -6,6 +6,7 @@ import { badRequest, notFound } from '../utils/HttpError.js';
 
 const VENDOR_LOGIN_ROLE = 'RESTAURANT_OWNER';
 const VENDOR_USER_LIMIT = 20;
+const vendorUserProjection = '-password -additionalPermissions -deniedPermissions -permissions -branchIds';
 
 const getPlanById = (planId) => PLAN_CATALOG.plans.find((plan) => plan.id === planId);
 
@@ -113,6 +114,42 @@ const findVendorOrThrow = async (id) => {
   const vendor = await vendorRepository.findById(id);
   if (!vendor) throw notFound('Vendor not found');
   return vendor;
+};
+
+const toPlain = (doc) => (doc?.toJSON ? doc.toJSON() : doc);
+
+const getVendorLoginUserId = (vendor) => {
+  const plain = toPlain(vendor);
+  return plain?.loginUser?._id || plain?.loginUser || null;
+};
+
+const findUsersForVendor = async (vendor) => {
+  const plain = toPlain(vendor);
+  const branches = [{ restaurantId: plain._id }];
+  const loginUserId = getVendorLoginUserId(vendor);
+  if (loginUserId) {
+    branches.push({ ownerUser: loginUserId }, { _id: loginUserId });
+  }
+
+  return User.find({ $or: branches }).select(vendorUserProjection).sort({ createdAt: -1 });
+};
+
+const attachUsersToVendors = async (vendors = []) => {
+  return Promise.all(
+    vendors.map(async (vendor) => {
+      const users = await findUsersForVendor(vendor);
+      return {
+        ...toPlain(vendor),
+        users: users.map(toPlain),
+        userCount: users.length
+      };
+    })
+  );
+};
+
+const attachUsersToVendor = async (vendor) => {
+  const [data] = await attachUsersToVendors([vendor]);
+  return data;
 };
 
 const toVendorQuery = ({ search = '', status = '', planId = '', isActive = '' }) => {
@@ -243,11 +280,11 @@ const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
 export const vendorService = {
   async list(filters) {
     const query = toVendorQuery(filters);
-    return vendorRepository.findMany(query);
+    return attachUsersToVendors(await vendorRepository.findMany(query));
   },
 
   async getById(id) {
-    return findVendorOrThrow(id);
+    return attachUsersToVendor(await findVendorOrThrow(id));
   },
 
   async create(payload, actorId) {
@@ -288,7 +325,7 @@ export const vendorService = {
       throw error;
     }
 
-    return vendorRepository.findById(vendor._id);
+    return attachUsersToVendor(await vendorRepository.findById(vendor._id));
   },
 
   async update(id, payload) {
@@ -309,7 +346,7 @@ export const vendorService = {
     });
 
     await vendor.save();
-    return vendorRepository.findById(vendor._id);
+    return attachUsersToVendor(await vendorRepository.findById(vendor._id));
   },
 
   async remove(id) {
@@ -324,7 +361,7 @@ export const vendorService = {
     const vendor = await findVendorOrThrow(id);
     vendor.subscription = buildSubscriptionPayload(payload, vendor.subscription || {});
     await vendor.save();
-    return vendor;
+    return attachUsersToVendor(vendor);
   },
 
   async addSubscriptionPayment(id, payload) {
@@ -340,7 +377,7 @@ export const vendorService = {
 
     recalculateVendorPayments(vendor);
     await vendor.save();
-    return vendor;
+    return attachUsersToVendor(vendor);
   },
 
   async updateSubscriptionPayment(id, paymentId, payload) {
@@ -358,7 +395,7 @@ export const vendorService = {
 
     recalculateVendorPayments(vendor);
     await vendor.save();
-    return vendor;
+    return attachUsersToVendor(vendor);
   },
 
   async deleteSubscriptionPayment(id, paymentId) {
@@ -369,7 +406,7 @@ export const vendorService = {
     payment.deleteOne();
     recalculateVendorPayments(vendor);
     await vendor.save();
-    return vendor;
+    return attachUsersToVendor(vendor);
   },
 
   async getSubscriptionOverview() {

@@ -12,6 +12,38 @@ const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'BANK_TRANSFER'];
 
 const VENDOR_LOGIN_ROLE = ROLES.RESTAURANT_OWNER;
 const VENDOR_LOGIN_MIN_PASSWORD = 6;
+const vendorUserProjection = '-password -additionalPermissions -deniedPermissions -permissions -branchIds';
+
+const toPlain = (doc) => (doc?.toJSON ? doc.toJSON() : doc);
+
+const getVendorLoginUserId = (vendor) => {
+  const plain = toPlain(vendor);
+  return plain?.loginUser?._id || plain?.loginUser || null;
+};
+
+const findUsersForVendor = async (vendor) => {
+  const plain = toPlain(vendor);
+  const branches = [{ restaurantId: plain._id }];
+  const loginUserId = getVendorLoginUserId(vendor);
+  if (loginUserId) {
+    branches.push({ ownerUser: loginUserId }, { _id: loginUserId });
+  }
+
+  return User.find({ $or: branches }).select(vendorUserProjection).sort({ createdAt: -1 });
+};
+
+const attachUsersToVendors = async (vendors = []) => {
+  return Promise.all(
+    vendors.map(async (vendor) => {
+      const users = await findUsersForVendor(vendor);
+      return {
+        ...toPlain(vendor),
+        users: users.map(toPlain),
+        userCount: users.length
+      };
+    })
+  );
+};
 
 const parseLoginPayload = (loginAccess) => {
   if (typeof loginAccess === 'undefined') return null;
@@ -253,16 +285,18 @@ export const getVendors = asyncHandler(async (req, res) => {
     ];
   }
 
-  const data = await Vendor.find(query)
+  const vendors = await Vendor.find(query)
     .populate('createdBy', 'name role')
     .populate('loginUser', 'name email role isActive')
     .sort({ createdAt: -1 });
+  const data = await attachUsersToVendors(vendors);
   res.json({ data });
 });
 
 export const getVendorById = asyncHandler(async (req, res) => {
-  const data = await findVendorByIdWithPopulate(req.params.id);
-  if (!data) throw new ApiError(404, 'Vendor not found');
+  const vendor = await findVendorByIdWithPopulate(req.params.id);
+  if (!vendor) throw new ApiError(404, 'Vendor not found');
+  const [data] = await attachUsersToVendors([vendor]);
   res.json({ data });
 });
 
@@ -307,7 +341,7 @@ export const createVendor = asyncHandler(async (req, res) => {
     throw error;
   }
 
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.status(201).json({ data });
 });
 
@@ -333,7 +367,7 @@ export const updateVendor = asyncHandler(async (req, res) => {
   });
 
   await vendor.save();
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.json({ data });
 });
 
@@ -354,7 +388,7 @@ export const updateVendorSubscription = asyncHandler(async (req, res) => {
   vendor.subscription = buildSubscriptionPayload(req.body, vendor.subscription || {});
   await vendor.save();
 
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.json({ data });
 });
 
@@ -385,7 +419,7 @@ export const addVendorSubscriptionPayment = asyncHandler(async (req, res) => {
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.status(201).json({ data });
 });
 
@@ -419,7 +453,7 @@ export const updateVendorSubscriptionPayment = asyncHandler(async (req, res) => 
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.json({ data });
 });
 
@@ -434,7 +468,7 @@ export const deleteVendorSubscriptionPayment = asyncHandler(async (req, res) => 
   recalculateVendorPayments(vendor);
   await vendor.save();
 
-  const data = await findVendorByIdWithPopulate(vendor._id);
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.json({ data });
 });
 

@@ -25,6 +25,19 @@ const USER_MANAGEMENT_ASSIGNABLE_ROLES = [
   ROLES.CUSTOMER
 ];
 
+const toPlain = (doc) => (doc?.toJSON ? doc.toJSON() : doc);
+
+const toVendorSummary = (vendor) => {
+  if (!vendor) return null;
+  const plain = toPlain(vendor);
+  return {
+    _id: plain._id,
+    vendorName: plain.vendorName,
+    email: plain.email || '',
+    phone: plain.phone || ''
+  };
+};
+
 const isRestaurantOwner = (req) => req.user?.role === ROLES.RESTAURANT_OWNER;
 const isPlatformUser = (req) => req.user?.role === ROLES.SUPER_ADMIN || hasPermission(req.user, PERMISSIONS.PLATFORM_VIEW);
 
@@ -105,6 +118,44 @@ const ensureActorCanAccessUser = async (req, user) => {
   }
 };
 
+const attachVendorSummariesToUsers = async (users = []) => {
+  const plainUsers = users.map(toPlain);
+  const vendorIds = plainUsers.map((user) => user.restaurantId).filter(Boolean);
+  const ownerUserIds = plainUsers.map((user) => user.ownerUser).filter(Boolean);
+  const userIds = plainUsers.map((user) => user._id).filter(Boolean);
+
+  const queryBranches = [];
+  if (vendorIds.length) queryBranches.push({ _id: { $in: vendorIds } });
+  if (ownerUserIds.length || userIds.length) {
+    queryBranches.push({ loginUser: { $in: [...ownerUserIds, ...userIds] } });
+  }
+
+  if (!queryBranches.length) return plainUsers.map((user) => ({ ...user, vendor: null }));
+
+  const vendors = await Vendor.find({ $or: queryBranches }).select('vendorName email phone loginUser');
+  const byVendorId = new Map();
+  const byLoginUser = new Map();
+
+  vendors.forEach((vendor) => {
+    const plain = toPlain(vendor);
+    byVendorId.set(String(plain._id), plain);
+    if (plain.loginUser) byLoginUser.set(String(plain.loginUser?._id || plain.loginUser), plain);
+  });
+
+  return plainUsers.map((user) => {
+    const vendor =
+      (user.restaurantId && byVendorId.get(String(user.restaurantId))) ||
+      (user.ownerUser && byLoginUser.get(String(user.ownerUser))) ||
+      byLoginUser.get(String(user._id)) ||
+      null;
+
+    return {
+      ...user,
+      vendor: toVendorSummary(vendor)
+    };
+  });
+};
+
 export const getUsers = asyncHandler(async (req, res) => {
   const { search = '', role = '' } = req.query;
 
@@ -122,7 +173,7 @@ export const getUsers = asyncHandler(async (req, res) => {
   const scopedQuery = mergeQueryWithTenantFilter(query, buildTenantUserFilter(scope));
 
   const users = await User.find(scopedQuery).select(userProjection).sort({ createdAt: -1 });
-  res.json({ data: users });
+  res.json({ data: await attachVendorSummariesToUsers(users) });
 });
 
 export const createUser = asyncHandler(async (req, res) => {
@@ -159,7 +210,7 @@ export const createUser = asyncHandler(async (req, res) => {
     restaurantId,
     branchIds: Array.isArray(req.body.branchIds) ? req.body.branchIds : []
   });
-  const sanitized = buildPublicUser(await User.findById(user._id).select(userProjection));
+  const [sanitized] = await attachVendorSummariesToUsers([buildPublicUser(await User.findById(user._id).select(userProjection))]);
   res.status(201).json({ data: sanitized });
 });
 
@@ -167,7 +218,8 @@ export const getUserById = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select(userProjection);
   if (!user) throw new ApiError(404, 'User not found');
   await ensureActorCanAccessUser(req, user);
-  res.json({ data: user });
+  const [data] = await attachVendorSummariesToUsers([user]);
+  res.json({ data });
 });
 
 export const updateUser = asyncHandler(async (req, res) => {
@@ -211,7 +263,7 @@ export const updateUser = asyncHandler(async (req, res) => {
 
   await user.save();
 
-  const sanitized = buildPublicUser(await User.findById(user._id).select(userProjection));
+  const [sanitized] = await attachVendorSummariesToUsers([buildPublicUser(await User.findById(user._id).select(userProjection))]);
   res.json({ data: sanitized });
 });
 

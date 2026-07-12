@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { planService, vendorService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
@@ -36,6 +36,7 @@ const SuperAdminVendorsPage = () => {
   const [editingVendorHasLogin, setEditingVendorHasLogin] = useState(false);
   const [search, setSearch] = useState('');
   const [error, setError] = useState('');
+  const [expandedVendorId, setExpandedVendorId] = useState('');
 
   const load = async () => {
     const [vendorData, catalogData] = await Promise.all([vendorService.list(), planService.catalog()]);
@@ -319,45 +320,82 @@ const SuperAdminVendorsPage = () => {
                 <th>Total Paid</th>
                 <th>Next Billing</th>
                 <th>Login Access</th>
+                <th>Users</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((vendor) => (
-                <tr key={vendor._id}>
-                  <td className="font-semibold">{vendor.vendorName}</td>
-                  <td>{vendor.contactPerson || '-'}</td>
-                  <td>{vendor.subscription?.planId || '-'}</td>
-                  <td>{vendor.subscription?.billingCycle || '-'}</td>
-                  <td>{currency(vendor.subscription?.amount || 0)}</td>
-                  <td><StatusBadge value={vendor.subscription?.status || '-'} /></td>
-                  <td>{currency(vendor.totalPaid || 0)}</td>
-                  <td>{formatDate(vendor.subscription?.nextBillingDate)}</td>
-                  <td>
-                    {vendor.loginUser || vendor.loginEmail ? (
-                      <div className="text-xs">
-                        <p className="font-medium text-slate-700">{vendor.loginUser?.email || vendor.loginEmail}</p>
-                        <p className={vendor.loginUser?.isActive || vendor.loginEnabled ? 'text-emerald-600' : 'text-rose-600'}>
-                          {(vendor.loginUser?.isActive || vendor.loginEnabled) ? 'Active' : 'Inactive'}
-                        </p>
-                      </div>
-                    ) : (
-                      <span className="text-xs text-slate-400">Not created</span>
-                    )}
-                  </td>
-                  <td>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" size="sm" onClick={() => onEdit(vendor)}>Edit</Button>
+                <Fragment key={vendor._id}>
+                  <tr>
+                    <td className="font-semibold">{vendor.vendorName}</td>
+                    <td>{vendor.contactPerson || '-'}</td>
+                    <td>{vendor.subscription?.planId || '-'}</td>
+                    <td>{vendor.subscription?.billingCycle || '-'}</td>
+                    <td>{currency(vendor.subscription?.amount || 0)}</td>
+                    <td><StatusBadge value={vendor.subscription?.status || '-'} /></td>
+                    <td>{currency(vendor.totalPaid || 0)}</td>
+                    <td>{formatDate(vendor.subscription?.nextBillingDate)}</td>
+                    <td>
+                      {vendor.loginUser || vendor.loginEmail ? (
+                        <div className="text-xs">
+                          <p className="font-medium text-slate-700">{vendor.loginUser?.email || vendor.loginEmail}</p>
+                          <p className={vendor.loginUser?.isActive || vendor.loginEnabled ? 'text-emerald-600' : 'text-rose-600'}>
+                            {(vendor.loginUser?.isActive || vendor.loginEnabled) ? 'Active' : 'Inactive'}
+                          </p>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-slate-400">Not created</span>
+                      )}
+                    </td>
+                    <td>
                       <Button
-                        variant="danger"
+                        variant="secondary"
                         size="sm"
-                        onClick={() => onDeleteVendor(vendor)}
+                        onClick={() => setExpandedVendorId((current) => (current === vendor._id ? '' : vendor._id))}
                       >
-                        Delete
+                        {vendor.userCount || vendor.users?.length || 0} Users
                       </Button>
-                    </div>
-                  </td>
-                </tr>
+                    </td>
+                    <td>
+                      <div className="flex gap-2">
+                        <Button variant="secondary" size="sm" onClick={() => onEdit(vendor)}>Edit</Button>
+                        <Button
+                          variant="danger"
+                          size="sm"
+                          onClick={() => onDeleteVendor(vendor)}
+                        >
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                  {expandedVendorId === vendor._id ? (
+                    <tr>
+                      <td colSpan={11} className="bg-orange-50/60">
+                        <div className="rounded-xl border border-orange-100 bg-white p-3">
+                          <p className="mb-2 text-sm font-semibold text-slate-800">Users in {vendor.vendorName}</p>
+                          {vendor.users?.length ? (
+                            <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                              {vendor.users.map((item) => (
+                                <div key={item._id} className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs">
+                                  <p className="font-semibold text-slate-800">{item.name}</p>
+                                  <p className="text-slate-500">{item.email}</p>
+                                  <div className="mt-2 flex items-center justify-between gap-2">
+                                    <span className="font-medium text-slate-700">{item.role}</span>
+                                    <StatusBadge value={item.isActive ? 'ACTIVE' : 'INACTIVE'} />
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-slate-500">No users created for this vendor yet.</p>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
@@ -380,6 +418,7 @@ const SuperAdminVendorsPage = () => {
                 <p>Amount: {currency(vendor.subscription?.amount || 0)}</p>
                 <p>Total Paid: {currency(vendor.totalPaid || 0)}</p>
                 <p>Next Billing: {formatDate(vendor.subscription?.nextBillingDate)}</p>
+                <p>Users: {vendor.userCount || vendor.users?.length || 0}</p>
                 <p>
                   Login: {vendor.loginUser?.email || vendor.loginEmail || 'Not created'}
                   {vendor.loginUser || vendor.loginEmail ? (
@@ -391,6 +430,13 @@ const SuperAdminVendorsPage = () => {
                 </p>
               </div>
               <div className="mt-3 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setExpandedVendorId((current) => (current === vendor._id ? '' : vendor._id))}
+                >
+                  {expandedVendorId === vendor._id ? 'Hide Users' : 'View Users'}
+                </Button>
                 <Button variant="secondary" size="sm" onClick={() => onEdit(vendor)}>Edit</Button>
                 <Button
                   variant="danger"
@@ -400,6 +446,21 @@ const SuperAdminVendorsPage = () => {
                   Delete
                 </Button>
               </div>
+              {expandedVendorId === vendor._id ? (
+                <div className="mt-3 space-y-2 rounded-xl border border-orange-100 bg-orange-50/70 p-3">
+                  {vendor.users?.length ? (
+                    vendor.users.map((item) => (
+                      <div key={item._id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
+                        <p className="font-semibold text-slate-800">{item.name}</p>
+                        <p className="text-slate-500">{item.email}</p>
+                        <p className="mt-1 text-slate-700">{item.role} | {item.isActive ? 'Active' : 'Inactive'}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-500">No users created for this vendor yet.</p>
+                  )}
+                </div>
+              ) : null}
             </article>
           ))}
           {!filtered.length ? <p className="rounded-xl bg-white p-4 text-sm text-slate-500">No vendors found</p> : null}

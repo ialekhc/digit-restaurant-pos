@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { userService } from '../api/services';
+import { userService, vendorService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
@@ -16,6 +16,7 @@ const schema = z.object({
   email: z.string().email(),
   password: z.string().min(6).optional().or(z.literal('')),
   phone: z.string().optional(),
+  restaurantId: z.string().optional(),
   role: z.enum([
     'RESTAURANT_OWNER',
     'MANAGER',
@@ -34,6 +35,7 @@ const defaultValues = {
   email: '',
   password: '',
   phone: '',
+  restaurantId: '',
   role: 'WAITER',
   isActive: 'true'
 };
@@ -66,11 +68,17 @@ const vendorAdminRoleOptions = [
 const UsersPage = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
+  const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
+  const canChooseVendor = user?.role === 'SUPER_ADMIN';
   const roleOptions = user?.role === 'RESTAURANT_OWNER' ? vendorAdminRoleOptions : allRoleOptions;
+  const vendorOptions = [
+    { label: 'Select vendor', value: '' },
+    ...vendors.map((vendor) => ({ label: vendor.vendorName, value: vendor._id }))
+  ];
 
   const {
     register,
@@ -82,8 +90,12 @@ const UsersPage = () => {
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const data = await userService.list({ search });
-      setUsers(data);
+      const [userData, vendorData] = await Promise.all([
+        userService.list({ search }),
+        canChooseVendor ? vendorService.list() : Promise.resolve([])
+      ]);
+      setUsers(userData);
+      setVendors(vendorData);
     } finally {
       setLoading(false);
     }
@@ -102,6 +114,11 @@ const UsersPage = () => {
       };
 
       if (!payload.password) delete payload.password;
+      if (!canChooseVendor) delete payload.restaurantId;
+      if (canChooseVendor && !payload.restaurantId) {
+        setError('Please select which vendor this user belongs to');
+        return;
+      }
 
       if (editing) {
         await userService.update(editing._id, payload);
@@ -129,6 +146,7 @@ const UsersPage = () => {
       email: item.email,
       password: '',
       phone: item.phone || '',
+      restaurantId: item.restaurantId || item.vendor?._id || '',
       role: roleOptions.some((opt) => opt.value === item.role) ? item.role : fallbackRole,
       isActive: String(item.isActive)
     });
@@ -150,6 +168,9 @@ const UsersPage = () => {
           <Input label="Email" type="email" {...register('email')} error={errors.email?.message} />
           <Input label={editing ? 'New Password (optional)' : 'Password'} type="password" {...register('password')} error={errors.password?.message} />
           <Input label="Phone" {...register('phone')} error={errors.phone?.message} />
+          {canChooseVendor ? (
+            <Select label="Vendor" options={vendorOptions} {...register('restaurantId')} error={errors.restaurantId?.message} />
+          ) : null}
           <Select label="Role" options={roleOptions} {...register('role')} error={errors.role?.message} />
           <Select
             label="Status"
@@ -195,6 +216,7 @@ const UsersPage = () => {
                 <th className="px-3 py-2">Name</th>
                 <th className="px-3 py-2">Email</th>
                 <th className="px-3 py-2">Role</th>
+                <th className="px-3 py-2">Vendor</th>
                 <th className="px-3 py-2">Phone</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Created</th>
@@ -207,6 +229,7 @@ const UsersPage = () => {
                   <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
                   <td className="px-3 py-2">{item.email}</td>
                   <td className="px-3 py-2">{item.role}</td>
+                  <td className="px-3 py-2">{item.vendor?.vendorName || (item.restaurantId ? `Vendor ${String(item.restaurantId).slice(0, 6)}` : '-')}</td>
                   <td className="px-3 py-2">{item.phone || '-'}</td>
                   <td className="px-3 py-2">{item.isActive ? 'Active' : 'Inactive'}</td>
                   <td className="px-3 py-2">{formatDateTime(item.createdAt)}</td>
