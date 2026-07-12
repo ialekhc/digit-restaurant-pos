@@ -13,7 +13,8 @@
     "db:rollback": "node src/database/migrationRunner.js down",
     "db:status": "node src/database/migrationRunner.js status",
     "db:seed": "node src/database/seedRunner.js",
-    "db:migrate:documents": "node src/database/migrateDocuments.js"
+    "db:migrate:documents": "node src/database/migrateDocuments.js",
+    "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

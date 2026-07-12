@@ -68,6 +68,15 @@ const createVendorLoginAccount = async ({ vendorName, loginAccess }) => {
   });
 };
 
+const attachVendorScopeToLoginUser = async ({ vendor, user }) => {
+  if (!vendor?._id || !user?._id) return user;
+  user.restaurantId = vendor._id;
+  user.ownerUser = user._id;
+  if (user.role !== VENDOR_LOGIN_ROLE) user.role = VENDOR_LOGIN_ROLE;
+  await user.save();
+  return user;
+};
+
 const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
   if (!loginAccess) return;
 
@@ -75,6 +84,7 @@ const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
   const shouldCreateNew = !hasExistingLogin && loginAccess.email && loginAccess.password;
   if (shouldCreateNew) {
     const user = await createVendorLoginAccount({ vendorName, loginAccess });
+    await attachVendorScopeToLoginUser({ vendor, user });
     vendor.loginUser = user._id;
     vendor.loginEmail = user.email;
     vendor.loginEnabled = user.isActive;
@@ -95,6 +105,7 @@ const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
     vendor.loginEnabled = false;
     if (loginAccess.email && loginAccess.password) {
       const newUser = await createVendorLoginAccount({ vendorName, loginAccess });
+      await attachVendorScopeToLoginUser({ vendor, user: newUser });
       vendor.loginUser = newUser._id;
       vendor.loginEmail = newUser.email;
       vendor.loginEnabled = newUser.isActive;
@@ -113,7 +124,7 @@ const syncVendorLoginAccount = async ({ vendor, loginAccess, vendorName }) => {
 
   if (user.role !== VENDOR_LOGIN_ROLE) user.role = VENDOR_LOGIN_ROLE;
 
-  await user.save();
+  await attachVendorScopeToLoginUser({ vendor, user });
   vendor.loginUser = user._id;
   vendor.loginEmail = user.email;
   vendor.loginEnabled = user.isActive;
@@ -274,6 +285,7 @@ export const createVendor = asyncHandler(async (req, res) => {
 
     if (parsedLoginAccess) {
       createdLoginUser = await createVendorLoginAccount({ vendorName, loginAccess: parsedLoginAccess });
+      await attachVendorScopeToLoginUser({ vendor, user: createdLoginUser });
       vendor.loginUser = createdLoginUser._id;
       vendor.loginEmail = createdLoginUser.email;
       vendor.loginEnabled = createdLoginUser.isActive;

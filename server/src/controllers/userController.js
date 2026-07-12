@@ -1,4 +1,5 @@
 import { User } from '../models/User.js';
+import { Vendor } from '../models/Vendor.js';
 import { ALL_PERMISSIONS, PERMISSIONS, ROLES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -20,6 +21,60 @@ const OWNER_MANAGEABLE_ROLES = [
 ];
 
 const isRestaurantOwner = (req) => req.user?.role === ROLES.RESTAURANT_OWNER;
+const isPlatformUser = (req) => req.user?.role === ROLES.SUPER_ADMIN || hasPermission(req.user, PERMISSIONS.PLATFORM_VIEW);
+
+const resolveVendorIdForOwner = async (ownerUserId) => {
+  if (!ownerUserId) return null;
+  const vendor = await Vendor.findOne({ loginUser: ownerUserId }).select('_id');
+  return vendor?._id || null;
+};
+
+const resolveActorTenantScope = async (req) => {
+  const actorId = req.user?._id || null;
+  if (!actorId) return { platform: false, actorId: null, ownerUserId: null, restaurantId: null };
+  if (isPlatformUser(req)) return { platform: true, actorId, ownerUserId: null, restaurantId: null };
+
+  let ownerUserId = req.user.ownerUser || null;
+  let restaurantId = req.user.restaurantId || null;
+
+  if (isRestaurantOwner(req)) {
+    ownerUserId = actorId;
+    restaurantId = restaurantId || (await resolveVendorIdForOwner(actorId));
+  }
+
+  if (!restaurantId && ownerUserId) {
+    const owner = await User.findById(ownerUserId).select('restaurantId');
+    restaurantId = owner?.restaurantId || (await resolveVendorIdForOwner(ownerUserId));
+  }
+
+  return { platform: false, actorId, ownerUserId, restaurantId };
+};
+
+const buildTenantUserFilter = (scope) => {
+  if (scope.platform) return {};
+
+  const branches = [];
+  if (scope.restaurantId) branches.push({ restaurantId: scope.restaurantId });
+  if (scope.ownerUserId) branches.push({ ownerUser: scope.ownerUserId });
+  if (scope.actorId) branches.push({ _id: scope.actorId });
+
+  return branches.length ? { $or: branches } : { _id: scope.actorId };
+};
+
+const mergeQueryWithTenantFilter = (query, tenantFilter) => {
+  if (!tenantFilter || Object.keys(tenantFilter).length === 0) return query;
+  if (!query || Object.keys(query).length === 0) return tenantFilter;
+  return { $and: [query, tenantFilter] };
+};
+
+const isUserInsideScope = (scope, user) => {
+  if (scope.platform) return true;
+  if (!user) return false;
+  if (scope.actorId && String(user._id) === String(scope.actorId)) return true;
+  if (scope.restaurantId && String(user.restaurantId || '') === String(scope.restaurantId)) return true;
+  if (scope.ownerUserId && String(user.ownerUser || '') === String(scope.ownerUserId)) return true;
+  return false;
+};
 
 const ensureOwnerCanManageRole = (req, role) => {
   if (!isRestaurantOwner(req)) return;
@@ -35,9 +90,9 @@ const ensureActorCanAssignRole = (req, role) => {
   }
 };
 
-const ensureOwnerCanAccessUser = (req, user) => {
-  if (!isRestaurantOwner(req)) return;
-  if (String(user.ownerUser || '') !== String(req.user._id)) {
+const ensureActorCanAccessUser = async (req, user) => {
+  const scope = await resolveActorTenantScope(req);
+  if (!isUserInsideScope(scope, user)) {
     throw new ApiError(404, 'User not found');
   }
 };
@@ -54,11 +109,11 @@ export const getUsers = asyncHandler(async (req, res) => {
     ];
   }
   if (role) query.role = role;
-  if (isRestaurantOwner(req)) {
-    query.ownerUser = req.user._id;
-  }
 
-  const users = await User.find(query).select(userProjection).sort({ createdAt: -1 });
+  const scope = await resolveActorTenantScope(req);
+  const scopedQuery = mergeQueryWithTenantFilter(query, buildTenantUserFilter(scope));
+
+  const users = await User.find(scopedQuery).select(userProjection).sort({ createdAt: -1 });
   res.json({ data: users });
 });
 
@@ -82,6 +137,10 @@ export const createUser = asyncHandler(async (req, res) => {
     await ensureStaffLimitAvailable();
   }
 
+  const scope = await resolveActorTenantScope(req);
+  const ownerUser = scope.platform ? req.body.ownerUser || null : scope.ownerUserId || req.user.ownerUser || req.user._id;
+  const restaurantId = scope.platform ? req.body.restaurantId || null : scope.restaurantId || req.user.restaurantId || null;
+
   const user = await User.create({
     name,
     email,
@@ -89,8 +148,8 @@ export const createUser = asyncHandler(async (req, res) => {
     role: nextRole,
     phone,
     isActive,
-    ownerUser: isRestaurantOwner(req) ? req.user._id : null,
-    restaurantId: req.body.restaurantId || req.user.restaurantId || null,
+    ownerUser,
+    restaurantId,
     branchIds: Array.isArray(req.body.branchIds) ? req.body.branchIds : []
   });
   const sanitized = buildPublicUser(await User.findById(user._id).select(userProjection));
@@ -100,7 +159,7 @@ export const createUser = asyncHandler(async (req, res) => {
 export const getUserById = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select(userProjection);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
   res.json({ data: user });
 });
 
@@ -119,7 +178,7 @@ export const updateUser = asyncHandler(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
 
   const nextRole = rest.role || user.role;
   if (rest.role && !hasPermission(req.user, PERMISSIONS.USER_ASSIGN_ROLE)) {
@@ -147,7 +206,7 @@ export const updateUser = asyncHandler(async (req, res) => {
 export const deleteUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
 
   if (String(user._id) === String(req.user._id)) {
     throw new ApiError(400, 'You cannot delete your own account');
@@ -160,7 +219,7 @@ export const deleteUser = asyncHandler(async (req, res) => {
 export const getUserAccess = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id).select(userProjection);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
   res.json({ data: resolveUserAccess(user) });
 });
 
@@ -171,7 +230,7 @@ export const assignUserRole = asyncHandler(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
   if (String(user._id) === String(req.user._id)) {
     throw new ApiError(400, 'You cannot change your own role');
   }
@@ -188,7 +247,7 @@ export const updateUserPermissions = asyncHandler(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
   if (String(user._id) === String(req.user._id)) {
     throw new ApiError(400, 'You cannot change your own permission overrides');
   }
@@ -205,9 +264,10 @@ export const updateUserBranchAccess = asyncHandler(async (req, res) => {
 
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
 
-  user.restaurantId = restaurantId;
+  const scope = await resolveActorTenantScope(req);
+  user.restaurantId = scope.platform ? restaurantId : scope.restaurantId || user.restaurantId || null;
   user.branchIds = branchIds;
   await user.save();
   res.json({ data: buildPublicUser(user) });
@@ -217,7 +277,7 @@ export const updateUserApprovalLimits = asyncHandler(async (req, res) => {
   const { discountLimitPercent, refundLimitAmount, voidLimitAmount } = req.body;
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
-  ensureOwnerCanAccessUser(req, user);
+  await ensureActorCanAccessUser(req, user);
 
   if (typeof discountLimitPercent !== 'undefined') user.discountLimitPercent = Number(discountLimitPercent);
   if (typeof refundLimitAmount !== 'undefined') user.refundLimitAmount = Number(refundLimitAmount);

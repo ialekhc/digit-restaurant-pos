@@ -238,6 +238,16 @@ const seed = async () => {
     }
   ]);
 
+  await Promise.all(
+    vendors.map(async (vendor, index) => {
+      const owner = vendorOwnerUsers[index];
+      if (!owner) return;
+      owner.restaurantId = vendor._id;
+      owner.ownerUser = owner._id;
+      await owner.save();
+    })
+  );
+
   const categories = await Category.insertMany([
     { name: 'Appetizers', description: 'Starter dishes' },
     { name: 'Main Course', description: 'Main dishes' },
