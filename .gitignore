@@ -9,3 +9,7 @@ server/src/uploads/*
 !server/src/uploads/.gitkeep
 client/.vercel
 nginx.conf
+# Production deployment files
+backups/
+client/.env.production
+server/.env.backup.*
