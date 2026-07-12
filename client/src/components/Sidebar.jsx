@@ -41,6 +41,10 @@ const Sidebar = ({ userRole, open, onClose }) => {
   const [enabledFeatures, setEnabledFeatures] = useState(null);
   const { hasAnyPermission } = usePermissions();
   const roleLabel = userRole ? userRole.replaceAll('_', ' ') : 'GUEST';
+  const getItemLabel = (item) => {
+    if (item.path === '/users' && userRole === 'RESTAURANT_OWNER') return 'My Users';
+    return item.label;
+  };
 
   useEffect(() => {
     let mounted = true;
@@ -111,7 +115,7 @@ const Sidebar = ({ userRole, open, onClose }) => {
                         }`
                       }
                     >
-                      {item.label}
+                      {getItemLabel(item)}
                     </NavLink>
                   ))}
                 </div>

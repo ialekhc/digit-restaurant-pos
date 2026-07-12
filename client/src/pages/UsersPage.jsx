@@ -73,8 +73,11 @@ const UsersPage = () => {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
+  const isVendorOwner = user?.role === 'RESTAURANT_OWNER';
   const canChooseVendor = user?.role === 'SUPER_ADMIN';
-  const roleOptions = user?.role === 'RESTAURANT_OWNER' ? vendorAdminRoleOptions : allRoleOptions;
+  const roleOptions = isVendorOwner ? vendorAdminRoleOptions : allRoleOptions;
+  const vendorName = users.find((item) => item.vendor?.vendorName)?.vendor?.vendorName || 'Your vendor';
+  const activeUserCount = users.filter((item) => item.isActive).length;
   const vendorOptions = [
     { label: 'Select vendor', value: '' },
     ...vendors.map((vendor) => ({ label: vendor.vendorName, value: vendor._id }))
@@ -162,7 +165,30 @@ const UsersPage = () => {
 
   return (
     <div className="space-y-5">
-      <Panel title={editing ? 'Edit User' : 'Create User'} subtitle="Manage staff accounts and roles">
+      {isVendorOwner ? (
+        <div className="grid gap-3 md:grid-cols-3">
+          <div className="app-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Vendor</p>
+            <p className="mt-1 text-xl font-bold text-slate-800">{vendorName}</p>
+            <p className="text-xs text-slate-500">Only users from this vendor are shown here.</p>
+          </div>
+          <div className="app-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Total Users</p>
+            <p className="mt-1 text-xl font-bold text-slate-800">{users.length} / 20</p>
+            <p className="text-xs text-slate-500">Vendor account limit includes owner and staff.</p>
+          </div>
+          <div className="app-card p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Active Users</p>
+            <p className="mt-1 text-xl font-bold text-slate-800">{activeUserCount}</p>
+            <p className="text-xs text-slate-500">Users currently enabled for login.</p>
+          </div>
+        </div>
+      ) : null}
+
+      <Panel
+        title={editing ? 'Edit User' : isVendorOwner ? 'Create Vendor User' : 'Create User'}
+        subtitle={isVendorOwner ? 'Create and manage staff accounts for your vendor only' : 'Manage staff accounts and roles'}
+      >
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={handleSubmit(onSubmit)}>
           <Input label="Name" {...register('name')} error={errors.name?.message} />
           <Input label="Email" type="email" {...register('email')} error={errors.email?.message} />
@@ -201,7 +227,8 @@ const UsersPage = () => {
       </Panel>
 
       <Panel
-        title="User List"
+        title={isVendorOwner ? 'My Vendor Users' : 'User List'}
+        subtitle={isVendorOwner ? 'This list is scoped to your vendor account only' : 'View users and their vendor ownership'}
         right={
           <div className="flex gap-2">
             <Input placeholder="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
