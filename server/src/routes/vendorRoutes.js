@@ -4,10 +4,12 @@ import {
   createVendor,
   deleteVendor,
   deleteVendorSubscriptionPayment,
+  getMyVendorSubscription,
   getVendorById,
   getVendors,
   updateVendor,
   updateVendorSubscription,
+  updateVendorSubscriptionStatus,
   updateVendorSubscriptionPayment,
   vendorSubscriptionOverview
 } from '../controllers/vendorController.js';
@@ -17,18 +19,28 @@ import { requireAnyPermission, requirePermission } from '../middleware/permissio
 
 const router = Router();
 
-router.use(authenticate, requireAnyPermission([PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE, PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE]));
+router.use(authenticate);
 
-router.get('/overview', vendorSubscriptionOverview);
+const requirePlatformVendorAccess = requireAnyPermission([
+  PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE,
+  PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE
+]);
 
-router.route('/').get(getVendors).post(requirePermission(PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE), createVendor);
+router.get('/my-subscription', requirePermission(PERMISSIONS.SUBSCRIPTION_VIEW), getMyVendorSubscription);
+router.get('/overview', requirePlatformVendorAccess, vendorSubscriptionOverview);
+
+router
+  .route('/')
+  .get(requirePlatformVendorAccess, getVendors)
+  .post(requirePermission(PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE), createVendor);
 router
   .route('/:id')
-  .get(getVendorById)
+  .get(requirePlatformVendorAccess, getVendorById)
   .put(requirePermission(PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE), updateVendor)
   .delete(requirePermission(PERMISSIONS.PLATFORM_RESTAURANTS_MANAGE), deleteVendor);
 
 router.put('/:id/subscription', requirePermission(PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE), updateVendorSubscription);
+router.post('/:id/subscription/:action', requirePermission(PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE), updateVendorSubscriptionStatus);
 router.post('/:id/subscription/payments', requirePermission(PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE), addVendorSubscriptionPayment);
 router.put('/:id/subscription/payments/:paymentId', requirePermission(PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE), updateVendorSubscriptionPayment);
 router.delete('/:id/subscription/payments/:paymentId', requirePermission(PERMISSIONS.PLATFORM_SUBSCRIPTIONS_MANAGE), deleteVendorSubscriptionPayment);

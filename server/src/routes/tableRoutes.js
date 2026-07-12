@@ -11,13 +11,16 @@ import { authenticate } from '../middleware/auth.js';
 import { featureGate } from '../middleware/featureGate.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
 import { PERMISSIONS } from '../config/constants.js';
-import { requirePermission } from '../middleware/permissions.js';
+import { requireAnyPermission, requirePermission } from '../middleware/permissions.js';
 
 const router = Router();
 
 router.use(authenticate, featureGate(FEATURE_KEYS.TABLE_MANAGEMENT));
 
-router.route('/').get(requirePermission(PERMISSIONS.TABLE_VIEW), getTables).post(requirePermission(PERMISSIONS.TABLE_MANAGE), createTable);
+router
+  .route('/')
+  .get(requireAnyPermission([PERMISSIONS.TABLE_VIEW, PERMISSIONS.ORDER_CREATE]), getTables)
+  .post(requirePermission(PERMISSIONS.TABLE_MANAGE), createTable);
 router.patch('/transfer', requirePermission(PERMISSIONS.ORDER_TRANSFER), transferTable);
 
 router

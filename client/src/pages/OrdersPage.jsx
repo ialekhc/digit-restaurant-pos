@@ -7,7 +7,7 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
-import { ORDER_STATUSES, ORDER_TYPES } from '../utils/constants';
+import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 
 const OrdersPage = () => {
@@ -19,6 +19,7 @@ const OrdersPage = () => {
   const [orders, setOrders] = useState([]);
   const [tables, setTables] = useState([]);
   const [expandedItemsByOrder, setExpandedItemsByOrder] = useState({});
+  const [actionError, setActionError] = useState('');
   const [filters, setFilters] = useState({
     status: '',
     orderType: '',
@@ -48,18 +49,30 @@ const OrdersPage = () => {
     return tables.find((table) => table._id === filters.table);
   }, [tables, filters.table]);
 
+  const hasPermission = (permission) => Array.isArray(user?.permissions) && user.permissions.includes(permission);
+  const isOwnerDeleteRole = ['SUPER_ADMIN', 'RESTAURANT_OWNER'].includes(user?.role);
+
   const getAllowedActions = (order) => {
     if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
       return { canServe: false, canCancel: false };
     }
 
     const canServe =
-      user?.role !== 'KITCHEN' &&
-      user?.role !== 'BARISTA' &&
+      hasPermission(PERMISSIONS.ORDER_UPDATE) &&
       order.items.some((item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0));
-    const canCancel = user?.role !== 'KITCHEN' && user?.role !== 'BARISTA';
+    const canCancel = hasPermission(PERMISSIONS.ORDER_CANCEL);
 
-    return { canServe, canCancel };
+    return { canServe, canCancel, canDelete: isOwnerDeleteRole };
+  };
+
+  const runOrderAction = async (action) => {
+    setActionError('');
+    try {
+      await action();
+      await load();
+    } catch (error) {
+      setActionError(error?.response?.data?.message || 'Action failed. Please check your permission and try again.');
+    }
   };
 
   const renderItemProgress = (order, compact = false) => {
@@ -156,6 +169,11 @@ const OrdersPage = () => {
       </Panel>
 
       <Panel title="Orders">
+        {actionError ? (
+          <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
+            {actionError}
+          </div>
+        ) : null}
         {filters.table ? (
           <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3">
             <p className="text-sm font-semibold text-sky-900">
@@ -217,14 +235,13 @@ const OrdersPage = () => {
                         <Button
                           variant="secondary"
                           className="px-2 py-1 text-xs"
-                          onClick={async () => {
+                          onClick={() => runOrderAction(async () => {
                             const itemIndex = order.items.findIndex(
                               (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
                             );
                             if (itemIndex < 0) return;
                             await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
-                            load();
-                          }}
+                          })}
                         >
                           Serve
                         </Button>
@@ -233,11 +250,10 @@ const OrdersPage = () => {
                         <Button
                           variant="danger"
                           className="px-2 py-1 text-xs"
-                          onClick={async () => {
+                          onClick={() => runOrderAction(async () => {
                             const reason = window.prompt('Cancel reason (optional):') || '';
                             await orderService.cancel(order._id, reason);
-                            load();
-                          }}
+                          })}
                         >
                           Cancel
                         </Button>
@@ -277,14 +293,13 @@ const OrdersPage = () => {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={async () => {
+                    onClick={() => runOrderAction(async () => {
                       const itemIndex = order.items.findIndex(
                         (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
                       );
                       if (itemIndex < 0) return;
                       await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
-                      load();
-                    }}
+                    })}
                   >
                     Serve
                   </Button>
@@ -293,11 +308,10 @@ const OrdersPage = () => {
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={async () => {
+                    onClick={() => runOrderAction(async () => {
                       const reason = window.prompt('Cancel reason (optional):') || '';
                       await orderService.cancel(order._id, reason);
-                      load();
-                    }}
+                    })}
                   >
                     Cancel
                   </Button>

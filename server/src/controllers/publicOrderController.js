@@ -27,15 +27,8 @@ const isInstantServeSmokeItem = (menu) => {
 
 const resolveProductionSection = (menu) => {
   const menuType = String(menu.menuType || '').toUpperCase();
-  const categoryName = menu.category?.name || '';
-  const itemName = menu.name || '';
 
-  if (menuType === 'DRINK') {
-    if (includesAny(categoryName, ['liquor']) || includesAny(itemName, ['beer', 'vodka', 'whisky', 'whiskey', 'rum', 'gin', 'tequila', 'brandy', 'wine'])) {
-      return 'BAR';
-    }
-    return 'FOOD';
-  }
+  if (menuType === 'DRINK') return 'BAR';
 
   if (menuType === 'SMOKE') {
     return 'SMOKE';

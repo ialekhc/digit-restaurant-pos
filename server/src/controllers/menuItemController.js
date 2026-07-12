@@ -59,18 +59,8 @@ const normalizeKitchenSection = (value) => {
   return 'FOOD';
 };
 
-const includesAny = (value, patterns) => {
-  const normalized = String(value ?? '').trim().toLowerCase();
-  return patterns.some((pattern) => normalized.includes(pattern));
-};
-
-const inferKitchenSection = ({ menuType, categoryName = '', itemName = '' }) => {
-  if (menuType === 'DRINK') {
-    if (includesAny(categoryName, ['liquor']) || includesAny(itemName, ['beer', 'vodka', 'whisky', 'whiskey', 'rum', 'gin', 'tequila', 'brandy', 'wine'])) {
-      return 'BAR';
-    }
-    return 'FOOD';
-  }
+const inferKitchenSection = ({ menuType }) => {
+  if (menuType === 'DRINK') return 'BAR';
 
   if (menuType === 'SMOKE') {
     return 'SMOKE';
@@ -144,7 +134,9 @@ export const getMenuItems = asyncHandler(async (req, res) => {
   if (typeof available !== 'undefined') andConditions.push({ isAvailable: available === 'true' });
   if (menuType) andConditions.push(buildMenuTypeFilter(normalizeMenuType(menuType)));
 
-  const query = await buildTenantScopedQuery(req.user, andConditions.length ? { $and: andConditions } : {});
+  const query = await buildTenantScopedQuery(req.user, andConditions.length ? { $and: andConditions } : {}, {
+    includeCustomerTenant: true
+  });
 
   const data = await MenuItem.find(query).populate('category').sort({ createdAt: -1 });
   res.json({ data });

@@ -14,7 +14,8 @@
     "db:status": "node src/database/migrationRunner.js status",
     "db:seed": "node src/database/seedRunner.js",
     "db:migrate:documents": "node src/database/migrateDocuments.js",
-    "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js"
+    "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js",
+    "data:backfill-demo-tenant": "node src/scripts/backfillDemoTenantScope.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

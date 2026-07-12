@@ -93,6 +93,13 @@ const seed = async () => {
       password: 'Inventory@12345',
       role: ROLES.INVENTORY_MANAGER,
       phone: '+10000000006'
+    },
+    {
+      name: 'Customer User',
+      email: 'customer@restaurant.local',
+      password: 'Customer@12345',
+      role: ROLES.CUSTOMER,
+      phone: '+10000000008'
     }
   ]);
 
@@ -246,6 +253,19 @@ const seed = async () => {
       owner.ownerUser = owner._id;
       await owner.save();
     })
+  );
+
+  const primaryVendor = vendors[0];
+  const primaryOwner = vendorOwnerUsers[0];
+
+  await Promise.all(
+    users
+      .filter((user) => user.role !== ROLES.SUPER_ADMIN)
+      .map(async (user) => {
+        user.restaurantId = primaryVendor._id;
+        user.ownerUser = user.role === ROLES.CUSTOMER ? null : primaryOwner._id;
+        await user.save();
+      })
   );
 
   const categories = await Category.insertMany([
@@ -539,6 +559,24 @@ const seed = async () => {
       paidBy: userByRole.get(ROLES.CASHIER)._id,
       createdAt: new Date(Date.now() - 1000 * 60 * 90)
     }
+  ]);
+
+  const unscopedTenantQuery = {
+    $or: [
+      { restaurantId: { $exists: false } },
+      { restaurantId: null },
+      { restaurantId: '' }
+    ]
+  };
+  await Promise.all([
+    Category.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    MenuItem.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    Table.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    Supplier.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    InventoryItem.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    Customer.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    Order.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } }),
+    Payment.updateMany(unscopedTenantQuery, { $set: { restaurantId: primaryVendor._id } })
   ]);
 
   console.log('Seed completed successfully');

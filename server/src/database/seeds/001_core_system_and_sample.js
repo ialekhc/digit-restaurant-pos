@@ -8,7 +8,9 @@ const roleLabels = {
   MANAGER: 'Manager',
   CASHIER: 'Cashier',
   WAITER: 'Waiter',
-  KITCHEN: 'Kitchen'
+  KITCHEN: 'Kitchen',
+  BARISTA: 'Barista',
+  CUSTOMER: 'Customer'
 };
 
 const devUsers = [
@@ -18,7 +20,9 @@ const devUsers = [
   { role: ROLES.MANAGER, name: 'Restaurant Manager', email: 'manager@restaurant.local', password: 'Manager@12345' },
   { role: ROLES.CASHIER, name: 'Cashier User', email: 'cashier@restaurant.local', password: 'Cashier@12345' },
   { role: ROLES.WAITER, name: 'Waiter User', email: 'waiter@restaurant.local', password: 'Waiter@12345' },
-  { role: ROLES.KITCHEN, name: 'Kitchen User', email: 'kitchen@restaurant.local', password: 'Kitchen@12345' }
+  { role: ROLES.KITCHEN, name: 'Kitchen User', email: 'kitchen@restaurant.local', password: 'Kitchen@12345' },
+  { role: ROLES.BARISTA, name: 'Barista User', email: 'barista@restaurant.local', password: 'Barista@12345' },
+  { role: ROLES.CUSTOMER, name: 'Customer User', email: 'customer@restaurant.local', password: 'Customer@12345' }
 ];
 
 const splitPermission = (code) => {

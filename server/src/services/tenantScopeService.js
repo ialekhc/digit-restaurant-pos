@@ -21,6 +21,16 @@ export const resolveTenantScope = async (user) => {
   let restaurantId = user.restaurantId || null;
   let ownerUserId = user.ownerUser || null;
 
+  if (user.role === ROLES.CUSTOMER) {
+    return {
+      platform: false,
+      restaurantId,
+      ownerUserId,
+      userIds: unique([user._id]),
+      customerOnly: true
+    };
+  }
+
   if (user.role === ROLES.RESTAURANT_OWNER) {
     ownerUserId = user._id;
     if (!restaurantId) {
@@ -53,13 +63,15 @@ export const resolveTenantScope = async (user) => {
 export const buildTenantScopedQuery = async (
   user,
   baseQuery = {},
-  { directField = 'restaurantId', userFields = [] } = {}
+  { directField = 'restaurantId', userFields = [], includeCustomerTenant = false } = {}
 ) => {
   const scope = await resolveTenantScope(user);
   if (scope.platform) return baseQuery;
 
   const branches = [];
-  if (directField && scope.restaurantId) branches.push({ [directField]: scope.restaurantId });
+  if (directField && scope.restaurantId && (!scope.customerOnly || includeCustomerTenant)) {
+    branches.push({ [directField]: scope.restaurantId });
+  }
   userFields.forEach((field) => {
     if (scope.userIds.length) branches.push({ [field]: { $in: scope.userIds } });
   });

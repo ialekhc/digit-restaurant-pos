@@ -8,11 +8,13 @@ import { ensureVendorUserLimitAvailable, isVendorCountedUserRole } from '../serv
 
 const userProjection = '-password';
 const OWNER_MANAGEABLE_ROLES = [
+  ROLES.ADMIN,
   ROLES.MANAGER,
   ROLES.CASHIER,
   ROLES.WAITER,
   ROLES.KITCHEN,
-  ROLES.BARISTA
+  ROLES.BARISTA,
+  ROLES.CUSTOMER
 ];
 const USER_MANAGEMENT_ASSIGNABLE_ROLES = [
   ROLES.RESTAURANT_OWNER,

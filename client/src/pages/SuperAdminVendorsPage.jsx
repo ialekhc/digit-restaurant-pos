@@ -9,8 +9,6 @@ import { currency, formatDate } from '../utils/format';
 
 const defaultForm = {
   vendorName: '',
-  contactPerson: '',
-  email: '',
   phone: '',
   address: '',
   notes: '',
@@ -22,7 +20,6 @@ const defaultForm = {
   startsOn: '',
   endsOn: '',
   nextBillingDate: '',
-  loginName: '',
   loginEmail: '',
   loginPassword: '',
   loginActive: 'true'
@@ -80,8 +77,6 @@ const SuperAdminVendorsPage = () => {
 
     const topPayload = {
       vendorName: form.vendorName,
-      contactPerson: form.contactPerson,
-      email: form.email,
       phone: form.phone,
       address: form.address,
       notes: form.notes,
@@ -98,10 +93,9 @@ const SuperAdminVendorsPage = () => {
       amount: form.amount === '' ? undefined : Number(form.amount)
     };
 
-    const loginName = form.loginName.trim();
     const loginEmail = form.loginEmail.trim().toLowerCase();
     const loginPassword = form.loginPassword;
-    const wantsToConfigureLogin = Boolean(loginName || loginEmail || loginPassword);
+    const wantsToConfigureLogin = Boolean(loginEmail || loginPassword);
 
     if (!editingId && wantsToConfigureLogin && (!loginEmail || !loginPassword)) {
       setError('Vendor login email and password are required when creating vendor access');
@@ -116,7 +110,6 @@ const SuperAdminVendorsPage = () => {
     const shouldSendLoginAccess = editingVendorHasLogin || wantsToConfigureLogin;
     if (shouldSendLoginAccess) {
       topPayload.loginAccess = {
-        ...(loginName ? { name: loginName } : {}),
         ...(loginEmail ? { email: loginEmail } : {}),
         ...(loginPassword ? { password: loginPassword } : {}),
         isActive: form.loginActive === 'true'
@@ -148,8 +141,6 @@ const SuperAdminVendorsPage = () => {
     const vendorLoginEmail = vendor.loginUser?.email || vendor.loginEmail || '';
     setForm({
       vendorName: vendor.vendorName || '',
-      contactPerson: vendor.contactPerson || '',
-      email: vendor.email || '',
       phone: vendor.phone || '',
       address: vendor.address || '',
       notes: vendor.notes || '',
@@ -163,7 +154,6 @@ const SuperAdminVendorsPage = () => {
       nextBillingDate: vendor.subscription?.nextBillingDate
         ? new Date(vendor.subscription.nextBillingDate).toISOString().slice(0, 10)
         : '',
-      loginName: vendor.loginUser?.name || '',
       loginEmail: vendorLoginEmail,
       loginPassword: '',
       loginActive: String(vendor.loginUser?.isActive ?? vendor.loginEnabled ?? true)
@@ -193,8 +183,6 @@ const SuperAdminVendorsPage = () => {
       <Panel title={editingId ? 'Edit Vendor' : 'Create Vendor'} subtitle="Manage vendor profile and subscription setup">
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={onSubmit}>
           <Input label="Vendor Name" value={form.vendorName} onChange={(e) => setForm((p) => ({ ...p, vendorName: e.target.value }))} />
-          <Input label="Contact Person" value={form.contactPerson} onChange={(e) => setForm((p) => ({ ...p, contactPerson: e.target.value }))} />
-          <Input label="Email" type="email" value={form.email} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} />
           <Input label="Phone" value={form.phone} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} />
           <Input label="Address" value={form.address} onChange={(e) => setForm((p) => ({ ...p, address: e.target.value }))} />
           <Select
@@ -250,7 +238,6 @@ const SuperAdminVendorsPage = () => {
             onChange={(e) => setForm((p) => ({ ...p, nextBillingDate: e.target.value }))}
           />
 
-          <Input label="Vendor Login Name" value={form.loginName} onChange={(e) => setForm((p) => ({ ...p, loginName: e.target.value }))} />
           <Input
             label="Vendor Login Email"
             type="email"

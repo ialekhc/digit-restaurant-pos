@@ -248,6 +248,13 @@ const buildSubscriptionPayload = (body, existing = {}) => {
   const nextBillingDate =
     parseDateValue(body.nextBillingDate, 'nextBillingDate') || existing.nextBillingDate || undefined;
 
+  if (endsOn && new Date(endsOn).getTime() <= new Date(startsOn).getTime()) {
+    throw new ApiError(400, 'endsOn must be after startsOn');
+  }
+  if (nextBillingDate && new Date(nextBillingDate).getTime() < new Date(startsOn).getTime()) {
+    throw new ApiError(400, 'nextBillingDate cannot be before startsOn');
+  }
+
   const amount = resolveSubscriptionAmount({
     planId,
     billingCycle,
@@ -265,6 +272,30 @@ const buildSubscriptionPayload = (body, existing = {}) => {
     endsOn,
     nextBillingDate
   };
+};
+
+const pushSubscriptionHistory = (vendor, action, actorId) => {
+  const current = vendor.subscription ? toPlain(vendor.subscription) : null;
+  if (!current) return;
+  vendor.subscriptionHistory = Array.isArray(vendor.subscriptionHistory) ? vendor.subscriptionHistory : [];
+  vendor.subscriptionHistory.push({
+    ...current,
+    action,
+    changedBy: actorId || null,
+    changedAt: new Date().toISOString()
+  });
+};
+
+const findVendorForAuthenticatedTenant = async (user) => {
+  if (!user) return null;
+  if (user.restaurantId) return Vendor.findById(user.restaurantId).populate('loginUser', 'name email role isActive');
+  if (user.role === ROLES.RESTAURANT_OWNER) {
+    return Vendor.findOne({ loginUser: user._id }).populate('loginUser', 'name email role isActive');
+  }
+  if (user.ownerUser) {
+    return Vendor.findOne({ loginUser: user.ownerUser }).populate('loginUser', 'name email role isActive');
+  }
+  return null;
 };
 
 export const getVendors = asyncHandler(async (req, res) => {
@@ -385,11 +416,58 @@ export const updateVendorSubscription = asyncHandler(async (req, res) => {
   const vendor = await Vendor.findById(req.params.id);
   if (!vendor) throw new ApiError(404, 'Vendor not found');
 
+  pushSubscriptionHistory(vendor, 'UPDATED', req.user?._id);
   vendor.subscription = buildSubscriptionPayload(req.body, vendor.subscription || {});
   await vendor.save();
 
   const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
   res.json({ data });
+});
+
+export const updateVendorSubscriptionStatus = asyncHandler(async (req, res) => {
+  const { action } = req.params;
+  const normalizedAction = String(action || '').toUpperCase();
+  const nextStatusByAction = {
+    ACTIVATE: 'ACTIVE',
+    REACTIVATE: 'ACTIVE',
+    SUSPEND: 'PAUSED',
+    CANCEL: 'CANCELLED'
+  };
+  const nextStatus = nextStatusByAction[normalizedAction];
+  if (!nextStatus) throw new ApiError(400, 'Unsupported subscription action');
+
+  const vendor = await Vendor.findById(req.params.id);
+  if (!vendor) throw new ApiError(404, 'Vendor not found');
+  if (vendor.subscription?.status === nextStatus) {
+    throw new ApiError(409, `Subscription is already ${nextStatus}`);
+  }
+
+  pushSubscriptionHistory(vendor, normalizedAction, req.user?._id);
+  vendor.subscription = buildSubscriptionPayload({ ...vendor.subscription, status: nextStatus }, vendor.subscription || {});
+  await vendor.save();
+
+  const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
+  res.json({ data });
+});
+
+export const getMyVendorSubscription = asyncHandler(async (req, res) => {
+  const vendor = await findVendorForAuthenticatedTenant(req.user);
+  if (!vendor) throw new ApiError(404, 'Subscription not found');
+
+  const plain = toPlain(vendor);
+  res.json({
+    data: {
+      vendor: {
+        _id: plain._id,
+        vendorName: plain.vendorName,
+        isActive: plain.isActive
+      },
+      subscription: plain.subscription || null,
+      subscriptionHistory: plain.subscriptionHistory || [],
+      paymentHistory: plain.paymentHistory || [],
+      totalPaid: plain.totalPaid || 0
+    }
+  });
 });
 
 export const addVendorSubscriptionPayment = asyncHandler(async (req, res) => {

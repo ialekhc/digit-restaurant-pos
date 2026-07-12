@@ -67,11 +67,17 @@ const App = () => {
             <Route path="/purchase-out" element={<PurchaseFlowPage />} />
           </Route>
 
-          <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.MENU_VIEW, PERMISSIONS.TABLE_VIEW, PERMISSIONS.ORDER_CREATE]} />}>
+          <Route element={<ProtectedRoute permission={PERMISSIONS.MENU_VIEW} />}>
             <Route path="/menu/items" element={<MenuItemsPage />} />
             <Route path="/drink/items" element={<DrinkItemsPage />} />
             <Route path="/smoke/items" element={<SmokeItemsPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute permission={PERMISSIONS.TABLE_VIEW} />}>
             <Route path="/tables" element={<TablesPage />} />
+          </Route>
+
+          <Route element={<ProtectedRoute permission={PERMISSIONS.ORDER_CREATE} />}>
             <Route path="/orders/create" element={<OrderCreatePage />} />
           </Route>
 

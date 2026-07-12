@@ -53,18 +53,28 @@ const OrderCreatePage = () => {
   const [saving, setSaving] = useState(false);
 
   const load = async () => {
-    const [tableData, customerData, menuData, orderData, activePlan] = await Promise.all([
+    const [tableResult, customerResult, menuResult, orderResult, planResult] = await Promise.allSettled([
       tableService.list(),
       customerService.list(),
       menuService.list({ available: true }),
       orderService.list({ orderType: 'DINE_IN' }),
       planService.active()
     ]);
-    setTables(tableData);
-    setCustomers(customerData);
-    setMenuItems(menuData);
-    setOrders(orderData);
-    setEnabledFeatures(new Set(activePlan?.enabledFeatureKeys || []));
+
+    setTables(tableResult.status === 'fulfilled' ? tableResult.value : []);
+    setCustomers(customerResult.status === 'fulfilled' ? customerResult.value : []);
+    setMenuItems(menuResult.status === 'fulfilled' ? menuResult.value : []);
+    setOrders(orderResult.status === 'fulfilled' ? orderResult.value : []);
+    setEnabledFeatures(new Set(planResult.status === 'fulfilled' ? planResult.value?.enabledFeatureKeys || [] : []));
+
+    const requiredFailures = [
+      tableResult.status === 'rejected' ? 'tables' : '',
+      menuResult.status === 'rejected' ? 'menu items' : ''
+    ].filter(Boolean);
+
+    if (requiredFailures.length) {
+      setError(`Unable to load ${requiredFailures.join(' and ')} for order creation. Please check role permissions.`);
+    }
   };
 
   useEffect(() => {

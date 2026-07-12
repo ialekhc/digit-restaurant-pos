@@ -20,6 +20,7 @@ export const Vendor = createPostgresModel('Vendor', {
       status: 'ACTIVE',
       startsOn: new Date().toISOString()
     }),
+    subscriptionHistory: [],
     paymentHistory: [],
     totalPaid: 0,
     notes: '',

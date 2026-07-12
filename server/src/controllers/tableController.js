@@ -13,7 +13,7 @@ export const getTables = asyncHandler(async (req, res) => {
   if (status) query.status = status;
   if (search) query.tableNumber = { $regex: search, $options: 'i' };
 
-  const scopedQuery = await buildTenantScopedQuery(req.user, query);
+  const scopedQuery = await buildTenantScopedQuery(req.user, query, { includeCustomerTenant: true });
   const data = await Table.find(scopedQuery).sort({ tableNumber: 1 });
   res.json({ data });
 });

@@ -6,7 +6,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
-import { FEATURE_KEYS, PAYMENT_METHODS } from '../utils/constants';
+import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 
 const escapeHtml = (value = '') => {
@@ -16,6 +16,113 @@ const escapeHtml = (value = '') => {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
+};
+
+const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+
+const paymentOrderId = (payment) => String(payment?.order?._id || payment?.order || '');
+const orderTableNumber = (order) => String(order?.table?.tableNumber || '').trim().toLowerCase();
+const paymentTableNumber = (payment) => orderTableNumber(payment?.order);
+const timestampMs = (value) => {
+  const parsed = value ? new Date(value).getTime() : NaN;
+  return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const combineReceiptPayments = (group = []) => {
+  const payments = group.filter(Boolean);
+  if (!payments.length) return null;
+
+  const orders = payments.map((payment) => payment.order).filter(Boolean);
+  const items = orders.flatMap((order) =>
+    (order.items || []).map((item) => ({
+      ...item,
+      name: `${item.name || '-'} (${order.orderNumber || '-'})`
+    }))
+  );
+  const subtotal = roundMoney(
+    orders.reduce((sum, order) => {
+      const itemSubtotal = (order.items || []).reduce(
+        (itemSum, item) => itemSum + Number(item.price || 0) * Number(item.quantity || 0),
+        0
+      );
+      return sum + Number(order.subtotal ?? itemSubtotal);
+    }, 0)
+  );
+  const discount = roundMoney(orders.reduce((sum, order) => sum + Number(order.discount || 0), 0));
+  const total = roundMoney(orders.reduce((sum, order) => sum + Number(order.total || 0), 0));
+  const amountPaid = roundMoney(payments.reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0));
+  const changeAmount = roundMoney(payments.reduce((sum, payment) => sum + Number(payment.changeAmount || 0), 0));
+  const statuses = new Set(payments.map((payment) => payment.paymentStatus));
+  const paymentStatus = statuses.size === 1 ? payments[0].paymentStatus : 'PARTIAL';
+
+  return {
+    ...payments[0],
+    billNumber: payments.map((payment) => payment.billNumber).filter(Boolean).join(', '),
+    paymentStatus,
+    amountPaid,
+    changeAmount,
+    order: {
+      orderNumber: orders.map((order) => order.orderNumber).filter(Boolean).join(', '),
+      orderType: orders[0]?.orderType || 'DINE_IN',
+      table: orders[0]?.table,
+      items,
+      subtotal,
+      discount,
+      total
+    }
+  };
+};
+
+const combineReceiptFromOrders = ({ basePayment, receiptOrders = [], receiptPayments = [] }) => {
+  const orders = receiptOrders.filter(Boolean);
+  if (!orders.length) return basePayment || null;
+
+  const payments = receiptPayments.filter(Boolean);
+  const items = orders.flatMap((order) =>
+    (order.items || []).map((item) => ({
+      ...item,
+      name: orders.length > 1 ? `${item.name || '-'} (${order.orderNumber || '-'})` : item.name
+    }))
+  );
+  const subtotal = roundMoney(
+    orders.reduce((sum, order) => {
+      const itemSubtotal = (order.items || []).reduce(
+        (itemSum, item) => itemSum + Number(item.price || 0) * Number(item.quantity || 0),
+        0
+      );
+      return sum + Number(order.subtotal ?? itemSubtotal);
+    }, 0)
+  );
+  const discount = roundMoney(orders.reduce((sum, order) => sum + Number(order.discount || 0), 0));
+  const total = roundMoney(orders.reduce((sum, order) => sum + Number(order.total ?? 0), 0));
+  const amountPaid = roundMoney(
+    payments.length
+      ? payments.reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0)
+      : Number(basePayment?.amountPaid || total)
+  );
+  const changeAmount = roundMoney(
+    payments.length
+      ? payments.reduce((sum, payment) => sum + Number(payment.changeAmount || 0), 0)
+      : Number(basePayment?.changeAmount || 0)
+  );
+
+  return {
+    ...(basePayment || {}),
+    billNumber: payments.length
+      ? payments.map((payment) => payment.billNumber).filter(Boolean).join(', ')
+      : basePayment?.billNumber,
+    amountPaid,
+    changeAmount,
+    order: {
+      orderNumber: orders.map((order) => order.orderNumber).filter(Boolean).join(', '),
+      orderType: orders[0]?.orderType || basePayment?.order?.orderType || 'DINE_IN',
+      table: orders[0]?.table || basePayment?.order?.table,
+      items,
+      subtotal,
+      discount,
+      total
+    }
+  };
 };
 
 const buildReceiptHtml = (payment, cashierName = '') => {
@@ -150,9 +257,7 @@ const BillingPage = () => {
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [receiptPayment, setReceiptPayment] = useState(null);
 
-  const [lookupOrderNumber, setLookupOrderNumber] = useState('');
   const [lookupTableNumber, setLookupTableNumber] = useState('');
-  const [selectedOrderId, setSelectedOrderId] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
   const [amountPaid, setAmountPaid] = useState('');
   const [paymentStatus, setPaymentStatus] = useState('PAID');
@@ -164,6 +269,7 @@ const BillingPage = () => {
 
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
+  const canCreateBills = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.PAYMENT_COLLECT);
 
   const load = async () => {
     const [orderData, paymentData, activePlan] = await Promise.all([
@@ -180,7 +286,7 @@ const BillingPage = () => {
     load();
   }, []);
 
-  const paidOrderIds = useMemo(() => new Set(payments.map((p) => p.order?._id)), [payments]);
+  const paidOrderIds = useMemo(() => new Set(payments.map((p) => paymentOrderId(p)).filter(Boolean)), [payments]);
 
   const payableOrders = useMemo(() => {
     return orders.filter(
@@ -193,48 +299,61 @@ const BillingPage = () => {
   }, [orders, paidOrderIds]);
 
   const filteredPayableOrders = useMemo(() => {
-    const orderSearch = lookupOrderNumber.trim().toLowerCase();
     const tableSearch = lookupTableNumber.trim().toLowerCase();
+    if (!tableSearch) return [];
 
     return payableOrders.filter((order) => {
-      const orderMatch = !orderSearch || String(order.orderNumber || '').toLowerCase().includes(orderSearch);
-      const tableMatch = !tableSearch || String(order.table?.tableNumber || '').toLowerCase().includes(tableSearch);
-      return orderMatch && tableMatch;
+      return String(order.table?.tableNumber || '').trim().toLowerCase() === tableSearch;
     });
-  }, [payableOrders, lookupOrderNumber, lookupTableNumber]);
+  }, [payableOrders, lookupTableNumber]);
 
-  useEffect(() => {
-    if (selectedOrderId && !filteredPayableOrders.some((order) => order._id === selectedOrderId)) {
-      setSelectedOrderId('');
-      setAmountPaid('');
-    }
-  }, [filteredPayableOrders, selectedOrderId]);
-
-  useEffect(() => {
-    if (!selectedOrderId && filteredPayableOrders.length === 1) {
-      const onlyOrder = filteredPayableOrders[0];
-      setSelectedOrderId(onlyOrder._id);
-      if (!amountPaid) setAmountPaid(String(onlyOrder.total));
-    }
-  }, [filteredPayableOrders, selectedOrderId, amountPaid]);
-
-  const selectedOrder = payableOrders.find((x) => x._id === selectedOrderId);
-  const selectedOrderSubtotal = Number(selectedOrder?.subtotal || 0);
   const parsedDiscountPercent = Number(discountPercent || 0);
   const validDiscountPercent =
     Number.isFinite(parsedDiscountPercent) && parsedDiscountPercent >= 0
       ? Math.min(parsedDiscountPercent, 100)
       : 0;
-  const discountedTotal = selectedOrder
-    ? Math.max(0, Number((selectedOrderSubtotal * (1 - validDiscountPercent / 100)).toFixed(2)))
-    : 0;
+  const tableItems = useMemo(() => {
+    return filteredPayableOrders.flatMap((order) =>
+      (order.items || []).map((item) => ({
+        ...item,
+        orderNumber: order.orderNumber,
+        orderId: order._id
+      }))
+    );
+  }, [filteredPayableOrders]);
+
+  const getOrderSubtotal = (order) => {
+    const itemSubtotal = (order.items || []).reduce(
+      (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+      0
+    );
+    return roundMoney(Number(order.subtotal ?? itemSubtotal));
+  };
+
+  const getOrderPayableTotal = (order) => {
+    const subtotal = getOrderSubtotal(order);
+    if (discountPercent === '') return roundMoney(Number(order.total ?? subtotal));
+    return roundMoney(Math.max(0, subtotal * (1 - validDiscountPercent / 100)));
+  };
+
+  const tableSubtotal = useMemo(
+    () => roundMoney(filteredPayableOrders.reduce((sum, order) => sum + getOrderSubtotal(order), 0)),
+    [filteredPayableOrders]
+  );
+  const tableTotal = useMemo(
+    () => roundMoney(filteredPayableOrders.reduce((sum, order) => sum + getOrderPayableTotal(order), 0)),
+    [filteredPayableOrders, discountPercent, validDiscountPercent]
+  );
+  const tableDiscountAmount = roundMoney(Math.max(0, tableSubtotal - tableTotal));
 
   useEffect(() => {
-    if (!selectedOrder) return;
-    if (paymentStatus !== 'PAID') return;
-    if (discountPercent === '') return;
-    setAmountPaid(String(discountedTotal));
-  }, [selectedOrder, paymentStatus, discountPercent, discountedTotal]);
+    if (!filteredPayableOrders.length) {
+      setAmountPaid('');
+      return;
+    }
+    if (paymentStatus === 'PAID') setAmountPaid(String(tableTotal));
+    if (paymentStatus === 'UNPAID') setAmountPaid('0');
+  }, [filteredPayableOrders.length, paymentStatus, tableTotal]);
 
   const totalPaidToday = useMemo(() => {
     const today = new Date();
@@ -324,34 +443,147 @@ const BillingPage = () => {
     setTimeout(doPrint, 500);
   };
 
+  const getPrintablePayment = (payment) => {
+    if (!payment) return null;
+
+    if (payment.billGroupId) {
+      const group = payments.filter((row) => row.billGroupId === payment.billGroupId);
+      const groupedReceipt = combineReceiptPayments(group.length ? group : [payment]);
+      if (groupedReceipt?.order?.items?.length) return groupedReceipt;
+    }
+
+    const tableNumber = paymentTableNumber(payment);
+    const paidAt = timestampMs(payment.createdAt);
+    const sameTablePayments = payments.filter((row) => {
+      if (!tableNumber || paymentTableNumber(row) !== tableNumber) return false;
+      if (!paidAt || !timestampMs(row.createdAt)) return paymentOrderId(row) === paymentOrderId(payment);
+      return Math.abs(timestampMs(row.createdAt) - paidAt) <= 2 * 60 * 1000;
+    });
+    const orderIds = new Set(sameTablePayments.map((row) => paymentOrderId(row)).filter(Boolean));
+    if (paymentOrderId(payment)) orderIds.add(paymentOrderId(payment));
+
+    const receiptOrders = orders.filter((order) => orderIds.has(String(order._id)));
+    if (receiptOrders.length) {
+      return combineReceiptFromOrders({
+        basePayment: payment,
+        receiptOrders,
+        receiptPayments: sameTablePayments.length ? sameTablePayments : [payment]
+      });
+    }
+
+    if (Array.isArray(payment.order?.items) && payment.order.items.length) {
+      return combineReceiptFromOrders({
+        basePayment: payment,
+        receiptOrders: [payment.order],
+        receiptPayments: [payment]
+      });
+    }
+
+    return payment;
+  };
+
+  const printPaymentReceipt = (payment) => {
+    const printablePayment = getPrintablePayment(payment);
+    setReceiptPayment(printablePayment);
+    printReceipt(printablePayment);
+  };
+
   const createPayment = async () => {
     setError('');
-    if ((!selectedOrderId && !lookupOrderNumber.trim()) || !amountPaid) {
-      setError('Please provide order number (or select order) and enter amount paid');
+    if (!lookupTableNumber.trim()) {
+      setError('Please enter a table number to find billable orders');
+      return;
+    }
+    if (!filteredPayableOrders.length) {
+      setError('No READY or SERVED unpaid orders found for this table');
+      return;
+    }
+
+    const numericAmountPaid = Number(amountPaid);
+    if (!Number.isFinite(numericAmountPaid) || numericAmountPaid < 0) {
+      setError('Please enter a valid amount paid');
+      return;
+    }
+    if (paymentStatus === 'PAID' && numericAmountPaid < tableTotal) {
+      setError(`Paid amount must be at least ${currency(tableTotal)} for this table`);
+      return;
+    }
+    if (paymentStatus === 'PARTIAL' && (numericAmountPaid <= 0 || numericAmountPaid >= tableTotal)) {
+      setError('Partial payments must be more than zero and less than the table total');
+      return;
+    }
+    if (paymentStatus === 'UNPAID' && numericAmountPaid !== 0) {
+      setError('Unpaid records must use amount paid as 0');
       return;
     }
 
     try {
-      const payload = {
+      let remainingPaid = roundMoney(numericAmountPaid);
+      const createdPayments = [];
+      const billGroupId =
+        filteredPayableOrders.length > 1
+          ? `TABLE-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+          : '';
+
+      for (const [index, order] of filteredPayableOrders.entries()) {
+        const orderTotal = getOrderPayableTotal(order);
+        const isLastOrder = index === filteredPayableOrders.length - 1;
+        let splitPaid = 0;
+        let splitStatus = paymentStatus;
+
+        if (paymentStatus === 'PAID') {
+          splitPaid = orderTotal;
+          if (isLastOrder && numericAmountPaid > tableTotal) {
+            splitPaid = roundMoney(splitPaid + numericAmountPaid - tableTotal);
+          }
+          splitStatus = 'PAID';
+        } else if (paymentStatus === 'PARTIAL') {
+          splitPaid = roundMoney(Math.min(orderTotal, remainingPaid));
+          remainingPaid = roundMoney(remainingPaid - splitPaid);
+          splitStatus = splitPaid >= orderTotal ? 'PAID' : splitPaid > 0 ? 'PARTIAL' : 'UNPAID';
+        }
+
+        const payload = {
+          order: order._id,
+          tableNumber: lookupTableNumber.trim(),
+          paymentMethod,
+          amountPaid: splitPaid,
+          paymentStatus: splitStatus,
+          billGroupId,
+          billGroupTableNumber: lookupTableNumber.trim(),
+          billGroupOrderCount: filteredPayableOrders.length
+        };
+        if (discountPercent !== '') payload.discountPercent = validDiscountPercent;
+
+        createdPayments.push(await paymentService.create(payload));
+      }
+
+      const combinedReceipt = {
+        ...(createdPayments.at(-1) || {}),
+        billNumber: createdPayments.map((payment) => payment.billNumber).filter(Boolean).join(', '),
         paymentMethod,
-        amountPaid: Number(amountPaid),
-        paymentStatus
+        paymentStatus,
+        amountPaid: numericAmountPaid,
+        changeAmount: roundMoney(Math.max(0, numericAmountPaid - tableTotal)),
+        order: {
+          orderNumber: filteredPayableOrders.map((order) => order.orderNumber).join(', '),
+          orderType: 'DINE_IN',
+          table: filteredPayableOrders[0]?.table,
+          items: tableItems.map((item) => ({
+            ...item,
+            name: `${item.name || '-'} (${item.orderNumber || '-'})`
+          })),
+          subtotal: tableSubtotal,
+          discount: tableDiscountAmount,
+          total: tableTotal
+        }
       };
-      if (discountPercent !== '') payload.discountPercent = validDiscountPercent;
 
-      if (selectedOrderId) payload.order = selectedOrderId;
-      if (lookupOrderNumber.trim()) payload.orderNumber = lookupOrderNumber.trim();
-      if (lookupTableNumber.trim()) payload.tableNumber = lookupTableNumber.trim();
-
-      const createdPayment = await paymentService.create(payload);
-      setReceiptPayment(createdPayment);
-
-      setSelectedOrderId('');
+      setReceiptPayment(combinedReceipt);
       setAmountPaid('');
       setPaymentMethod('CASH');
       setPaymentStatus('PAID');
       setDiscountPercent('');
-      setLookupOrderNumber('');
       setLookupTableNumber('');
       await load();
     } catch (err) {
@@ -451,123 +683,160 @@ const BillingPage = () => {
         </div>
       </div>
 
-      <Panel title="Billing & Payment Entry" subtitle="Create clean bills quickly using order number or table number">
-        <div className="grid gap-4 xl:grid-cols-2">
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-            <h4 className="text-sm font-semibold text-slate-800">Order Lookup</h4>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                label="Order Number"
-                placeholder="ORD-1001"
-                value={lookupOrderNumber}
-                onChange={(e) => setLookupOrderNumber(e.target.value)}
-                helperText="Find bill by order number"
-              />
-
+      {canCreateBills ? (
+        <Panel title="Billing & Payment Entry" subtitle="Create one combined table bill from every READY or SERVED unpaid order">
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <h4 className="text-sm font-semibold text-slate-800">Table Lookup</h4>
               <Input
                 label="Table Number"
                 placeholder="T-1"
                 value={lookupTableNumber}
                 onChange={(e) => setLookupTableNumber(e.target.value)}
-                helperText="Optional for dine-in"
+                helperText="Enter table number to show billable orders for that table"
               />
+
+              {lookupTableNumber.trim() && !filteredPayableOrders.length ? (
+                <p className="text-sm text-amber-700">
+                  No billable order found for this table. Only READY or SERVED unpaid orders can be billed.
+                </p>
+              ) : null}
+
+              {filteredPayableOrders.length ? (
+                <div className="space-y-3">
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="rounded-xl border border-sky-100 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Orders</p>
+                      <p className="text-xl font-bold text-slate-900">{filteredPayableOrders.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-sky-100 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Items</p>
+                      <p className="text-xl font-bold text-slate-900">{tableItems.length}</p>
+                    </div>
+                    <div className="rounded-xl border border-sky-100 bg-white p-3">
+                      <p className="text-xs font-semibold uppercase text-slate-500">Table Total</p>
+                      <p className="text-xl font-bold text-brand-700">{currency(tableTotal)}</p>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Billable Orders On This Table</p>
+                    {filteredPayableOrders.map((order) => (
+                      <div key={order._id} className="rounded-xl border border-slate-200 bg-white p-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="font-semibold text-slate-900">{order.orderNumber}</p>
+                            <p className="text-xs text-slate-500">
+                              {order.items?.length || 0} items | {currency(getOrderPayableTotal(order))}
+                            </p>
+                          </div>
+                          <StatusBadge value={order.status} />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white">
+                    <div className="grid grid-cols-[1fr_64px_96px] gap-2 border-b border-slate-100 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+                      <span>Ordered Item</span>
+                      <span className="text-right">Qty</span>
+                      <span className="text-right">Total</span>
+                    </div>
+                    {tableItems.map((item, index) => {
+                      const qty = Number(item.quantity || 0);
+                      const price = Number(item.price || 0);
+                      return (
+                        <div
+                          key={`${item.orderId}-${item._id || index}`}
+                          className="grid grid-cols-[1fr_64px_96px] gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-0"
+                        >
+                          <span>
+                            <span className="font-medium text-slate-900">{item.name || '-'}</span>
+                            <span className="block text-xs text-slate-500">{item.orderNumber}</span>
+                          </span>
+                          <span className="text-right text-slate-700">{qty}</span>
+                          <span className="text-right font-semibold text-slate-900">{currency(qty * price)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
             </div>
 
-            <Select
-              label="Select Matching Order"
-              value={selectedOrderId}
-              options={[{ label: 'Select order', value: '' }].concat(
-                filteredPayableOrders.map((o) => ({
-                  label: `${o.orderNumber} | ${o.table?.tableNumber || 'No Table'} | ${currency(o.total)} | ${o.status}`,
-                  value: o._id
-                }))
-              )}
-              onChange={(e) => {
-                setSelectedOrderId(e.target.value);
-                const order = filteredPayableOrders.find((x) => x._id === e.target.value);
-                if (order) {
-                  setAmountPaid(String(order.total));
-                  setLookupOrderNumber(order.orderNumber || '');
-                  setLookupTableNumber(order.table?.tableNumber || '');
-                }
-              }}
-            />
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
+              <h4 className="text-sm font-semibold text-slate-800">Payment Details</h4>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Select
+                  label="Payment Method"
+                  value={paymentMethod}
+                  options={paymentMethodOptions.map((x) => ({ label: x, value: x }))}
+                  onChange={(e) => setPaymentMethod(e.target.value)}
+                />
 
-            {(lookupOrderNumber.trim() || lookupTableNumber.trim()) && !filteredPayableOrders.length ? (
-              <p className="text-sm text-amber-700">
-                No billable order found for this filter. Try changing order number or table number.
-              </p>
-            ) : null}
-          </div>
-
-          <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
-            <h4 className="text-sm font-semibold text-slate-800">Payment Details</h4>
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Select
-                label="Payment Method"
-                value={paymentMethod}
-                options={paymentMethodOptions.map((x) => ({ label: x, value: x }))}
-                onChange={(e) => setPaymentMethod(e.target.value)}
-              />
-
-              <Select
-                label="Payment Status"
-                value={paymentStatus}
-                options={[
-                  { label: 'PAID', value: 'PAID' },
-                  { label: 'PARTIAL', value: 'PARTIAL' },
-                  { label: 'UNPAID', value: 'UNPAID' }
-                ]}
-                onChange={(e) => setPaymentStatus(e.target.value)}
-              />
-            </div>
-
-            <Input
-              label="Discount (%)"
-              type="number"
-              min="0"
-              max="100"
-              step="0.01"
-              value={discountPercent}
-              onChange={(e) => setDiscountPercent(e.target.value)}
-              helperText="Optional. Applied before payment is recorded."
-            />
-
-            <Input
-              label="Amount Paid"
-              type="number"
-              step="0.01"
-              value={amountPaid}
-              onChange={(e) => setAmountPaid(e.target.value)}
-            />
-
-            {selectedOrder ? (
-              <div className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm">
-                <p className="font-semibold text-slate-800">Selected Order: {selectedOrder.orderNumber}</p>
-                <p>Table: {selectedOrder.table?.tableNumber || '-'}</p>
-                <p>Subtotal: {currency(selectedOrderSubtotal)}</p>
-                <p>Discount: {validDiscountPercent}%</p>
-                <p>Total: {currency(discountPercent === '' ? selectedOrder.total : discountedTotal)}</p>
-                <p>Items: {selectedOrder.items.length}</p>
+                <Select
+                  label="Payment Status"
+                  value={paymentStatus}
+                  options={[
+                    { label: 'PAID', value: 'PAID' },
+                    { label: 'PARTIAL', value: 'PARTIAL' },
+                    { label: 'UNPAID', value: 'UNPAID' }
+                  ]}
+                  onChange={(e) => setPaymentStatus(e.target.value)}
+                />
               </div>
-            ) : null}
+
+              <Input
+                label="Discount (%)"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                value={discountPercent}
+                onChange={(e) => setDiscountPercent(e.target.value)}
+                helperText="Optional. Applied to each billable order before payment is recorded."
+              />
+
+              <Input
+                label="Amount Paid"
+                type="number"
+                step="0.01"
+                value={amountPaid}
+                onChange={(e) => setAmountPaid(e.target.value)}
+              />
+
+              <div className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm">
+                <p className="font-semibold text-slate-800">Table Bill Summary</p>
+                <div className="mt-2 space-y-1 text-slate-700">
+                  <p>Table: {lookupTableNumber.trim() || '-'}</p>
+                  <p>Orders: {filteredPayableOrders.length}</p>
+                  <p>Items: {tableItems.length}</p>
+                  <p>Subtotal: {currency(tableSubtotal)}</p>
+                  <p>Discount: {currency(tableDiscountAmount)} ({validDiscountPercent}%)</p>
+                  <p className="text-base font-bold text-slate-900">Grand Total: {currency(tableTotal)}</p>
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
 
         {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
 
-        <div className="mt-4 grid gap-2 sm:flex">
-          <Button className="px-6 py-3 text-base" onClick={createPayment}>Accept Payment</Button>
-          <Button
-            variant="secondary"
-            className="px-6 py-3 text-base"
-            onClick={() => printReceipt(receiptPayment || filteredPayments[0])}
-            disabled={!receiptPayment && !filteredPayments.length}
-          >
-            Print Latest Receipt
-          </Button>
-        </div>
-      </Panel>
+          <div className="mt-4 grid gap-2 sm:flex">
+            <Button className="px-6 py-3 text-base" onClick={createPayment}>Accept Payment</Button>
+            <Button
+              variant="secondary"
+              className="px-6 py-3 text-base"
+              onClick={() => {
+                if (receiptPayment) printReceipt(receiptPayment);
+                else printPaymentReceipt(filteredPayments[0]);
+              }}
+              disabled={!receiptPayment && !filteredPayments.length}
+            >
+              Print Latest Receipt
+            </Button>
+          </div>
+        </Panel>
+      ) : null}
 
       <Panel
         title="Bills & Payment History"
@@ -639,10 +908,7 @@ const BillingPage = () => {
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() => {
-                        setReceiptPayment(payment);
-                        printReceipt(payment);
-                      }}
+                      onClick={() => printPaymentReceipt(payment)}
                     >
                       Print
                     </Button>
@@ -674,10 +940,7 @@ const BillingPage = () => {
                   <Button
                     variant="secondary"
                     size="sm"
-                    onClick={() => {
-                      setReceiptPayment(payment);
-                      printReceipt(payment);
-                    }}
+                    onClick={() => printPaymentReceipt(payment)}
                   >
                     Print Receipt
                   </Button>

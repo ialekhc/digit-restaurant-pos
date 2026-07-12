@@ -135,7 +135,9 @@ export const vendorService = {
   update: async (id, payload) => unwrap(await api.put(`/vendors/${id}`, payload)),
   remove: async (id) => unwrap(await api.delete(`/vendors/${id}`)),
   overview: async () => unwrap(await api.get('/vendors/overview')),
+  mySubscription: async () => unwrap(await api.get('/vendors/my-subscription')),
   updateSubscription: async (id, payload) => unwrap(await api.put(`/vendors/${id}/subscription`, payload)),
+  updateSubscriptionStatus: async (id, action) => unwrap(await api.post(`/vendors/${id}/subscription/${action}`)),
   addSubscriptionPayment: async (id, payload) => unwrap(await api.post(`/vendors/${id}/subscription/payments`, payload)),
   updateSubscriptionPayment: async (id, paymentId, payload) =>
     unwrap(await api.put(`/vendors/${id}/subscription/payments/${paymentId}`, payload)),

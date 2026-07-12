@@ -45,8 +45,10 @@ export const PERMISSIONS = {
   BRANCHES_MANAGE: 'branch.update',
 
   USER_VIEW: 'user.view',
+  USER_READ: 'user.view',
   USER_CREATE: 'user.create',
   USER_UPDATE: 'user.update',
+  USER_DELETE: 'user.deactivate',
   USER_DEACTIVATE: 'user.deactivate',
   USER_ASSIGN_ROLE: 'user.assign_role',
   USER_ASSIGN_BRANCH: 'user.assign_branch',
@@ -92,9 +94,14 @@ export const PERMISSIONS = {
   TABLES_ASSIGN: 'table.assign',
 
   ORDER_VIEW: 'order.view',
+  ORDER_READ: 'order.view',
   ORDER_CREATE: 'order.create',
   ORDER_UPDATE: 'order.update',
+  ORDER_STATUS_UPDATE: 'order.update',
   ORDER_CANCEL: 'order.cancel',
+  ORDER_DELETE: 'order.delete',
+  ORDER_ITEM_READ: 'order.view',
+  ORDER_ITEM_UPDATE: 'order.update',
   ORDER_VOID: 'order.void',
   ORDER_TRANSFER: 'order.transfer',
   ORDER_MERGE: 'order.merge',
@@ -107,7 +114,11 @@ export const PERMISSIONS = {
   ORDERS_SEND_TO_KITCHEN: 'order.send_to_kitchen',
 
   PAYMENT_VIEW: 'payment.view',
+  BILL_READ: 'payment.view',
   PAYMENT_COLLECT: 'payment.collect',
+  BILL_CREATE: 'payment.collect',
+  BILL_UPDATE: 'payment.collect',
+  BILL_DELETE: 'payment.delete',
   PAYMENT_SPLIT: 'payment.split',
   PAYMENT_REFUND: 'payment.refund',
   PAYMENT_VOID: 'payment.void',
@@ -181,7 +192,11 @@ export const PERMISSIONS = {
   SETTINGS_MANAGE_INTEGRATIONS: 'settings.manage_integrations',
 
   SUBSCRIPTION_VIEW: 'subscription.view',
+  SUBSCRIPTION_READ: 'subscription.view',
   SUBSCRIPTION_MANAGE: 'subscription.manage',
+  SUBSCRIPTION_CREATE: 'platform.subscriptions.manage',
+  SUBSCRIPTION_UPDATE: 'platform.subscriptions.manage',
+  SUBSCRIPTION_DELETE: 'platform.subscriptions.manage',
 
   SHIFT_MANAGE: 'cash_register.close',
   SHIFT_OPEN: 'cash_register.open',
@@ -262,6 +277,7 @@ const fullRestaurantPermissions = [
   PERMISSIONS.ORDER_CREATE,
   PERMISSIONS.ORDER_UPDATE,
   PERMISSIONS.ORDER_CANCEL,
+  PERMISSIONS.ORDER_DELETE,
   PERMISSIONS.ORDER_VOID,
   PERMISSIONS.ORDER_TRANSFER,
   PERMISSIONS.ORDER_MERGE,
@@ -269,6 +285,7 @@ const fullRestaurantPermissions = [
   PERMISSIONS.ORDER_SEND_TO_KITCHEN,
   PERMISSIONS.PAYMENT_VIEW,
   PERMISSIONS.PAYMENT_COLLECT,
+  PERMISSIONS.BILL_DELETE,
   PERMISSIONS.PAYMENT_SPLIT,
   PERMISSIONS.PAYMENT_REFUND,
   PERMISSIONS.PAYMENT_VOID,
@@ -316,6 +333,14 @@ export const ROLE_PERMISSIONS = {
       ![
         PERMISSIONS.RESTAURANT_DELETE,
         PERMISSIONS.RESTAURANT_TRANSFER_OWNERSHIP,
+        PERMISSIONS.USER_VIEW,
+        PERMISSIONS.USER_CREATE,
+        PERMISSIONS.USER_UPDATE,
+        PERMISSIONS.USER_DEACTIVATE,
+        PERMISSIONS.USER_ASSIGN_ROLE,
+        PERMISSIONS.USER_ASSIGN_BRANCH,
+        PERMISSIONS.ORDER_DELETE,
+        PERMISSIONS.BILL_DELETE,
         PERMISSIONS.SUBSCRIPTION_MANAGE
       ].includes(permission)
   ),
@@ -402,12 +427,18 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MENU_UPDATE_AVAILABILITY
   ],
   [ROLES.BARISTA]: [
+    PERMISSIONS.ORDER_VIEW,
+    PERMISSIONS.ORDER_CREATE,
+    PERMISSIONS.ORDER_UPDATE,
+    PERMISSIONS.ORDER_SEND_TO_KITCHEN,
     PERMISSIONS.KITCHEN_VIEW_ORDERS,
     PERMISSIONS.KITCHEN_ACCEPT_ORDER,
     PERMISSIONS.KITCHEN_UPDATE_STATUS,
     PERMISSIONS.KITCHEN_MARK_UNAVAILABLE,
     PERMISSIONS.MENU_VIEW,
-    PERMISSIONS.MENU_UPDATE_AVAILABILITY
+    PERMISSIONS.MENU_UPDATE_AVAILABILITY,
+    PERMISSIONS.CUSTOMER_VIEW,
+    PERMISSIONS.CUSTOMER_CREATE
   ],
   [ROLES.INVENTORY_MANAGER]: [
     PERMISSIONS.INVENTORY_VIEW,
@@ -439,7 +470,13 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.ORDER_VIEW,
     PERMISSIONS.CUSTOMER_VIEW
   ],
-  [ROLES.CUSTOMER]: []
+  [ROLES.CUSTOMER]: [
+    PERMISSIONS.ORDER_VIEW,
+    PERMISSIONS.ORDER_CREATE,
+    PERMISSIONS.ORDER_UPDATE,
+    PERMISSIONS.ORDER_CANCEL,
+    PERMISSIONS.PAYMENT_VIEW
+  ]
 };
 
 export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'];

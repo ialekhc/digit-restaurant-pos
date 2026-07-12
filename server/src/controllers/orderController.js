@@ -2,7 +2,7 @@ import { Order } from '../models/Order.js';
 import { MenuItem } from '../models/MenuItem.js';
 import { Table } from '../models/Table.js';
 import { Customer } from '../models/Customer.js';
-import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../config/constants.js';
+import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS, ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
@@ -26,6 +26,30 @@ const assertValidTransition = (currentStatus, nextStatus) => {
   if (!validTransitions[currentStatus]?.includes(nextStatus)) {
     throw new ApiError(400, `Invalid status transition from ${currentStatus} to ${nextStatus}`);
   }
+};
+
+const OWNER_OVERRIDE_ROLES = [ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER];
+
+const STATUS_BY_ROLE = {
+  [ROLES.KITCHEN]: ['PREPARING', 'READY'],
+  [ROLES.BARISTA]: ['PREPARING', 'READY'],
+  [ROLES.WAITER]: ['SERVED'],
+  [ROLES.CASHIER]: ['SERVED', 'COMPLETED'],
+  [ROLES.MANAGER]: ['PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED'],
+  [ROLES.ADMIN]: ['PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED']
+};
+
+const ensureStatusAllowedForRole = (user, status) => {
+  if (OWNER_OVERRIDE_ROLES.includes(user?.role)) return;
+  const allowed = STATUS_BY_ROLE[user?.role] || [];
+  if (!allowed.includes(status)) {
+    throw new ApiError(403, 'You are not allowed to set this order status');
+  }
+};
+
+const findScopedOrderById = async (req, id) => {
+  const query = await buildTenantScopedQuery(req.user, { _id: id }, { userFields: ['createdBy'] });
+  return Order.findOne(query);
 };
 
 const ensureItemProgressBounds = (order) => {
@@ -58,15 +82,8 @@ const isInstantServeSmokeItem = (menu) => {
 
 const resolveProductionSection = (menu) => {
   const menuType = String(menu.menuType || '').toUpperCase();
-  const categoryName = menu.category?.name || '';
-  const itemName = menu.name || '';
 
-  if (menuType === 'DRINK') {
-    if (includesAny(categoryName, ['liquor']) || includesAny(itemName, ['beer', 'vodka', 'whisky', 'whiskey', 'rum', 'gin', 'tequila', 'brandy', 'wine'])) {
-      return 'BAR';
-    }
-    return 'FOOD';
-  }
+  if (menuType === 'DRINK') return 'BAR';
 
   if (menuType === 'SMOKE') {
     return 'SMOKE';
@@ -166,7 +183,12 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 
   if (table) {
-    const foundTable = await Table.findById(table);
+    const foundTable = await Table.findOne(
+      await buildTenantScopedQuery(req.user, { _id: table }, {
+        userFields: ['createdBy'],
+        includeCustomerTenant: true
+      })
+    );
     if (!foundTable) throw new ApiError(404, 'Table not found');
     if (foundTable.status === 'RESERVED' || foundTable.status === 'CLEANING') {
       throw new ApiError(400, `Table ${foundTable.tableNumber} is currently ${foundTable.status}`);
@@ -174,12 +196,22 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
 
   if (customer) {
-    const foundCustomer = await Customer.findById(customer);
+    const foundCustomer = await Customer.findOne(
+      await buildTenantScopedQuery(req.user, { _id: customer }, {
+        userFields: ['createdBy'],
+        includeCustomerTenant: true
+      })
+    );
     if (!foundCustomer) throw new ApiError(404, 'Customer not found');
   }
 
   const menuIds = items.map((item) => item.menuItem);
-  const menuItems = await MenuItem.find({ _id: { $in: menuIds } }).populate('category', 'name');
+  const menuItems = await MenuItem.find(
+    await buildTenantScopedQuery(req.user, { _id: { $in: menuIds } }, {
+      userFields: ['createdBy'],
+      includeCustomerTenant: true
+    })
+  ).populate('category', 'name');
   const menuMap = new Map(menuItems.map((m) => [String(m._id), m]));
 
   const normalizedItems = items.map((item) => {
@@ -238,7 +270,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {
-  const data = await Order.findById(req.params.id)
+  const data = await findScopedOrderById(req, req.params.id)
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role');
@@ -256,6 +288,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 
   const canKitchenUpdate = hasPermission(req.user, PERMISSIONS.KITCHEN_UPDATE_STATUS);
   const canOrderUpdate = hasPermission(req.user, PERMISSIONS.ORDER_UPDATE);
+  ensureStatusAllowedForRole(req.user, status);
   if (canKitchenUpdate && !canOrderUpdate && !['PREPARING', 'READY'].includes(status)) {
     throw new ApiError(403, 'Kitchen and bar can only mark orders as PREPARING or READY');
   }
@@ -266,7 +299,7 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
     );
   }
 
-  const order = await Order.findById(req.params.id);
+  const order = await findScopedOrderById(req, req.params.id);
   if (!order) throw new ApiError(404, 'Order not found');
 
   const currentStatus = order.status;
@@ -347,11 +380,14 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
 export const cancelOrder = asyncHandler(async (req, res) => {
   const { reason = '' } = req.body;
 
-  const order = await Order.findById(req.params.id);
+  const order = await findScopedOrderById(req, req.params.id);
   if (!order) throw new ApiError(404, 'Order not found');
 
   if (order.status === 'COMPLETED') {
     throw new ApiError(400, 'Completed order cannot be cancelled');
+  }
+  if (req.user?.role === ROLES.CUSTOMER && order.status !== 'PENDING') {
+    throw new ApiError(403, 'Customers can only cancel pending orders');
   }
 
   order.status = 'CANCELLED';
@@ -366,4 +402,18 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     .populate('createdBy', 'name role');
 
   res.json({ data });
+});
+
+export const deleteOrder = asyncHandler(async (req, res) => {
+  if (!OWNER_OVERRIDE_ROLES.includes(req.user?.role)) {
+    throw new ApiError(403, 'Only super admins and restaurant owners can delete orders');
+  }
+
+  const order = await findScopedOrderById(req, req.params.id);
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  await order.deleteOne();
+  await syncTableStatusFromOrders(order.table);
+
+  res.json({ message: 'Order deleted' });
 });

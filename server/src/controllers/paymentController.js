@@ -9,7 +9,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { generateBillNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
-import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
+import { buildTenantScopedQuery, resolveTenantScope, withTenantFields } from '../services/tenantScopeService.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -77,6 +77,29 @@ const completeOrderAfterPayment = async (order) => {
   }
 };
 
+const buildPaymentScopedQuery = async (req, baseQuery = {}) => {
+  const scope = await resolveTenantScope(req.user);
+  if (scope.platform) return baseQuery;
+
+  const branches = [];
+  if (scope.restaurantId && !scope.customerOnly) branches.push({ restaurantId: scope.restaurantId });
+  if (scope.userIds.length) {
+    branches.push(
+      { paidBy: { $in: scope.userIds } },
+      { receivedBy: { $in: scope.userIds } },
+      { 'creditHistory.receivedBy': { $in: scope.userIds } }
+    );
+  }
+
+  const scopedOrderQuery = await buildTenantScopedQuery(req.user, {}, { userFields: ['createdBy'] });
+  const scopedOrders = await Order.find(scopedOrderQuery).select('_id');
+  const orderIds = scopedOrders.map((order) => order._id);
+  if (orderIds.length) branches.push({ order: { $in: orderIds } });
+
+  const scopeQuery = branches.length ? { $or: branches } : { _id: '__NO_PAYMENT_SCOPE_MATCH__' };
+  return Object.keys(baseQuery).length ? { $and: [baseQuery, scopeQuery] } : scopeQuery;
+};
+
 export const createPayment = asyncHandler(async (req, res) => {
   const {
     order: orderId,
@@ -87,7 +110,10 @@ export const createPayment = asyncHandler(async (req, res) => {
     discountPercent,
     paymentStatus = 'PAID',
     dueDate,
-    creditNote = ''
+    creditNote = '',
+    billGroupId = '',
+    billGroupTableNumber = '',
+    billGroupOrderCount
   } = req.body;
   const normalizedTableNumber = String(tableNumber).trim();
 
@@ -100,21 +126,26 @@ export const createPayment = asyncHandler(async (req, res) => {
   let order = null;
 
   if (orderId) {
-    order = await Order.findById(orderId);
+    order = await Order.findOne(await buildTenantScopedQuery(req.user, { _id: orderId }, { userFields: ['createdBy'] }));
   } else {
     const query = { orderNumber: String(orderNumber).trim() };
 
     if (normalizedTableNumber) {
-      const table = await Table.findOne({
-        tableNumber: { $regex: new RegExp(`^${escapeRegex(normalizedTableNumber)}$`, 'i') }
-      });
+      const table = await Table.findOne(
+        await buildTenantScopedQuery(req.user, {
+          tableNumber: { $regex: new RegExp(`^${escapeRegex(normalizedTableNumber)}$`, 'i') }
+        }, {
+          userFields: ['createdBy'],
+          includeCustomerTenant: true
+        })
+      );
       if (!table) {
         throw new ApiError(404, 'Table not found for provided table number');
       }
       query.table = table._id;
     }
 
-    order = await Order.findOne(query);
+    order = await Order.findOne(await buildTenantScopedQuery(req.user, query, { userFields: ['createdBy'] }));
   }
 
   if (!order) throw new ApiError(404, 'Order not found');
@@ -175,6 +206,9 @@ export const createPayment = asyncHandler(async (req, res) => {
     paidBy: req.user._id,
     dueDate: paymentStatus === 'PAID' ? undefined : parsedDueDate,
     creditNote: paymentStatus === 'PAID' ? '' : String(creditNote || ''),
+    billGroupId: billGroupId ? String(billGroupId).trim() : undefined,
+    billGroupTableNumber: billGroupTableNumber ? String(billGroupTableNumber).trim() : undefined,
+    billGroupOrderCount: typeof billGroupOrderCount === 'undefined' ? undefined : Number(billGroupOrderCount),
     creditHistory:
       paid > 0 && paymentStatus !== 'PAID'
         ? [
@@ -214,7 +248,7 @@ export const getPayments = asyncHandler(async (req, res) => {
     query.createdAt = { $gte: from, $lt: to };
   }
 
-  const scopedQuery = await buildTenantScopedQuery(req.user, query, { userFields: ['paidBy', 'receivedBy'] });
+  const scopedQuery = await buildPaymentScopedQuery(req, query);
   const data = await Payment.find(scopedQuery)
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
     .populate('paidBy', 'name role')
@@ -225,7 +259,7 @@ export const getPayments = asyncHandler(async (req, res) => {
 });
 
 export const getPaymentById = asyncHandler(async (req, res) => {
-  const data = await Payment.findById(req.params.id)
+  const data = await Payment.findOne(await buildPaymentScopedQuery(req, { _id: req.params.id }))
     .populate({ path: 'order', populate: [{ path: 'table' }, { path: 'customer' }] })
     .populate('paidBy', 'name role')
     .populate('creditHistory.receivedBy', 'name role');
@@ -242,7 +276,7 @@ export const settleCreditPayment = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Amount received must be greater than 0');
   }
 
-  const payment = await Payment.findById(req.params.id).populate('order');
+  const payment = await Payment.findOne(await buildPaymentScopedQuery(req, { _id: req.params.id })).populate('order');
   if (!payment) throw new ApiError(404, 'Payment not found');
 
   if (payment.paymentStatus === 'PAID') {

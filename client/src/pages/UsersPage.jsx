@@ -55,11 +55,13 @@ const allRoleOptions = [
 }));
 
 const vendorAdminRoleOptions = [
+  'ADMIN',
   'MANAGER',
   'CASHIER',
   'WAITER',
   'KITCHEN',
-  'BARISTA'
+  'BARISTA',
+  'CUSTOMER'
 ].map((x) => ({
   label: x,
   value: x
