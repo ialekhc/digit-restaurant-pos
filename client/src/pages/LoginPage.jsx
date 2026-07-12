@@ -103,7 +103,7 @@ const LoginPage = () => {
               D
             </span>
             <span>
-              <span className="block font-display text-base font-extrabold leading-4 text-slate-950">Digit POS</span>
+              <span className="block font-display text-base font-extrabold leading-4 text-slate-950">Digit Restaurant POS</span>
               <span className="text-xs font-semibold text-brand-700">Subscription Restaurant Cloud</span>
             </span>
           </a>
@@ -135,7 +135,7 @@ const LoginPage = () => {
                 One cloud workspace for every restaurant operation.
               </h1>
               <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-slate-600 sm:text-lg">
-                Digit POS is a subscription platform for restaurants that need table service, kitchen routing,
+                Digit Restaurant POS is a subscription platform for restaurants that need table service, kitchen routing,
                 NPR billing, inventory, reports, vendor subscriptions, and staff access in one clean system.
               </p>
 

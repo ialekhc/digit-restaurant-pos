@@ -48,7 +48,7 @@ const HomePage = () => {
               DP
             </span>
             <span>
-              <span className="block font-display text-base font-extrabold leading-4">Digit POS</span>
+              <span className="block font-display text-base font-extrabold leading-4">Digit Restaurant POS</span>
               <span className="text-xs font-bold text-brand-700">Restaurant Subscription Cloud</span>
             </span>
           </a>
@@ -79,7 +79,7 @@ const HomePage = () => {
               Manage restaurants, vendors, subscriptions, sales, kitchen, and inventory from one platform.
             </h1>
             <p className="mt-5 max-w-3xl text-base font-semibold leading-7 text-slate-600 sm:text-lg">
-              Digit POS is a practical MERN/Postgres restaurant management system for teams that need fast
+              Digit Restaurant POS is a practical MERN/Postgres restaurant management system for teams that need fast
               table service, clean NPR billing, kitchen visibility, inventory control, and SaaS-style vendor
               subscription management.
             </p>
