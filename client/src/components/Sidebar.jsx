@@ -27,8 +27,9 @@ const navItems = [
   { path: '/inventory', label: 'Inventory', group: 'Resources', anyPermissions: [PERMISSIONS.INVENTORY_VIEW], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
   { path: '/suppliers', label: 'Suppliers', group: 'Resources', anyPermissions: [PERMISSIONS.SUPPLIER_VIEW], featureKey: FEATURE_KEYS.SUPPLIER_MANAGEMENT },
   { path: '/customers', label: 'Customers', group: 'Resources', anyPermissions: [PERMISSIONS.CUSTOMER_VIEW], featureKey: FEATURE_KEYS.CUSTOMER_MANAGEMENT },
-  { path: '/register-dashboard', label: 'Register Dashboard', group: 'Cash Register', anyPermissions: [PERMISSIONS.CASH_REGISTER_VIEW], featureKey: FEATURE_KEYS.BASIC_BILLING },
-  { path: '/cash-register', label: 'Cash Register', group: 'Cash Register', anyPermissions: [PERMISSIONS.CASH_REGISTER_VIEW], featureKey: FEATURE_KEYS.BASIC_BILLING },
+  // Cash Register navigation is temporarily hidden for all users.
+  // { path: '/register-dashboard', label: 'Register Dashboard', group: 'Cash Register', anyPermissions: [PERMISSIONS.CASH_REGISTER_VIEW], featureKey: FEATURE_KEYS.BASIC_BILLING },
+  // { path: '/cash-register', label: 'Cash Register', group: 'Cash Register', anyPermissions: [PERMISSIONS.CASH_REGISTER_VIEW], featureKey: FEATURE_KEYS.BASIC_BILLING },
   { path: '/reports', label: 'Reports', group: 'Insights', anyPermissions: [PERMISSIONS.REPORT_OWN_SHIFT, PERMISSIONS.REPORT_BRANCH_SALES, PERMISSIONS.REPORT_RESTAURANT_SALES], featureKey: FEATURE_KEYS.BASIC_REPORTS },
   { path: '/users', label: 'Users', group: 'System', anyPermissions: [PERMISSIONS.USER_VIEW] },
   { path: '/settings', label: 'Settings', group: 'System', anyPermissions: [PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS] }
