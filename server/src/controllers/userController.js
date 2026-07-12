@@ -3,8 +3,8 @@ import { Vendor } from '../models/Vendor.js';
 import { ALL_PERMISSIONS, PERMISSIONS, ROLES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
-import { ensureStaffLimitAvailable } from '../services/planService.js';
 import { buildPublicUser, canAssignRole, hasPermission, resolveUserAccess } from '../services/permissionService.js';
+import { ensureVendorUserLimitAvailable, isVendorCountedUserRole } from '../services/vendorUserLimitService.js';
 
 const userProjection = '-password';
 const OWNER_MANAGEABLE_ROLES = [
@@ -132,14 +132,13 @@ export const createUser = asyncHandler(async (req, res) => {
   if (Array.isArray(req.body.branchIds) && req.body.branchIds.length && !hasPermission(req.user, PERMISSIONS.USER_ASSIGN_BRANCH)) {
     throw new ApiError(403, 'Forbidden: you cannot assign branch access');
   }
-  const nextActive = typeof isActive === 'boolean' ? isActive : true;
-  if (nextActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(nextRole)) {
-    await ensureStaffLimitAvailable();
-  }
-
   const scope = await resolveActorTenantScope(req);
   const ownerUser = scope.platform ? req.body.ownerUser || null : scope.ownerUserId || req.user.ownerUser || req.user._id;
   const restaurantId = scope.platform ? req.body.restaurantId || null : scope.restaurantId || req.user.restaurantId || null;
+
+  if (isVendorCountedUserRole(nextRole) && (restaurantId || ownerUser)) {
+    await ensureVendorUserLimitAvailable({ restaurantId, ownerUserId: ownerUser });
+  }
 
   const user = await User.create({
     name,
@@ -179,20 +178,25 @@ export const updateUser = asyncHandler(async (req, res) => {
   const user = await User.findById(req.params.id);
   if (!user) throw new ApiError(404, 'User not found');
   await ensureActorCanAccessUser(req, user);
+  const scope = await resolveActorTenantScope(req);
 
   const nextRole = rest.role || user.role;
   if (rest.role && !hasPermission(req.user, PERMISSIONS.USER_ASSIGN_ROLE)) {
     throw new ApiError(403, 'Forbidden: you cannot assign roles');
   }
   ensureActorCanAssignRole(req, nextRole);
-  const nextActive = typeof rest.isActive === 'boolean' ? rest.isActive : user.isActive;
-  const willConsumeStaffSlot = nextActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(nextRole);
-  const currentlyConsumesStaffSlot =
-    user.isActive && ![ROLES.CUSTOMER, ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER].includes(user.role);
+  const willCountAsVendorUser = isVendorCountedUserRole(nextRole);
+  const alreadyCountsAsVendorUser = isVendorCountedUserRole(user.role);
 
-  if (willConsumeStaffSlot && !currentlyConsumesStaffSlot) {
-    await ensureStaffLimitAvailable({ ignoreUserId: String(user._id) });
+  if (willCountAsVendorUser && !alreadyCountsAsVendorUser) {
+    await ensureVendorUserLimitAvailable({
+      restaurantId: user.restaurantId || scope.restaurantId,
+      ownerUserId: user.ownerUser || scope.ownerUserId,
+      ignoreUserId: String(user._id)
+    });
   }
+
+  if (!scope.platform) delete rest.ownerUser;
 
   Object.assign(user, rest);
   if (password) user.password = password;
@@ -267,7 +271,21 @@ export const updateUserBranchAccess = asyncHandler(async (req, res) => {
   await ensureActorCanAccessUser(req, user);
 
   const scope = await resolveActorTenantScope(req);
-  user.restaurantId = scope.platform ? restaurantId : scope.restaurantId || user.restaurantId || null;
+  const targetRestaurantId = scope.platform ? restaurantId : scope.restaurantId || user.restaurantId || null;
+  if (
+    scope.platform &&
+    targetRestaurantId &&
+    isVendorCountedUserRole(user.role) &&
+    String(user.restaurantId || '') !== String(targetRestaurantId)
+  ) {
+    await ensureVendorUserLimitAvailable({
+      restaurantId: targetRestaurantId,
+      ownerUserId: user.ownerUser,
+      ignoreUserId: String(user._id)
+    });
+  }
+
+  user.restaurantId = targetRestaurantId;
   user.branchIds = branchIds;
   await user.save();
   res.json({ data: buildPublicUser(user) });

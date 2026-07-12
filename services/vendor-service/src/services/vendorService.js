@@ -5,6 +5,7 @@ import { vendorRepository } from '../repositories/vendorRepository.js';
 import { badRequest, notFound } from '../utils/HttpError.js';
 
 const VENDOR_LOGIN_ROLE = 'RESTAURANT_OWNER';
+const VENDOR_USER_LIMIT = 20;
 
 const getPlanById = (planId) => PLAN_CATALOG.plans.find((plan) => plan.id === planId);
 
@@ -151,8 +152,35 @@ const createVendorLoginAccount = async ({ vendorName, loginAccess }) => {
   });
 };
 
+const countVendorUsers = async ({ restaurantId, ownerUserId, ignoreUserId }) => {
+  const branches = [];
+  if (restaurantId) branches.push({ restaurantId });
+  if (ownerUserId) branches.push({ ownerUser: ownerUserId });
+  if (!branches.length) return 0;
+
+  const scopedQuery = {
+    role: { $ne: 'CUSTOMER' },
+    $or: branches
+  };
+
+  const query = ignoreUserId ? { $and: [scopedQuery, { _id: { $ne: ignoreUserId } }] } : scopedQuery;
+  return User.countDocuments(query);
+};
+
+const ensureVendorUserLimitAvailable = async ({ restaurantId, ownerUserId, ignoreUserId }) => {
+  const currentCount = await countVendorUsers({ restaurantId, ownerUserId, ignoreUserId });
+  if (currentCount >= VENDOR_USER_LIMIT) {
+    throw badRequest(`Vendor user limit reached. Each vendor can have a maximum of ${VENDOR_USER_LIMIT} users.`);
+  }
+};
+
 const attachVendorScopeToLoginUser = async ({ vendor, user }) => {
   if (!vendor?._id || !user?._id) return user;
+  await ensureVendorUserLimitAvailable({
+    restaurantId: vendor._id,
+    ownerUserId: user._id,
+    ignoreUserId: String(user._id)
+  });
   user.restaurantId = vendor._id;
   user.ownerUser = user._id;
   if (user.role !== VENDOR_LOGIN_ROLE) user.role = VENDOR_LOGIN_ROLE;

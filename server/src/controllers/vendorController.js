@@ -4,6 +4,7 @@ import { PLAN_CATALOG } from '../config/planCatalog.js';
 import { ROLES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
+import { ensureVendorUserLimitAvailable } from '../services/vendorUserLimitService.js';
 
 const BILLING_CYCLES = ['monthly', 'semiAnnual', 'annual'];
 const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAUSED', 'EXPIRED', 'CANCELLED'];
@@ -70,6 +71,11 @@ const createVendorLoginAccount = async ({ vendorName, loginAccess }) => {
 
 const attachVendorScopeToLoginUser = async ({ vendor, user }) => {
   if (!vendor?._id || !user?._id) return user;
+  await ensureVendorUserLimitAvailable({
+    restaurantId: vendor._id,
+    ownerUserId: user._id,
+    ignoreUserId: String(user._id)
+  });
   user.restaurantId = vendor._id;
   user.ownerUser = user._id;
   if (user.role !== VENDOR_LOGIN_ROLE) user.role = VENDOR_LOGIN_ROLE;
