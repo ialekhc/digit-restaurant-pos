@@ -61,9 +61,9 @@ const TablesPage = () => {
   const [qrVersion, setQrVersion] = useState('0');
   const [qrLoading, setQrLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('ALL');
-  const canManageTables = [ROLES.ADMIN, ROLES.MANAGER].includes(user?.role);
-  const canPlaceOrders = [ROLES.ADMIN, ROLES.MANAGER, ROLES.WAITER].includes(user?.role);
-  const canTransferTables = canPlaceOrders;
+  const canManageTables = hasAnyPermission([PERMISSIONS.TABLE_MANAGE]);
+  const canPlaceOrders = hasAnyPermission([PERMISSIONS.ORDER_CREATE]);
+  const canTransferTables = hasAnyPermission([PERMISSIONS.ORDER_TRANSFER]);
 
   const load = async () => {
     const [tableData, orderData] = await Promise.all([
