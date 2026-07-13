@@ -135,7 +135,7 @@ const buildReceiptHtml = (payment, cashierName = '') => {
     receiptSettings.phone ? `Phone: ${receiptSettings.phone}` : '',
     receiptSettings.email ? `Email: ${receiptSettings.email}` : ''
   ].filter(Boolean);
-  const estimatedHeightMm = Math.max(58, Math.min(500, 70 + items.length * 7));
+  const estimatedHeightMm = Math.max(58, Math.min(1000, 80 + contactLines.length * 4 + items.length * 7));
   const subtotal = Number(
     order.subtotal ?? items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
   );
@@ -173,7 +173,7 @@ const buildReceiptHtml = (payment, cashierName = '') => {
     @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
     * { box-sizing: border-box; font-family: "Courier New", monospace; color: #111827; }
     html, body { margin: 0; padding: 0; width: 58mm; height: auto; background: #ffffff; }
-    .receipt { width: 58mm; height: auto; margin: 0; padding: 2mm 2mm 2.5mm; }
+    .receipt { width: 58mm; height: auto; margin: 0; padding: 2mm 2mm 2.5mm; break-inside: avoid; page-break-inside: avoid; }
     .center { text-align: center; }
     h1 { margin: 0; font-size: 12px; line-height: 1.15; letter-spacing: 0.2px; }
     .muted { color: #4b5563; font-size: 8px; margin-top: 1px; line-height: 1.1; }
@@ -200,8 +200,8 @@ const buildReceiptHtml = (payment, cashierName = '') => {
     .footer { text-align: center; font-size: 8px; color: #4b5563; margin-top: 1.4mm; line-height: 1.2; }
     @media print {
       @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
-      html, body { width: 58mm; height: auto; }
-      .receipt { width: 58mm; height: auto; }
+      html, body { width: 58mm; height: auto; overflow: hidden; }
+      .receipt { width: 58mm; height: auto; break-inside: avoid; page-break-inside: avoid; }
     }
   </style>
 </head>
@@ -256,6 +256,27 @@ const buildReceiptHtml = (payment, cashierName = '') => {
   </section>
 </body>
 </html>`;
+};
+
+const fitReceiptToSinglePrintPage = (popup) => {
+  const receipt = popup.document.querySelector('.receipt');
+  if (!receipt) return;
+
+  const renderedHeightPx = Math.max(receipt.scrollHeight, Math.ceil(receipt.getBoundingClientRect().height));
+  const renderedHeightMm = renderedHeightPx * (25.4 / 96);
+  const pageHeightMm = Math.max(58, Math.min(1000, Math.ceil(renderedHeightMm + 3)));
+  const fittedPageStyle = popup.document.createElement('style');
+  fittedPageStyle.id = 'receipt-single-page-size';
+  fittedPageStyle.textContent = `
+    @page { size: 58mm ${pageHeightMm}mm; margin: 0; }
+    @media print {
+      @page { size: 58mm ${pageHeightMm}mm; margin: 0; }
+      html, body { width: 58mm; height: ${pageHeightMm}mm; overflow: hidden; }
+      .receipt { width: 58mm; max-height: ${pageHeightMm}mm; break-inside: avoid; page-break-inside: avoid; }
+    }
+  `;
+  popup.document.head.appendChild(fittedPageStyle);
+  void popup.document.body.offsetHeight;
 };
 
 const BillingPage = () => {
@@ -453,9 +474,12 @@ const BillingPage = () => {
     const doPrint = () => {
       if (printed) return;
       printed = true;
-      popup.focus();
-      popup.print();
-      popup.close();
+      fitReceiptToSinglePrintPage(popup);
+      popup.setTimeout(() => {
+        popup.focus();
+        popup.print();
+        popup.close();
+      }, 50);
     };
 
     popup.document.open();

@@ -117,7 +117,6 @@ const OrderCreatePage = () => {
     return ORDER_TYPES.filter((type) => {
       if (type === 'DINE_IN') return enabledFeatures.has(FEATURE_KEYS.DINE_IN_ORDERS);
       if (type === 'TAKEAWAY') return enabledFeatures.has(FEATURE_KEYS.TAKEAWAY_ORDERS);
-      if (type === 'DELIVERY') return enabledFeatures.has(FEATURE_KEYS.DELIVERY_ORDER_MANAGEMENT);
       return false;
     });
   }, [enabledFeatures]);
@@ -255,7 +254,7 @@ const OrderCreatePage = () => {
 
   return (
     <div className="space-y-5">
-      <Panel title="Create New Order" subtitle="Waiter can create dine-in, takeaway, and delivery orders">
+      <Panel title="Create New Order" subtitle="Waiter can create dine-in and takeaway orders">
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <Select
             label="Order Type"

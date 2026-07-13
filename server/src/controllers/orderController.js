@@ -134,7 +134,10 @@ export const getOrders = asyncHandler(async (req, res) => {
 
   const query = {};
   if (status) query.status = status;
-  if (orderType) query.orderType = orderType;
+  if (orderType && !ORDER_TYPES.includes(orderType)) {
+    throw new ApiError(400, `Invalid order type. Allowed: ${ORDER_TYPES.join(', ')}`);
+  }
+  query.orderType = orderType || { $in: ORDER_TYPES };
   if (table) query.table = table;
   if (kitchenSection) query['items.kitchenSection'] = kitchenSection;
 
@@ -180,12 +183,6 @@ export const createOrder = asyncHandler(async (req, res) => {
   }
   if (orderType === 'TAKEAWAY') {
     await ensureFeatureEnabled(FEATURE_KEYS.TAKEAWAY_ORDERS, 'Takeaway orders are not available in the active plan');
-  }
-  if (orderType === 'DELIVERY') {
-    await ensureFeatureEnabled(
-      FEATURE_KEYS.DELIVERY_ORDER_MANAGEMENT,
-      'Delivery order management is not available in the active plan'
-    );
   }
   if (Number(discount || 0) > 0) {
     await ensureFeatureEnabled(

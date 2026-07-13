@@ -107,7 +107,9 @@ const OrdersPage = () => {
           return (
             <li key={`${item.name}-${i}`}>
               {item.quantity} x {item.name}
-              <span className="ml-1 text-xs text-slate-500">(R {ready}/{item.quantity}, S {served}/{item.quantity})</span>
+              <span className="ml-1 text-xs text-slate-500">
+                (R {ready}/{item.quantity}, {order.orderType === 'TAKEAWAY' ? 'P' : 'S'} {served}/{item.quantity})
+              </span>
             </li>
           );
         })}
@@ -246,7 +248,9 @@ const OrdersPage = () => {
                     {renderItemProgress(order)}
                   </td>
                   <td className="px-3 py-2">{currency(order.total)}</td>
-                  <td className="px-3 py-2"><StatusBadge value={order.status} /></td>
+                  <td className="px-3 py-2">
+                    <StatusBadge value={order.orderType === 'TAKEAWAY' && order.status === 'SERVED' ? 'PACKED' : order.status} />
+                  </td>
                   <td className="px-3 py-2">{formatDateTime(order.createdAt)}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
@@ -269,7 +273,7 @@ const OrdersPage = () => {
                             await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
                           })}
                         >
-                          Serve
+                          {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
                         </Button>
                       ) : null}
                       {getAllowedActions(order).canCancel ? (
@@ -303,7 +307,7 @@ const OrdersPage = () => {
                     {order.orderType} {order.table?.tableNumber ? `- ${order.table.tableNumber}` : ''}
                   </p>
                 </div>
-                <StatusBadge value={order.status} />
+                <StatusBadge value={order.orderType === 'TAKEAWAY' && order.status === 'SERVED' ? 'PACKED' : order.status} />
               </div>
 
               <div className="mt-2 text-sm text-slate-700">
@@ -334,7 +338,7 @@ const OrdersPage = () => {
                       await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
                     })}
                   >
-                    Serve
+                    {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
                   </Button>
                 ) : null}
                 {getAllowedActions(order).canCancel ? (

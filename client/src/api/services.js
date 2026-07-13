@@ -63,7 +63,8 @@ export const tableService = {
   update: async (id, payload) => unwrap(await api.put(`/tables/${id}`, payload)),
   remove: async (id) => unwrap(await api.delete(`/tables/${id}`)),
   updateStatus: async (id, status) => unwrap(await api.patch(`/tables/${id}/status`, { status })),
-  transfer: async (fromTableId, toTableId) => unwrap(await api.patch('/tables/transfer', { fromTableId, toTableId }))
+  transfer: async (fromTableId, toTableId, itemSelections) =>
+    (await api.patch('/tables/transfer', { fromTableId, toTableId, itemSelections })).data
 };
 
 export const orderService = {

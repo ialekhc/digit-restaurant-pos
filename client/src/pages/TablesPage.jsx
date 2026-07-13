@@ -45,6 +45,14 @@ const tableNumberValue = (tableNumber) => {
   return numeric ? Number(numeric[0]) : Number.MAX_SAFE_INTEGER;
 };
 
+const transferItemKey = (orderId, itemId) => `${orderId}:${itemId}`;
+
+const transferItemType = (item) => {
+  if (item.kitchenSection === 'BAR' || item.preparationStation === 'BAR') return 'DRINK';
+  if (item.kitchenSection === 'SMOKE' || item.preparationStation === 'SMOKE') return 'SMOKE';
+  return 'FOOD';
+};
+
 const TablesPage = () => {
   const { hasAnyPermission } = usePermissions();
   const [tables, setTables] = useState([]);
@@ -54,7 +62,9 @@ const TablesPage = () => {
   const [error, setError] = useState('');
   const [transferFromTableId, setTransferFromTableId] = useState('');
   const [transferToTableId, setTransferToTableId] = useState('');
+  const [transferItemQuantities, setTransferItemQuantities] = useState({});
   const [transferMessage, setTransferMessage] = useState('');
+  const [transferError, setTransferError] = useState('');
   const [transferring, setTransferring] = useState(false);
   const [bulkAdding, setBulkAdding] = useState(false);
   const [qrTable, setQrTable] = useState(null);
@@ -119,24 +129,74 @@ const TablesPage = () => {
     return tables.find((table) => table._id === transferFromTableId);
   }, [tables, transferFromTableId]);
 
+  const sourceOrdersForTransfer = useMemo(() => {
+    return activeOrders.filter((order) => order.table?._id === transferFromTableId);
+  }, [activeOrders, transferFromTableId]);
+
+  const sourceItemsForTransfer = useMemo(() => {
+    return sourceOrdersForTransfer.flatMap((order) => (
+      (order.items || []).map((item) => ({ order, item }))
+    ));
+  }, [sourceOrdersForTransfer]);
+
+  const selectedTransferQuantity = Object.values(transferItemQuantities).reduce(
+    (sum, quantity) => sum + Number(quantity || 0),
+    0
+  );
+  const sourceTotalQuantity = sourceItemsForTransfer.reduce(
+    (sum, { item }) => sum + Number(item.quantity || 0),
+    0
+  );
+
+  const allSourceItemsSelected = sourceItemsForTransfer.length > 0
+    && sourceItemsForTransfer.every(({ order, item }) => (
+      Number(transferItemQuantities[transferItemKey(order._id, item._id)] || 0) === Number(item.quantity || 0)
+    ));
+
+  const selectTransferSource = (tableId) => {
+    setTransferFromTableId(tableId);
+    setTransferToTableId('');
+    setTransferItemQuantities({});
+    setTransferMessage('');
+    setTransferError('');
+  };
+
   const onTransferTable = async () => {
     setError('');
     setTransferMessage('');
+    setTransferError('');
 
     if (!transferFromTableId || !transferToTableId) {
-      setError('Please select source and target table for transfer');
+      setTransferError('Please select source and target table for transfer');
+      return;
+    }
+
+    if (selectedTransferQuantity <= 0) {
+      setTransferError('Please select at least one item to transfer');
       return;
     }
 
     setTransferring(true);
     try {
-      const result = await tableService.transfer(transferFromTableId, transferToTableId);
+      const itemSelections = sourceOrdersForTransfer
+        .map((order) => ({
+          orderId: order._id,
+          items: (order.items || [])
+            .map((item) => ({
+              itemId: item._id,
+              quantity: Number(transferItemQuantities[transferItemKey(order._id, item._id)] || 0)
+            }))
+            .filter((item) => item.quantity > 0)
+        }))
+        .filter((selection) => selection.items.length > 0);
+      const result = await tableService.transfer(transferFromTableId, transferToTableId, itemSelections);
       setTransferMessage(result.message || 'Table transferred successfully');
       setTransferFromTableId('');
       setTransferToTableId('');
+      setTransferItemQuantities({});
       await load();
     } catch (err) {
-      setError(err.response?.data?.message || 'Unable to transfer table');
+      setTransferError(err.response?.data?.message || 'Unable to transfer selected items');
     } finally {
       setTransferring(false);
     }
@@ -307,7 +367,7 @@ const TablesPage = () => {
           <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
             <h4 className="text-sm font-semibold text-orange-900">Transfer Table</h4>
             <p className="mt-1 text-xs text-orange-800">
-              Move all active dine-in orders from one table to another when customers shift seats.
+              Choose particular food, drink, or smoke items—or select all items—to move between tables.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
               <Select
@@ -323,9 +383,7 @@ const TablesPage = () => {
                     }))
                 ]}
                 onChange={(e) => {
-                  setTransferFromTableId(e.target.value);
-                  setTransferToTableId('');
-                  setTransferMessage('');
+                  selectTransferSource(e.target.value);
                 }}
               />
 
@@ -342,6 +400,7 @@ const TablesPage = () => {
                 onChange={(e) => {
                   setTransferToTableId(e.target.value);
                   setTransferMessage('');
+                  setTransferError('');
                 }}
                 disabled={!transferFromTableId}
               />
@@ -350,7 +409,7 @@ const TablesPage = () => {
                 <Button
                   className="w-full"
                   onClick={onTransferTable}
-                  disabled={transferring || !transferFromTableId || !transferToTableId}
+                  disabled={transferring || !transferFromTableId || !transferToTableId || selectedTransferQuantity <= 0}
                 >
                   {transferring ? 'Transferring...' : 'Transfer Now'}
                 </Button>
@@ -359,9 +418,7 @@ const TablesPage = () => {
                     variant="secondary"
                     type="button"
                     onClick={() => {
-                      setTransferFromTableId('');
-                      setTransferToTableId('');
-                      setTransferMessage('');
+                      selectTransferSource('');
                     }}
                   >
                     Clear
@@ -371,13 +428,113 @@ const TablesPage = () => {
             </div>
 
             {sourceTableForTransfer ? (
-              <p className="mt-2 text-xs text-orange-900">
-                Source table: <span className="font-semibold">{sourceTableForTransfer.tableNumber}</span> with{' '}
-                <span className="font-semibold">{activeOrderCountByTable[sourceTableForTransfer._id] || 0}</span> active order(s).
-              </p>
+              <div className="mt-3 rounded-xl border border-orange-200 bg-white/80 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-xs text-orange-900">
+                    Source table: <span className="font-semibold">{sourceTableForTransfer.tableNumber}</span>.{' '}
+                    <span className="font-semibold">{selectedTransferQuantity}</span> of{' '}
+                    <span className="font-semibold">{sourceTotalQuantity}</span> unit(s) selected.
+                  </p>
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-orange-900">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-300"
+                      checked={allSourceItemsSelected}
+                      onChange={(e) => {
+                        setTransferItemQuantities(
+                          e.target.checked
+                            ? Object.fromEntries(sourceItemsForTransfer.map(({ order, item }) => (
+                              [transferItemKey(order._id, item._id), Number(item.quantity || 0)]
+                            )))
+                            : {}
+                        );
+                        setTransferMessage('');
+                        setTransferError('');
+                      }}
+                    />
+                    Select all items
+                  </label>
+                </div>
+
+                <div className="mt-3 space-y-3">
+                  {sourceOrdersForTransfer.map((order) => (
+                    <div key={order._id} className="rounded-xl border border-slate-200 bg-white p-3">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs">
+                        <span className="font-bold text-slate-900">{order.orderNumber}</span>
+                        <span className="text-slate-500">
+                          {order.customer?.name || 'No customer'} · {order.status}
+                        </span>
+                      </div>
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {(order.items || []).map((item) => {
+                          const key = transferItemKey(order._id, item._id);
+                          const selectedQuantity = Number(transferItemQuantities[key] || 0);
+                          const selected = selectedQuantity > 0;
+                          const type = transferItemType(item);
+                          return (
+                            <div
+                              key={item._id}
+                              className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition ${
+                                selected
+                                  ? 'border-orange-400 bg-orange-50'
+                                  : 'border-slate-200 bg-white hover:border-orange-200'
+                              }`}
+                            >
+                              <label className="flex min-w-0 flex-1 cursor-pointer gap-3">
+                                <input
+                                  type="checkbox"
+                                  className="mt-0.5 h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-300"
+                                  checked={selected}
+                                  onChange={(e) => {
+                                    setTransferItemQuantities((current) => ({
+                                      ...current,
+                                      [key]: e.target.checked ? 1 : 0
+                                    }));
+                                    setTransferMessage('');
+                                    setTransferError('');
+                                  }}
+                                />
+                                <span className="min-w-0 text-xs text-slate-700">
+                                  <span className="block truncate font-bold text-slate-900">{item.name}</span>
+                                  <span className="block">Ordered: {item.quantity} · {type}</span>
+                                  <span className="block text-slate-500">
+                                    Ready {Number(item.readyQuantity || 0)}/{item.quantity}
+                                  </span>
+                                </span>
+                              </label>
+                              {selected ? (
+                                <label className="w-20 text-[11px] font-semibold text-orange-900">
+                                  Move qty
+                                  <input
+                                    type="number"
+                                    min="1"
+                                    max={item.quantity}
+                                    step="1"
+                                    value={selectedQuantity}
+                                    onChange={(e) => {
+                                      const requested = Math.floor(Number(e.target.value) || 1);
+                                      const quantity = Math.max(1, Math.min(Number(item.quantity), requested));
+                                      setTransferItemQuantities((current) => ({ ...current, [key]: quantity }));
+                                      setTransferMessage('');
+                                      setTransferError('');
+                                    }}
+                                    className="mt-1 w-full rounded-lg border border-orange-200 bg-white px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                    aria-label={`Transfer quantity for ${item.name}`}
+                                  />
+                                </label>
+                              ) : null}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
             ) : null}
 
             {transferMessage ? <p className="mt-2 text-sm font-semibold text-emerald-700">{transferMessage}</p> : null}
+            {transferError ? <p className="mt-2 text-sm font-semibold text-rose-700">{transferError}</p> : null}
           </div>
         ) : null}
 
@@ -455,9 +612,7 @@ const TablesPage = () => {
                       variant="secondary"
                       className="sm:col-span-2"
                       onClick={() => {
-                        setTransferFromTableId(item._id);
-                        setTransferToTableId('');
-                        setTransferMessage('');
+                        selectTransferSource(item._id);
                         setError('');
                       }}
                     >

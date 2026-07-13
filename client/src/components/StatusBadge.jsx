@@ -7,6 +7,7 @@ const toneMap = {
   PREPARING: 'border border-aqua-200 bg-aqua-100 text-aqua-800',
   READY: 'border border-cyan-200 bg-cyan-100 text-cyan-800',
   SERVED: 'border border-lime-200 bg-lime-100 text-lime-800',
+  PACKED: 'border border-lime-200 bg-lime-100 text-lime-800',
   COMPLETED: 'border border-emerald-200 bg-emerald-100 text-emerald-800',
   CANCELLED: 'border border-rose-200 bg-rose-100 text-rose-800',
   PAID: 'border border-emerald-200 bg-emerald-100 text-emerald-800',

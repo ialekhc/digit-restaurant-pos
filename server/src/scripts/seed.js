@@ -541,7 +541,7 @@ const seed = async () => {
     },
     {
       orderNumber: 'ORD-1004',
-      orderType: 'DELIVERY',
+      orderType: 'TAKEAWAY',
       customer: customers[3]._id,
       items: [makeOrderItem('Paneer Tikka', 1), makeOrderItem('Gulab Jamun', 2)],
       subtotal: 14.0,
@@ -579,16 +579,6 @@ const seed = async () => {
       paymentStatus: 'PAID',
       paidBy: userByRole.get(ROLES.CASHIER)._id,
       createdAt: new Date(Date.now() - 1000 * 60 * 60 * 5)
-    },
-    {
-      order: orderByNumber.get('ORD-1002')._id,
-      billNumber: 'BILL-1002',
-      paymentMethod: 'CARD',
-      amountPaid: 22.0,
-      changeAmount: 0,
-      paymentStatus: 'PAID',
-      paidBy: userByRole.get(ROLES.CASHIER)._id,
-      createdAt: new Date(Date.now() - 1000 * 60 * 90)
     }
   ]);
 

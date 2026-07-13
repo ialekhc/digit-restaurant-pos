@@ -23,6 +23,10 @@ const byOrderCreatedOldestFirst = (a, b) => new Date(a.orderCreatedAt) - new Dat
 const isItemFullyReady = (item) => Number(item.readyQuantity || 0) >= Number(item.quantity || 0);
 const isItemFullyServed = (item) => Number(item.servedQuantity || 0) >= Number(item.quantity || 0);
 const ACTIVE_ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
+const isTakeawayOrder = (order) => order?.orderType === 'TAKEAWAY';
+const displayOrderStatus = (order) => (
+  isTakeawayOrder(order) && order.status === 'SERVED' ? 'PACKED' : order.status
+);
 
 const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReadyItem, onServeItem, allowServeActions }) => (
   <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
@@ -38,7 +42,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
           </p>
         ) : null}
       </div>
-      <StatusBadge value={order.status} />
+      <StatusBadge value={displayOrderStatus(order)} />
     </div>
 
     <ul className="space-y-2">
@@ -46,7 +50,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
         <li key={item.orderItemIndex} className="rounded-lg border border-slate-200 p-2">
           <p className="font-semibold text-slate-800">{item.quantity} x {item.name}</p>
           <p className="text-xs text-slate-500">
-            Ready: {Number(item.readyQuantity || 0)}/{item.quantity} | Served: {Number(item.servedQuantity || 0)}/{item.quantity}
+            Ready: {Number(item.readyQuantity || 0)}/{item.quantity} | {isTakeawayOrder(order) ? 'Packed' : 'Served'}: {Number(item.servedQuantity || 0)}/{item.quantity}
           </p>
           {item.notes ? <p className="text-xs text-slate-500">Note: {item.notes}</p> : null}
           <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -64,7 +68,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
               disabled={!allowServeActions || (order.status !== 'READY' && order.status !== 'SERVED') || Number(item.servedQuantity || 0) >= Number(item.readyQuantity || 0) || updatingId === order._id}
               onClick={() => onServeItem(order._id, item.orderItemIndex)}
             >
-              +1 Served
+              +1 {isTakeawayOrder(order) ? 'Packed' : 'Served'}
             </Button>
           </div>
         </li>
@@ -86,7 +90,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
         Mark Preparing
       </Button>
       <div className="rounded-lg border border-slate-200 bg-slate-50 px-2 py-2 text-center text-xs text-slate-600">
-        Mark dishes one by one using +1 Ready / +1 Served.
+        Mark dishes one by one using +1 Ready / +1 {isTakeawayOrder(order) ? 'Packed' : 'Served'}.
       </div>
     </div>
   </article>
@@ -104,7 +108,7 @@ const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => 
     </div>
     <p className="mt-2 text-sm font-semibold text-slate-800">{dish.remainingToServe} x {dish.itemName}</p>
     <p className="text-xs text-slate-600">
-      Ready: {dish.readyQuantity}/{dish.quantity} | Served: {dish.servedQuantity}/{dish.quantity}
+      Ready: {dish.readyQuantity}/{dish.quantity} | {dish.orderType === 'TAKEAWAY' ? 'Packed' : 'Served'}: {dish.servedQuantity}/{dish.quantity}
     </p>
     {allowServeActions ? (
       <Button
@@ -114,7 +118,7 @@ const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => 
         disabled={updatingId === dish.orderId || dish.remainingToServe <= 0}
         onClick={() => onServeItem(dish.orderId, dish.itemIndex)}
       >
-        Serve
+        {dish.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
       </Button>
     ) : null}
   </article>
@@ -291,7 +295,7 @@ const KitchenPage = ({ station = 'FOOD' }) => {
       </div>
 
       <div className="grid gap-4 xl:grid-cols-3">
-        <Panel title={`Ready Orders (${readyDishes.length})`} subtitle="Serve ready dishes first">
+        <Panel title={`Ready Orders (${readyDishes.length})`} subtitle="Complete ready dishes first">
           <div className="space-y-3">
             {readyDishes.map((dish) => (
               <ReadyDishCard

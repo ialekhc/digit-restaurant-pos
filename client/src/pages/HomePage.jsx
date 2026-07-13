@@ -9,7 +9,7 @@ const platformStats = [
 
 const modules = [
   ['Table Service', 'Color-coded table grid, active table orders, table transfer, and table-number billing.'],
-  ['Order Workflow', 'Dine-in, takeaway, and delivery orders with kitchen-ready status tracking.'],
+  ['Order Workflow', 'Dine-in and takeaway orders with kitchen-ready status tracking.'],
   ['Kitchen Display', 'Separate Food, Bar, Smoke, and Overall views for clear preparation queues.'],
   ['Billing & Payments', 'Simple receipts, credit sales records, payment history, and Excel exports.'],
   ['Inventory', 'Purchase in, purchase out, suppliers, stock levels, and low-stock visibility.'],
