@@ -389,6 +389,10 @@ const BillingPage = () => {
     [filteredPayableOrders, discountPercent, validDiscountPercent]
   );
   const tableDiscountAmount = roundMoney(Math.max(0, tableSubtotal - tableTotal));
+  const enteredAmountPaid = Number(amountPaid);
+  const changeAmount = roundMoney(
+    Number.isFinite(enteredAmountPaid) ? Math.max(0, enteredAmountPaid - tableTotal) : 0
+  );
 
   useEffect(() => {
     if (!filteredPayableOrders.length) {
@@ -919,9 +923,19 @@ const BillingPage = () => {
               <Input
                 label="Amount Paid"
                 type="number"
+                min="0"
                 step="0.01"
                 value={amountPaid}
                 onChange={(e) => setAmountPaid(e.target.value)}
+              />
+
+              <Input
+                label="Change Amount"
+                type="text"
+                value={currency(changeAmount)}
+                readOnly
+                className="cursor-not-allowed bg-slate-50 font-semibold text-slate-700"
+                helperText="Calculated automatically from the paid amount and grand total."
               />
 
               <div className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm">
