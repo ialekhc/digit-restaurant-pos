@@ -9,6 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
+import { downloadReceiptPdf } from '../utils/receiptPdf';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -534,6 +535,17 @@ const BillingPage = () => {
     printReceipt(printablePayment);
   };
 
+  const downloadPaymentReceiptPdf = async (payment) => {
+    setError('');
+    try {
+      const printablePayment = getPrintablePayment(payment);
+      setReceiptPayment(printablePayment);
+      await downloadReceiptPdf(printablePayment, user?.name || 'Cashier');
+    } catch (err) {
+      setError(err.message || 'Unable to download receipt PDF');
+    }
+  };
+
   const editBillingOrderItem = async (item) => {
     setError('');
     const order = filteredPayableOrders.find((row) => row._id === item.orderId);
@@ -941,6 +953,14 @@ const BillingPage = () => {
             >
               Print Latest Receipt
             </Button>
+            <Button
+              variant="secondary"
+              className="px-6 py-3 text-base"
+              onClick={() => downloadPaymentReceiptPdf(receiptPayment || filteredPayments[0])}
+              disabled={!receiptPayment && !filteredPayments.length}
+            >
+              Download PDF
+            </Button>
           </div>
         </Panel>
       ) : null}
@@ -1012,13 +1032,22 @@ const BillingPage = () => {
                   <td><StatusBadge value={payment.paymentStatus} /></td>
                   <td>{formatDateTime(payment.createdAt)}</td>
                   <td>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => printPaymentReceipt(payment)}
-                    >
-                      Print
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => printPaymentReceipt(payment)}
+                      >
+                        Print
+                      </Button>
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => downloadPaymentReceiptPdf(payment)}
+                      >
+                        PDF
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1043,13 +1072,20 @@ const BillingPage = () => {
                 <p>Paid: {currency(payment.amountPaid)}</p>
                 <p>Change: {currency(payment.changeAmount)}</p>
                 <p>Time: {formatDateTime(payment.createdAt)}</p>
-                <div className="pt-1">
+                <div className="flex flex-wrap gap-2 pt-1">
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => printPaymentReceipt(payment)}
                   >
                     Print Receipt
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => downloadPaymentReceiptPdf(payment)}
+                  >
+                    Download PDF
                   </Button>
                 </div>
               </div>
