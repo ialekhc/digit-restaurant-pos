@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { orderService, paymentService, planService } from '../api/services';
+import { orderService, paymentService, planService, tableService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
@@ -21,6 +21,7 @@ const escapeHtml = (value = '') => {
 };
 
 const roundMoney = (value) => Number(Number(value || 0).toFixed(2));
+const ACTIVE_CHECKOUT_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
 
 const paymentOrderId = (payment) => String(payment?.order?._id || payment?.order || '');
 const orderTableNumber = (order) => String(order?.table?.tableNumber || '').trim().toLowerCase();
@@ -284,6 +285,7 @@ const BillingPage = () => {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [tables, setTables] = useState([]);
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [receiptPayment, setReceiptPayment] = useState(null);
 
@@ -302,13 +304,15 @@ const BillingPage = () => {
   const canCreateBills = Array.isArray(user?.permissions) && user.permissions.includes(PERMISSIONS.PAYMENT_COLLECT);
 
   const load = async () => {
-    const [orderData, paymentData, activePlan] = await Promise.all([
+    const [orderData, paymentData, tableData, activePlan] = await Promise.all([
       orderService.list(),
       paymentService.list(),
+      tableService.list(),
       planService.active()
     ]);
     setOrders(orderData);
     setPayments(paymentData);
+    setTables(tableData);
     setEnabledFeatures(new Set(activePlan?.enabledFeatureKeys || []));
   };
 
@@ -330,6 +334,12 @@ const BillingPage = () => {
   }, []);
 
   const paidOrderIds = useMemo(() => new Set(payments.map((p) => paymentOrderId(p)).filter(Boolean)), [payments]);
+
+  const occupiedTables = useMemo(() => {
+    return tables
+      .filter((table) => table.status === 'OCCUPIED')
+      .sort((a, b) => String(a.tableNumber || '').localeCompare(String(b.tableNumber || ''), undefined, { numeric: true }));
+  }, [tables]);
 
   const payableOrders = useMemo(() => {
     return orders.filter(
@@ -389,6 +399,36 @@ const BillingPage = () => {
     [filteredPayableOrders, discountPercent, validDiscountPercent]
   );
   const tableDiscountAmount = roundMoney(Math.max(0, tableSubtotal - tableTotal));
+  const enteredAmountPaid = Number(amountPaid);
+  const changeAmount = roundMoney(
+    Number.isFinite(enteredAmountPaid) ? Math.max(0, enteredAmountPaid - tableTotal) : 0
+  );
+
+  const occupiedTableCheckouts = useMemo(() => {
+    return occupiedTables.map((table) => {
+      const activeOrders = orders.filter(
+        (order) =>
+          order.table?._id === table._id &&
+          ACTIVE_CHECKOUT_STATUSES.includes(order.status)
+      );
+      const billableOrders = activeOrders.filter(
+        (order) => !paidOrderIds.has(order._id) && ['READY', 'SERVED'].includes(order.status)
+      );
+      const itemCount = activeOrders.reduce((sum, order) => sum + (order.items?.length || 0), 0);
+      const billableTotal = roundMoney(
+        billableOrders.reduce((sum, order) => sum + Number(order.total || 0), 0)
+      );
+
+      return { table, activeOrders, billableOrders, itemCount, billableTotal };
+    });
+  }, [occupiedTables, orders, paidOrderIds]);
+
+  const selectCheckoutTable = (tableNumber = '') => {
+    setLookupTableNumber(tableNumber);
+    setDiscountPercent('');
+    setPaymentStatus('PAID');
+    setError('');
+  };
 
   useEffect(() => {
     if (!filteredPayableOrders.length) {
@@ -795,13 +835,88 @@ const BillingPage = () => {
           <div className="grid gap-4 xl:grid-cols-2">
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h4 className="text-sm font-semibold text-slate-800">Table Lookup</h4>
-              <Input
+              <Select
                 label="Table Number"
-                placeholder="T-1"
                 value={lookupTableNumber}
-                onChange={(e) => setLookupTableNumber(e.target.value)}
-                helperText="Enter table number to show billable orders for that table"
+                options={[
+                  { label: 'Select Table', value: '' },
+                  ...occupiedTables.map((table) => ({
+                    label: table.tableNumber,
+                    value: table.tableNumber
+                  }))
+                ]}
+                onChange={(e) => selectCheckoutTable(e.target.value)}
+                helperText={
+                  occupiedTables.length
+                    ? 'Choose an occupied table to show its billable orders.'
+                    : 'No occupied tables are available.'
+                }
               />
+
+              {!lookupTableNumber.trim() ? (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-semibold uppercase text-slate-500">Active Occupied Tables</p>
+                    <span className="rounded-full bg-slate-200 px-2 py-1 text-xs font-semibold text-slate-700">
+                      {occupiedTableCheckouts.length}
+                    </span>
+                  </div>
+
+                  <div className="max-h-[58vh] space-y-3 overflow-y-scroll overscroll-contain pr-2">
+                    {occupiedTableCheckouts.map(({ table, activeOrders, billableOrders, itemCount, billableTotal }) => (
+                      <article key={table._id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-lg font-bold text-slate-900">{table.tableNumber}</p>
+                          <p className="text-xs text-slate-500">
+                            {activeOrders.length} active order{activeOrders.length === 1 ? '' : 's'} · {itemCount} item{itemCount === 1 ? '' : 's'}
+                          </p>
+                        </div>
+                        <StatusBadge value={table.status} />
+                      </div>
+
+                      <div className="mt-3 space-y-2">
+                        {activeOrders.map((order) => (
+                          <div key={order._id} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-slate-900">{order.orderNumber}</p>
+                              <StatusBadge value={order.status} />
+                            </div>
+                            <p className="mt-1 text-xs text-slate-600">
+                              {(order.items || []).map((item) => `${item.quantity}× ${item.name}`).join(', ') || 'No items'}
+                            </p>
+                            <p className="mt-1 text-xs font-semibold text-slate-700">{currency(order.total)}</p>
+                          </div>
+                        ))}
+                        {!activeOrders.length ? (
+                          <p className="rounded-lg bg-amber-50 p-2 text-xs text-amber-700">No active order details found.</p>
+                        ) : null}
+                      </div>
+
+                      <div className="mt-3 border-t border-slate-100 pt-3">
+                        <div className="mb-2 flex items-center justify-between text-sm">
+                          <span className="text-slate-600">Billable now</span>
+                          <span className="font-bold text-brand-700">{currency(billableTotal)}</span>
+                        </div>
+                        <Button
+                          className="w-full"
+                          onClick={() => selectCheckoutTable(table.tableNumber)}
+                          disabled={!billableOrders.length}
+                        >
+                          {billableOrders.length ? 'Checkout' : 'Waiting for Ready / Served'}
+                        </Button>
+                      </div>
+                      </article>
+                    ))}
+
+                    {!occupiedTableCheckouts.length ? (
+                      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
+                        No occupied tables with active orders are available.
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
 
               {lookupTableNumber.trim() && !filteredPayableOrders.length ? (
                 <p className="text-sm text-amber-700">
@@ -919,9 +1034,19 @@ const BillingPage = () => {
               <Input
                 label="Amount Paid"
                 type="number"
+                min="0"
                 step="0.01"
                 value={amountPaid}
                 onChange={(e) => setAmountPaid(e.target.value)}
+              />
+
+              <Input
+                label="Change Amount"
+                type="text"
+                value={currency(changeAmount)}
+                readOnly
+                className="cursor-not-allowed bg-slate-50 font-semibold text-slate-700"
+                helperText="Calculated automatically from the paid amount and grand total."
               />
 
               <div className="rounded-xl border border-brand-100 bg-brand-50 p-3 text-sm">
