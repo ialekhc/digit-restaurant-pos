@@ -4,6 +4,7 @@ import { KITCHEN_SECTIONS } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
+import { normalizeStation, stationToKitchenSection } from '../services/printService.js';
 
 const CATEGORY_KEYS = ['category', 'Category', 'CATEGORY'];
 const ITEM_KEYS = ['item', 'Item', 'ITEM', 'name', 'Name', 'NAME'];
@@ -12,6 +13,7 @@ const DESCRIPTION_KEYS = ['description', 'Description', 'DESCRIPTION'];
 const PREPARATION_TIME_KEYS = ['preparationTime', 'Preparation Time', 'Prep Time', 'prepTime'];
 const AVAILABILITY_KEYS = ['isAvailable', 'Is Available', 'Available', 'Status'];
 const KITCHEN_SECTION_KEYS = ['kitchenSection', 'Kitchen Section', 'Section'];
+const PREPARATION_STATION_KEYS = ['preparationStation', 'Preparation Station', 'Station', 'Printer Station'];
 const MENU_TYPE_KEYS = ['menuType', 'Menu Type', 'Type', 'type'];
 
 const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -92,6 +94,15 @@ const resolveKitchenSection = (value, menuType, categoryName = '', itemName = ''
   return inferKitchenSection({ menuType, categoryName, itemName });
 };
 
+const resolvePreparationStation = (value, kitchenSection, menuType) => {
+  if (value !== '' && value !== null && typeof value !== 'undefined') {
+    return normalizeStation(value);
+  }
+  if (menuType === 'DRINK') return 'BAR';
+  if (menuType === 'SMOKE') return 'SMOKE';
+  return normalizeStation(kitchenSection, 'KITCHEN');
+};
+
 const buildMenuTypeFilter = (menuType) => {
   if (menuType === 'DRINK') {
     return {
@@ -143,7 +154,7 @@ export const getMenuItems = asyncHandler(async (req, res) => {
 });
 
 export const createMenuItem = asyncHandler(async (req, res) => {
-  const { name, category, description, price, preparationTime, isAvailable, kitchenSection, menuType } = req.body;
+  const { name, category, description, price, preparationTime, isAvailable, kitchenSection, menuType, preparationStation } = req.body;
 
   if (!name || !category || typeof price === 'undefined') {
     throw new ApiError(400, 'Name, category and price are required');
@@ -160,6 +171,7 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     categoryExists.name,
     name
   );
+  const resolvedPreparationStation = resolvePreparationStation(preparationStation, resolvedKitchenSection, resolvedMenuType);
 
   const data = await MenuItem.create(await withTenantFields(req.user, {
     name,
@@ -169,7 +181,8 @@ export const createMenuItem = asyncHandler(async (req, res) => {
     preparationTime,
     isAvailable: typeof isAvailable === 'string' ? isAvailable === 'true' : isAvailable,
     menuType: resolvedMenuType,
-    kitchenSection: resolvedKitchenSection,
+    kitchenSection: stationToKitchenSection(resolvedPreparationStation) || resolvedKitchenSection,
+    preparationStation: resolvedPreparationStation,
     image
   }));
 
@@ -226,8 +239,10 @@ export const importMenuItems = asyncHandler(async (req, res) => {
       const preparationTime = parsePreparationTime(getFirstValue(row, PREPARATION_TIME_KEYS));
       const isAvailable = parseAvailability(getFirstValue(row, AVAILABILITY_KEYS), true);
       const rawKitchenSection = getFirstValue(row, KITCHEN_SECTION_KEYS);
+      const rawPreparationStation = getFirstValue(row, PREPARATION_STATION_KEYS);
       const menuType = resolveMenuType(getFirstValue(row, MENU_TYPE_KEYS), rawKitchenSection, 'FOOD');
       const kitchenSection = resolveKitchenSection(rawKitchenSection, menuType, categoryName, itemName);
+      const preparationStation = resolvePreparationStation(rawPreparationStation, kitchenSection, menuType);
       const description = getTrimmedString(row, DESCRIPTION_KEYS);
 
       const categoryKey = `${menuType}:${categoryName.toLowerCase()}`;
@@ -263,7 +278,8 @@ export const importMenuItems = asyncHandler(async (req, res) => {
         preparationTime,
         isAvailable,
         menuType,
-        kitchenSection
+        kitchenSection: stationToKitchenSection(preparationStation) || kitchenSection,
+        preparationStation
       });
 
       if (existing) {
@@ -325,6 +341,14 @@ export const updateMenuItem = asyncHandler(async (req, res) => {
       categoryName,
       itemName
     );
+  }
+
+  if (typeof payload.preparationStation !== 'undefined' || payload.kitchenSection || payload.menuType) {
+    const nextMenuType = payload.menuType || existingItem.menuType || 'FOOD';
+    const nextKitchenSection = payload.kitchenSection || existingItem.kitchenSection || 'FOOD';
+    const nextStation = resolvePreparationStation(payload.preparationStation, nextKitchenSection, nextMenuType);
+    payload.preparationStation = nextStation;
+    payload.kitchenSection = stationToKitchenSection(nextStation) || nextKitchenSection;
   }
 
   const data = await MenuItem.findByIdAndUpdate(req.params.id, payload, {

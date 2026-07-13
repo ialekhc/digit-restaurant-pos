@@ -7,6 +7,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
+import { openKitchenPrintWindow, printKitchenTicket, shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -220,6 +221,9 @@ const OrderCreatePage = () => {
     }
 
     setSaving(true);
+    const autoPrint = shouldAutoPrintKitchenTicket();
+    const printPopup = autoPrint ? openKitchenPrintWindow() : null;
+
     try {
       const created = await orderService.create({
         ...orderState,
@@ -228,6 +232,7 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
+      const printed = autoPrint ? printKitchenTicket(created, printPopup) : false;
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -237,10 +242,11 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been placed and sent to kitchen. You can add another new order for the same table.`
+        `Order ${created.orderNumber} has been placed and sent to kitchen${printed ? ' and printed' : ''}. You can add another new order for the same table.`
       );
       await load();
     } catch (err) {
+      if (printPopup && !printPopup.closed) printPopup.close();
       setError(err.response?.data?.message || 'Failed to create order');
     } finally {
       setSaving(false);

@@ -14,6 +14,8 @@ import { Order } from '../models/Order.js';
 import { Payment } from '../models/Payment.js';
 import { PlanConfig } from '../models/PlanConfig.js';
 import { Vendor } from '../models/Vendor.js';
+import { Printer } from '../models/Printer.js';
+import { PrintJob } from '../models/PrintJob.js';
 import { ROLES } from '../config/constants.js';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -25,6 +27,8 @@ const seed = async () => {
 
   await Promise.all([
     Payment.deleteMany({}),
+    PrintJob.deleteMany({}),
+    Printer.deleteMany({}),
     Order.deleteMany({}),
     PlanConfig.deleteMany({}),
     Vendor.deleteMany({}),
@@ -284,7 +288,9 @@ const seed = async () => {
       description: 'Freshly baked bread with garlic butter',
       price: 4.5,
       preparationTime: 8,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     },
     {
       name: 'Chicken Biryani',
@@ -292,7 +298,9 @@ const seed = async () => {
       description: 'Aromatic rice with tender chicken',
       price: 12.0,
       preparationTime: 18,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     },
     {
       name: 'Veg Burger',
@@ -300,7 +308,9 @@ const seed = async () => {
       description: 'Grilled vegetable patty burger',
       price: 7.0,
       preparationTime: 12,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     },
     {
       name: 'Lemon Mint Cooler',
@@ -308,7 +318,10 @@ const seed = async () => {
       description: 'Refreshing mint and lemon drink',
       price: 3.5,
       preparationTime: 3,
-      isAvailable: true
+      isAvailable: true,
+      menuType: 'DRINK',
+      preparationStation: 'BAR',
+      kitchenSection: 'BAR'
     },
     {
       name: 'Paneer Tikka',
@@ -316,7 +329,9 @@ const seed = async () => {
       description: 'Char-grilled paneer cubes with spices',
       price: 8.0,
       preparationTime: 14,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     },
     {
       name: 'Momo Platter',
@@ -324,7 +339,9 @@ const seed = async () => {
       description: 'Steamed momo with chutney',
       price: 6.5,
       preparationTime: 15,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     },
     {
       name: 'Cold Coffee',
@@ -332,7 +349,10 @@ const seed = async () => {
       description: 'Chilled coffee with cream',
       price: 4.0,
       preparationTime: 5,
-      isAvailable: true
+      isAvailable: true,
+      menuType: 'DRINK',
+      preparationStation: 'BAR',
+      kitchenSection: 'BAR'
     },
     {
       name: 'Gulab Jamun',
@@ -340,7 +360,9 @@ const seed = async () => {
       description: 'Warm gulab jamun with syrup',
       price: 3.0,
       preparationTime: 4,
-      isAvailable: true
+      isAvailable: true,
+      preparationStation: 'KITCHEN',
+      kitchenSection: 'FOOD'
     }
   ]);
 
@@ -351,6 +373,13 @@ const seed = async () => {
   }));
 
   const tables = await Table.insertMany(tableRows);
+
+  const printers = await Printer.insertMany([
+    { restaurantId: primaryVendor._id, name: 'Kitchen Printer', purpose: 'KITCHEN', printerSystemName: 'Kitchen', connectionType: 'SYSTEM', paperWidthMm: 80, copies: 1, isActive: true },
+    { restaurantId: primaryVendor._id, name: 'Bar Printer', purpose: 'BAR', printerSystemName: 'Bar', connectionType: 'SYSTEM', paperWidthMm: 58, copies: 1, isActive: true },
+    { restaurantId: primaryVendor._id, name: 'Smoke Printer', purpose: 'SMOKE', printerSystemName: 'Smoke', connectionType: 'SYSTEM', paperWidthMm: 58, copies: 1, isActive: true },
+    { restaurantId: primaryVendor._id, name: 'Counter Printer', purpose: 'COUNTER', printerSystemName: 'Counter', connectionType: 'SYSTEM', paperWidthMm: 58, copies: 1, isActive: true }
+  ]);
 
   const suppliers = await Supplier.insertMany([
     {
@@ -465,7 +494,9 @@ const seed = async () => {
       name: item.name,
       price: item.price,
       quantity,
-      notes
+      notes,
+      kitchenSection: item.kitchenSection || 'FOOD',
+      preparationStation: item.preparationStation || 'KITCHEN'
     };
   };
 
@@ -596,6 +627,7 @@ const seed = async () => {
     customers: customers.length,
     orders: orderDocs.length,
     payments: 2,
+    printers: printers.length,
     vendors: vendors.length
   });
 

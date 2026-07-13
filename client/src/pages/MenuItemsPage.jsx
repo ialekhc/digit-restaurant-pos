@@ -15,8 +15,15 @@ const initial = {
   description: '',
   price: '',
   preparationTime: '10',
+  preparationStation: 'KITCHEN',
   isAvailable: 'true',
   image: null
+};
+
+const defaultStationForMenuType = (menuType) => {
+  if (menuType === 'DRINK') return 'BAR';
+  if (menuType === 'SMOKE') return 'SMOKE';
+  return 'KITCHEN';
 };
 
 const menuTypeConfig = {
@@ -77,6 +84,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
 
   const canManageMenu = hasAnyPermission([PERMISSIONS.MENU_CREATE, PERMISSIONS.MENU_UPDATE]);
   const config = menuTypeConfig[menuType] || menuTypeConfig.FOOD;
+  const emptyForm = useMemo(() => ({ ...initial, preparationStation: defaultStationForMenuType(menuType) }), [menuType]);
 
   const load = async () => {
     setLoading(true);
@@ -93,6 +101,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   };
 
   useEffect(() => {
+    setForm({ ...initial, preparationStation: defaultStationForMenuType(menuType) });
     load();
   }, [menuType]);
 
@@ -120,6 +129,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
     body.append('description', form.description);
     body.append('price', Number(form.price));
     body.append('preparationTime', Number(form.preparationTime || 0));
+    body.append('preparationStation', form.preparationStation || defaultStationForMenuType(menuType));
     body.append('isAvailable', form.isAvailable === 'true');
     body.append('menuType', menuType);
     if (form.image) body.append('image', form.image);
@@ -132,7 +142,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
       }
 
       setEditingId('');
-      setForm(initial);
+      setForm(emptyForm);
       load();
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to save menu item');
@@ -159,6 +169,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         preparationTime: getCellValue(row, ['Preparation Time', 'Prep Time', 'preparationTime']),
         isAvailable: getCellValue(row, ['Available', 'Is Available', 'isAvailable']),
         kitchenSection: String(getCellValue(row, ['Kitchen Section', 'Section', 'kitchenSection']) || '').trim(),
+        preparationStation: String(getCellValue(row, ['Preparation Station', 'Printer Station', 'Station', 'preparationStation']) || '').trim(),
         menuType
       }))
       .filter((row) => row.category || row.item || String(row.price ?? '').trim() !== '');
@@ -167,13 +178,13 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const downloadTemplate = async () => {
     setImportError('');
     const templateRows = [
-      { Category: 'MOMO', Item: 'Chicken Momo', 'Price (Rs.)': 200 },
-      { Category: 'MOMO', Item: 'Buff Momo', 'Price (Rs.)': 200 },
+      { Category: 'MOMO', Item: 'Chicken Momo', 'Price (Rs.)': 200, 'Preparation Station': defaultStationForMenuType(menuType) },
+      { Category: 'MOMO', Item: 'Buff Momo', 'Price (Rs.)': 200, 'Preparation Station': defaultStationForMenuType(menuType) },
       menuType === 'DRINK'
-        ? { Category: 'MOCKTAILS', Item: 'Mint Lemonade', 'Price (Rs.)': 180 }
+        ? { Category: 'MOCKTAILS', Item: 'Mint Lemonade', 'Price (Rs.)': 180, 'Preparation Station': 'BAR' }
         : menuType === 'SMOKE'
-          ? { Category: 'CIGARETTES', Item: 'Classic Gold', 'Price (Rs.)': 40 }
-          : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220 }
+          ? { Category: 'CIGARETTES', Item: 'Classic Gold', 'Price (Rs.)': 40, 'Preparation Station': 'SMOKE' }
+          : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
     ];
     try {
       const XLSX = await import('xlsx');
@@ -310,6 +321,17 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           <Input label="Price" type="number" step="0.01" value={form.price} onChange={(e) => setForm((p) => ({ ...p, price: e.target.value }))} />
           <Input label="Preparation Time (mins)" type="number" value={form.preparationTime} onChange={(e) => setForm((p) => ({ ...p, preparationTime: e.target.value }))} />
           <Select
+            label="Preparation Station"
+            options={[
+              { label: 'Kitchen printer', value: 'KITCHEN' },
+              { label: 'Bar printer', value: 'BAR' },
+              { label: 'Smoke printer', value: 'SMOKE' },
+              { label: 'No preparation print', value: 'NONE' }
+            ]}
+            value={form.preparationStation}
+            onChange={(e) => setForm((p) => ({ ...p, preparationStation: e.target.value }))}
+          />
+          <Select
             label="Availability"
             options={[
               { label: 'Available', value: 'true' },
@@ -332,7 +354,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
               {editingId ? 'Update Item' : `Create ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Item`}
             </Button>
             {editingId ? (
-              <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(initial); }}>
+              <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(emptyForm); }}>
                 Cancel
               </Button>
             ) : null}
@@ -351,6 +373,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                 <th className="px-3 py-2">Category</th>
                 <th className="px-3 py-2">Price</th>
                 <th className="px-3 py-2">Prep</th>
+                <th className="px-3 py-2">Station</th>
                 <th className="px-3 py-2">Status</th>
                 <th className="px-3 py-2">Actions</th>
               </tr>
@@ -373,6 +396,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                   <td className="px-3 py-2">{item.category?.name}</td>
                   <td className="px-3 py-2">{currency(item.price)}</td>
                   <td className="px-3 py-2">{item.preparationTime} min</td>
+                  <td className="px-3 py-2">{item.preparationStation || (item.kitchenSection === 'BAR' ? 'BAR' : item.kitchenSection === 'SMOKE' ? 'SMOKE' : 'KITCHEN')}</td>
                   <td className="px-3 py-2">{item.isAvailable ? 'Available' : 'Unavailable'}</td>
                   <td className="px-3 py-2">
                     {canManageMenu ? (
@@ -387,6 +411,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                               description: item.description || '',
                               price: String(item.price),
                               preparationTime: String(item.preparationTime || 0),
+                              preparationStation: item.preparationStation || (item.kitchenSection === 'BAR' ? 'BAR' : item.kitchenSection === 'SMOKE' ? 'SMOKE' : 'KITCHEN'),
                               isAvailable: String(item.isAvailable),
                               image: null
                             });

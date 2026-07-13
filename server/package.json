@@ -16,6 +16,7 @@
     "db:migrate:documents": "node src/database/migrateDocuments.js",
     "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js",
     "data:backfill-demo-tenant": "node src/scripts/backfillDemoTenantScope.js"
+    ,"print:selftest": "node src/scripts/printService.selftest.js"
   },
   "dependencies": {
     "bcrypt": "^5.1.1",

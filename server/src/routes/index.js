@@ -17,6 +17,8 @@ import publicRoutes from './publicRoutes.js';
 import permissionRoutes from './permissionRoutes.js';
 import roleRoutes from './roleRoutes.js';
 import meRoutes from './meRoutes.js';
+import printerRoutes from './printerRoutes.js';
+import printJobRoutes from './printJobRoutes.js';
 
 const router = Router();
 
@@ -38,5 +40,7 @@ router.use('/reports', reportRoutes);
 router.use('/plans', planRoutes);
 router.use('/vendors', vendorRoutes);
 router.use('/public', publicRoutes);
+router.use('/printers', printerRoutes);
+router.use('/print-jobs', printJobRoutes);
 
 export default router;

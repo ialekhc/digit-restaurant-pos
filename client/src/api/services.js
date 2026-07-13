@@ -70,8 +70,29 @@ export const orderService = {
   list: async (params) => unwrap(await api.get('/orders', { params })),
   get: async (id) => unwrap(await api.get(`/orders/${id}`)),
   create: async (payload) => unwrap(await api.post('/orders', payload)),
+  updateItems: async (id, payload) => unwrap(await api.patch(`/orders/${id}/items`, payload)),
   updateStatus: async (id, status, extra = {}) => unwrap(await api.patch(`/orders/${id}/status`, { status, ...extra })),
-  cancel: async (id, reason) => unwrap(await api.patch(`/orders/${id}/cancel`, { reason }))
+  cancel: async (id, reason) => unwrap(await api.patch(`/orders/${id}/cancel`, { reason })),
+  printStationTickets: async (id, payload) => unwrap(await api.post(`/orders/${id}/print-station-tickets`, payload)),
+  printAddedItems: async (id, payload) => unwrap(await api.post(`/orders/${id}/print-added-items`, payload)),
+  printCancellation: async (id, payload) => unwrap(await api.post(`/orders/${id}/print-cancellation`, payload)),
+  printReceipt: async (id) => unwrap(await api.post(`/orders/${id}/print-receipt`))
+};
+
+export const printerService = {
+  list: async (params) => unwrap(await api.get('/printers', { params })),
+  create: async (payload) => unwrap(await api.post('/printers', payload)),
+  update: async (id, payload) => unwrap(await api.patch(`/printers/${id}`, payload)),
+  remove: async (id) => unwrap(await api.delete(`/printers/${id}`)),
+  test: async (id) => unwrap(await api.post(`/printers/${id}/test`))
+};
+
+export const printJobService = {
+  pending: async (params) => unwrap(await api.get('/print-jobs/pending', { params })),
+  claim: async (id, payload) => unwrap(await api.post(`/print-jobs/${id}/claim`, payload)),
+  complete: async (id) => unwrap(await api.post(`/print-jobs/${id}/complete`)),
+  fail: async (id, payload) => unwrap(await api.post(`/print-jobs/${id}/fail`, payload)),
+  retry: async (id) => unwrap(await api.post(`/print-jobs/${id}/retry`))
 };
 
 export const paymentService = {

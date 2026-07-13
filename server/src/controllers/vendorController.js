@@ -460,6 +460,9 @@ export const getMyVendorSubscription = asyncHandler(async (req, res) => {
       vendor: {
         _id: plain._id,
         vendorName: plain.vendorName,
+        address: plain.address || '',
+        phone: plain.phone || '',
+        email: plain.email || '',
         isActive: plain.isActive
       },
       subscription: plain.subscription || null,

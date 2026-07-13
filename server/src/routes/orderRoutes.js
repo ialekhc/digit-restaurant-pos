@@ -5,6 +5,11 @@ import {
   deleteOrder,
   getOrderById,
   getOrders,
+  printAddedItems,
+  printCancellation,
+  printReceipt,
+  printStationTickets,
+  updateOrderItems,
   updateOrderStatus
 } from '../controllers/orderController.js';
 import { authenticate } from '../middleware/auth.js';
@@ -28,6 +33,11 @@ router
   .delete(requirePermission(PERMISSIONS.ORDER_DELETE), deleteOrder);
 
 router.patch('/:id/status', requireAnyPermission([PERMISSIONS.ORDER_UPDATE, PERMISSIONS.KITCHEN_UPDATE_STATUS]), updateOrderStatus);
+router.patch('/:id/items', requirePermission(PERMISSIONS.ORDER_UPDATE), updateOrderItems);
 router.patch('/:id/cancel', requireAnyPermission([PERMISSIONS.ORDER_CANCEL, PERMISSIONS.ORDER_VOID]), cancelOrder);
+router.post('/:orderId/print-station-tickets', requireAnyPermission([PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]), printStationTickets);
+router.post('/:orderId/print-added-items', requireAnyPermission([PERMISSIONS.ORDER_UPDATE, PERMISSIONS.KITCHEN_UPDATE_STATUS]), printAddedItems);
+router.post('/:orderId/print-cancellation', requireAnyPermission([PERMISSIONS.ORDER_CANCEL, PERMISSIONS.ORDER_VOID]), printCancellation);
+router.post('/:orderId/print-receipt', requireAnyPermission([PERMISSIONS.PAYMENT_VIEW, PERMISSIONS.PAYMENT_COLLECT]), printReceipt);
 
 export default router;

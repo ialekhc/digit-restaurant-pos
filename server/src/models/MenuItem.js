@@ -13,7 +13,8 @@ export const MenuItem = createPostgresModel('MenuItem', {
     preparationTime: 10,
     isAvailable: true,
     menuType: 'FOOD',
-    kitchenSection: 'FOOD'
+    kitchenSection: 'FOOD',
+    preparationStation: 'KITCHEN'
   },
   unique: [['restaurantId', 'name', 'category', 'menuType']]
 });

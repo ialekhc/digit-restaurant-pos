@@ -2,6 +2,7 @@ import { Order } from '../models/Order.js';
 import { MenuItem } from '../models/MenuItem.js';
 import { Table } from '../models/Table.js';
 import { Customer } from '../models/Customer.js';
+import { Payment } from '../models/Payment.js';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS, ROLES } from '../config/constants.js';
 import { FEATURE_KEYS } from '../config/planCatalog.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
@@ -11,6 +12,13 @@ import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
 import { hasPermission } from '../services/permissionService.js';
 import { buildTenantScopedQuery, withTenantFields } from '../services/tenantScopeService.js';
+import {
+  createAddedItemPrintJobs,
+  createCancellationPrintJob,
+  createStationPrintJobs,
+  stationFromMenu,
+  stationToKitchenSection
+} from '../services/printService.js';
 
 const validTransitions = {
   PENDING: ['PREPARING', 'CANCELLED'],
@@ -50,6 +58,14 @@ const ensureStatusAllowedForRole = (user, status) => {
 const findScopedOrderById = async (req, id) => {
   const query = await buildTenantScopedQuery(req.user, { _id: id }, { userFields: ['createdBy'] });
   return Order.findOne(query);
+};
+
+const recalculateOrderTotals = (order) => {
+  order.subtotal = order.items.reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
+    0
+  );
+  order.total = Math.max(0, Number(order.subtotal || 0) - Number(order.discount || 0));
 };
 
 const ensureItemProgressBounds = (order) => {
@@ -226,7 +242,8 @@ export const createOrder = asyncHandler(async (req, res) => {
     const quantity = Number(item.quantity || 1);
     if (quantity <= 0) throw new ApiError(400, 'Item quantity must be at least 1');
 
-    const kitchenSection = resolveProductionSection(menu);
+    const preparationStation = stationFromMenu(menu);
+    const kitchenSection = stationToKitchenSection(preparationStation) || resolveProductionSection(menu);
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
@@ -235,6 +252,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       quantity,
       notes: item.notes || '',
       kitchenSection,
+      preparationStation,
       readyQuantity: instantServe ? quantity : 0,
       servedQuantity: 0
     };
@@ -260,6 +278,8 @@ export const createOrder = asyncHandler(async (req, res) => {
   }));
 
   await syncTableStatusFromOrders(data.table);
+
+  await createStationPrintJobs({ user: req.user, order: data, source: 'INITIAL_ORDER' });
 
   const populated = await Order.findById(data._id)
     .populate('table')
@@ -377,6 +397,65 @@ export const updateOrderStatus = asyncHandler(async (req, res) => {
   res.json({ data });
 });
 
+export const updateOrderItems = asyncHandler(async (req, res) => {
+  const { items = [] } = req.body;
+
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, 'Order must include at least one item');
+  }
+
+  const order = await findScopedOrderById(req, req.params.id);
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+    throw new ApiError(400, `Cannot edit items for ${order.status} order`);
+  }
+
+  const existingPayment = await Payment.findOne({ order: order._id });
+  if (existingPayment) {
+    throw new ApiError(409, 'Cannot edit order items after payment has been created');
+  }
+
+  const existingItemsById = new Map((order.items || []).map((item) => [String(item._id), item]));
+  const existingItemsByMenu = new Map((order.items || []).map((item) => [String(item.menuItem), item]));
+
+  const normalizedItems = items.map((item) => {
+    const existingItem = item._id
+      ? existingItemsById.get(String(item._id))
+      : existingItemsByMenu.get(String(item.menuItem));
+
+    if (!existingItem) {
+      throw new ApiError(400, 'Only existing order items can be edited during billing');
+    }
+
+    const quantity = Number(item.quantity);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new ApiError(400, 'Item quantity must be greater than 0');
+    }
+
+    return {
+      ...existingItem,
+      quantity,
+      notes: typeof item.notes === 'undefined' ? existingItem.notes || '' : String(item.notes || ''),
+      preparationStation: existingItem.preparationStation || (existingItem.kitchenSection === 'FOOD' ? 'KITCHEN' : existingItem.kitchenSection),
+      readyQuantity: Math.min(quantity, Math.max(0, Number(existingItem.readyQuantity || 0))),
+      servedQuantity: Math.min(quantity, Math.max(0, Number(existingItem.servedQuantity || 0)))
+    };
+  });
+
+  order.items = normalizedItems;
+  recalculateOrderTotals(order);
+  await order.save();
+  await syncTableStatusFromOrders(order.table);
+
+  const data = await Order.findById(order._id)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+
+  res.json({ data });
+});
+
 export const cancelOrder = asyncHandler(async (req, res) => {
   const { reason = '' } = req.body;
 
@@ -416,4 +495,61 @@ export const deleteOrder = asyncHandler(async (req, res) => {
   await syncTableStatusFromOrders(order.table);
 
   res.json({ message: 'Order deleted' });
+});
+
+export const printStationTickets = asyncHandler(async (req, res) => {
+  const order = await findScopedOrderById(req, req.params.orderId)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  const data = await createStationPrintJobs({ user: req.user, order, source: req.body?.source || 'INITIAL_ORDER' });
+  res.status(201).json({ data });
+});
+
+export const printAddedItems = asyncHandler(async (req, res) => {
+  const order = await findScopedOrderById(req, req.params.orderId)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  const itemIds = new Set((req.body?.itemIds || []).map(String));
+  const items = itemIds.size ? (order.items || []).filter((item) => itemIds.has(String(item._id))) : req.body?.items || [];
+  if (!items.length) throw new ApiError(400, 'At least one added item is required');
+
+  const data = await createAddedItemPrintJobs({ user: req.user, order, items });
+  res.status(201).json({ data });
+});
+
+export const printCancellation = asyncHandler(async (req, res) => {
+  const order = await findScopedOrderById(req, req.params.orderId)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  const itemIds = new Set((req.body?.itemIds || []).map(String));
+  const items = itemIds.size ? (order.items || []).filter((item) => itemIds.has(String(item._id))) : req.body?.items || [];
+  if (!items.length) throw new ApiError(400, 'At least one cancelled item is required');
+
+  const data = await createCancellationPrintJob({
+    user: req.user,
+    order,
+    items,
+    reason: req.body?.reason || '',
+    cancelledBy: req.user?.name || req.user?.email || ''
+  });
+  res.status(201).json({ data });
+});
+
+export const printReceipt = asyncHandler(async (req, res) => {
+  const order = await findScopedOrderById(req, req.params.orderId);
+  if (!order) throw new ApiError(404, 'Order not found');
+  const payment = await Payment.findOne({ order: order._id }).populate('paidBy', 'name role');
+  if (!payment) throw new ApiError(404, 'Payment not found for this order');
+
+  const data = await createCounterReceiptJob({ user: req.user, payment, force: true });
+  res.status(201).json({ data });
 });

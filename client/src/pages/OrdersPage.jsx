@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { orderService, tableService } from '../api/services';
 import Panel from '../components/ui/Panel';
@@ -9,6 +9,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
+import { printKitchenTicket } from '../utils/kitchenPrinting';
 
 const OrdersPage = () => {
   const { user } = useAuth();
@@ -26,6 +27,11 @@ const OrdersPage = () => {
     search: '',
     table: initialTableFilter
   });
+  const filtersRef = useRef(filters);
+
+  useEffect(() => {
+    filtersRef.current = filters;
+  }, [filters]);
 
   const load = async (nextFilters = filters) => {
     const data = await orderService.list(nextFilters);
@@ -43,6 +49,19 @@ const OrdersPage = () => {
     };
 
     boot();
+
+    const refresh = () => {
+      load(filtersRef.current).catch(() => {
+        // Keep existing orders visible if a background refresh fails briefly.
+      });
+    };
+    const timer = setInterval(refresh, 10000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const selectedTable = useMemo(() => {
@@ -231,6 +250,13 @@ const OrdersPage = () => {
                   <td className="px-3 py-2">{formatDateTime(order.createdAt)}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-wrap gap-2">
+                      <Button
+                        variant="secondary"
+                        className="px-2 py-1 text-xs"
+                        onClick={() => printKitchenTicket(order)}
+                      >
+                        Print Kitchen
+                      </Button>
                       {getAllowedActions(order).canServe ? (
                         <Button
                           variant="secondary"
@@ -289,6 +315,13 @@ const OrdersPage = () => {
               {renderItemProgress(order, true)}
 
               <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => printKitchenTicket(order)}
+                >
+                  Print Kitchen
+                </Button>
                 {getAllowedActions(order).canServe ? (
                   <Button
                     variant="secondary"

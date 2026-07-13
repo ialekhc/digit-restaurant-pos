@@ -25,6 +25,7 @@ import SuppliersPage from './pages/SuppliersPage';
 import CustomersPage from './pages/CustomersPage';
 import ReportsPage from './pages/ReportsPage';
 import SettingsPage from './pages/SettingsPage';
+import PrintStationPage from './pages/PrintStationPage';
 import SuperAdminDashboardPage from './pages/SuperAdminDashboardPage';
 import SuperAdminVendorsPage from './pages/SuperAdminVendorsPage';
 import SuperAdminSubscriptionsPage from './pages/SuperAdminSubscriptionsPage';
@@ -110,6 +111,7 @@ const App = () => {
 
           <Route element={<ProtectedRoute anyPermissions={[PERMISSIONS.SETTINGS_VIEW, PERMISSIONS.ORDER_VIEW, PERMISSIONS.KITCHEN_VIEW_ORDERS]} />}>
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/print-station" element={<PrintStationPage />} />
           </Route>
 
           <Route path="*" element={<NotFoundPage />} />

@@ -16,6 +16,7 @@ const navItems = [
   { path: '/kitchen', label: 'Kitchen Display', group: 'Operations', anyPermissions: [PERMISSIONS.KITCHEN_VIEW_ORDERS], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
   { path: '/bar', label: 'Bar Display', group: 'Operations', anyPermissions: [PERMISSIONS.KITCHEN_VIEW_ORDERS], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
   { path: '/smoke-display', label: 'Smoke Display', group: 'Operations', anyPermissions: [PERMISSIONS.KITCHEN_VIEW_ORDERS], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
+  { path: '/print-station', label: 'Print Station', group: 'Operations', anyPermissions: [PERMISSIONS.KITCHEN_VIEW_ORDERS, PERMISSIONS.PAYMENT_VIEW, PERMISSIONS.ORDER_VIEW], featureKey: FEATURE_KEYS.KITCHEN_DISPLAY_SYSTEM },
   { path: '/billing', label: 'Billing', group: 'Billing', anyPermissions: [PERMISSIONS.PAYMENT_VIEW, PERMISSIONS.PAYMENT_COLLECT], featureKey: FEATURE_KEYS.BASIC_BILLING },
   { path: '/purchase-in', label: 'Purchase In', group: 'Billing', anyPermissions: [PERMISSIONS.PURCHASE_VIEW, PERMISSIONS.PURCHASE_CREATE], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
   { path: '/purchase-out', label: 'Purchase Out', group: 'Billing', anyPermissions: [PERMISSIONS.PURCHASE_VIEW, PERMISSIONS.PURCHASE_CREATE], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },

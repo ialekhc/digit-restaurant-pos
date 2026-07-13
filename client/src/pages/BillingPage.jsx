@@ -8,6 +8,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
+import { getReceiptSettings } from '../utils/receiptSettings';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -128,7 +129,13 @@ const combineReceiptFromOrders = ({ basePayment, receiptOrders = [], receiptPaym
 const buildReceiptHtml = (payment, cashierName = '') => {
   const order = payment?.order || {};
   const items = Array.isArray(order.items) ? order.items : [];
-  const estimatedHeightMm = Math.max(90, Math.min(500, 62 + items.length * 8 + 58));
+  const receiptSettings = getReceiptSettings();
+  const contactLines = [
+    receiptSettings.address,
+    receiptSettings.phone ? `Phone: ${receiptSettings.phone}` : '',
+    receiptSettings.email ? `Email: ${receiptSettings.email}` : ''
+  ].filter(Boolean);
+  const estimatedHeightMm = Math.max(58, Math.min(500, 70 + items.length * 7));
   const subtotal = Number(
     order.subtotal ?? items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
   );
@@ -165,8 +172,8 @@ const buildReceiptHtml = (payment, cashierName = '') => {
   <style>
     @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
     * { box-sizing: border-box; font-family: "Courier New", monospace; color: #111827; }
-    html, body { margin: 0; padding: 0; width: 58mm; min-height: ${estimatedHeightMm}mm; background: #ffffff; }
-    .receipt { width: 58mm; min-height: ${estimatedHeightMm}mm; margin: 0; padding: 2mm 2mm 2.5mm; }
+    html, body { margin: 0; padding: 0; width: 58mm; height: auto; background: #ffffff; }
+    .receipt { width: 58mm; height: auto; margin: 0; padding: 2mm 2mm 2.5mm; }
     .center { text-align: center; }
     h1 { margin: 0; font-size: 12px; line-height: 1.15; letter-spacing: 0.2px; }
     .muted { color: #4b5563; font-size: 8px; margin-top: 1px; line-height: 1.1; }
@@ -193,16 +200,17 @@ const buildReceiptHtml = (payment, cashierName = '') => {
     .footer { text-align: center; font-size: 8px; color: #4b5563; margin-top: 1.4mm; line-height: 1.2; }
     @media print {
       @page { size: 58mm ${estimatedHeightMm}mm; margin: 0; }
-      html, body { width: 58mm; min-height: ${estimatedHeightMm}mm; }
-      .receipt { width: 58mm; min-height: ${estimatedHeightMm}mm; }
+      html, body { width: 58mm; height: auto; }
+      .receipt { width: 58mm; height: auto; }
     }
   </style>
 </head>
 <body>
   <section class="receipt">
     <div class="center">
-      <h1>Restaurant RMS</h1>
+      <h1>${escapeHtml(receiptSettings.businessName || 'Restaurant RMS')}</h1>
       <p class="muted">Customer Bill</p>
+      ${contactLines.map((line) => `<p class="muted">${escapeHtml(line)}</p>`).join('')}
     </div>
 
     <div class="divider"></div>
@@ -244,7 +252,7 @@ const buildReceiptHtml = (payment, cashierName = '') => {
     </div>
 
     <div class="divider"></div>
-    <p class="footer">Thank you for dining with us.</p>
+    <p class="footer">${escapeHtml(receiptSettings.footerText || 'Thank you for dining with us.')}</p>
   </section>
 </body>
 </html>`;
@@ -284,6 +292,19 @@ const BillingPage = () => {
 
   useEffect(() => {
     load();
+
+    const refresh = () => {
+      load().catch(() => {
+        // Keep the billing screen usable if a background refresh fails briefly.
+      });
+    };
+    const timer = setInterval(refresh, 10000);
+    window.addEventListener('focus', refresh);
+
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', refresh);
+    };
   }, []);
 
   const paidOrderIds = useMemo(() => new Set(payments.map((p) => paymentOrderId(p)).filter(Boolean)), [payments]);
@@ -314,10 +335,11 @@ const BillingPage = () => {
       : 0;
   const tableItems = useMemo(() => {
     return filteredPayableOrders.flatMap((order) =>
-      (order.items || []).map((item) => ({
+      (order.items || []).map((item, orderItemIndex) => ({
         ...item,
         orderNumber: order.orderNumber,
-        orderId: order._id
+        orderId: order._id,
+        orderItemIndex
       }))
     );
   }, [filteredPayableOrders]);
@@ -486,6 +508,55 @@ const BillingPage = () => {
     const printablePayment = getPrintablePayment(payment);
     setReceiptPayment(printablePayment);
     printReceipt(printablePayment);
+  };
+
+  const editBillingOrderItem = async (item) => {
+    setError('');
+    const order = filteredPayableOrders.find((row) => row._id === item.orderId);
+    if (!order) {
+      setError('Order not found for selected item');
+      return;
+    }
+
+    const nextQuantityValue = window.prompt(
+      `Update quantity for ${item.name}. Enter 0 to remove this item from the bill.`,
+      String(item.quantity || 1)
+    );
+    if (nextQuantityValue === null) return;
+
+    const nextQuantity = Number(nextQuantityValue);
+    if (!Number.isFinite(nextQuantity) || nextQuantity < 0) {
+      setError('Quantity must be 0 or more');
+      return;
+    }
+
+    const nextNotes = window.prompt('Update item note if needed', item.notes || '');
+    if (nextNotes === null) return;
+
+    const nextItems = (order.items || [])
+      .map((orderItem, orderItemIndex) => {
+        const isTarget = orderItemIndex === item.orderItemIndex;
+        return {
+          _id: orderItem._id,
+          menuItem: orderItem.menuItem?._id || orderItem.menuItem,
+          quantity: isTarget ? nextQuantity : Number(orderItem.quantity || 1),
+          notes: isTarget ? nextNotes : orderItem.notes || ''
+        };
+      })
+      .filter((orderItem) => Number(orderItem.quantity || 0) > 0);
+
+    if (!nextItems.length) {
+      setError('An order must keep at least one item');
+      return;
+    }
+
+    try {
+      await orderService.updateItems(order._id, { items: nextItems });
+      setReceiptPayment(null);
+      await load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to edit order item');
+    }
   };
 
   const createPayment = async () => {
@@ -737,10 +808,11 @@ const BillingPage = () => {
                   </div>
 
                   <div className="max-h-72 overflow-y-auto rounded-xl border border-slate-200 bg-white">
-                    <div className="grid grid-cols-[1fr_64px_96px] gap-2 border-b border-slate-100 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
+                    <div className="grid grid-cols-[1fr_54px_82px_64px] gap-2 border-b border-slate-100 bg-slate-100 px-3 py-2 text-xs font-semibold uppercase text-slate-500">
                       <span>Ordered Item</span>
                       <span className="text-right">Qty</span>
                       <span className="text-right">Total</span>
+                      <span className="text-right">Edit</span>
                     </div>
                     {tableItems.map((item, index) => {
                       const qty = Number(item.quantity || 0);
@@ -748,14 +820,25 @@ const BillingPage = () => {
                       return (
                         <div
                           key={`${item.orderId}-${item._id || index}`}
-                          className="grid grid-cols-[1fr_64px_96px] gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-0"
+                          className="grid grid-cols-[1fr_54px_82px_64px] gap-2 border-b border-slate-100 px-3 py-2 text-sm last:border-0"
                         >
                           <span>
                             <span className="font-medium text-slate-900">{item.name || '-'}</span>
                             <span className="block text-xs text-slate-500">{item.orderNumber}</span>
+                            {item.notes ? <span className="block text-xs text-amber-700">Note: {item.notes}</span> : null}
                           </span>
                           <span className="text-right text-slate-700">{qty}</span>
                           <span className="text-right font-semibold text-slate-900">{currency(qty * price)}</span>
+                          <span className="text-right">
+                            <Button
+                              variant="secondary"
+                              size="sm"
+                              className="px-2 py-1 text-xs"
+                              onClick={() => editBillingOrderItem(item)}
+                            >
+                              Edit
+                            </Button>
+                          </span>
                         </div>
                       );
                     })}

@@ -10,6 +10,7 @@ import { generateBillNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
 import { buildTenantScopedQuery, resolveTenantScope, withTenantFields } from '../services/tenantScopeService.js';
+import { createCounterReceiptJob } from '../services/printService.js';
 
 const escapeRegex = (value) => String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
@@ -224,6 +225,11 @@ export const createPayment = asyncHandler(async (req, res) => {
 
   if (paymentStatus === 'PAID') {
     await completeOrderAfterPayment(order);
+    try {
+      await createCounterReceiptJob({ user: req.user, payment: data });
+    } catch (error) {
+      console.warn('[printing] counter receipt job was not created', error?.message || error);
+    }
   }
 
   const populated = await Payment.findById(data._id)
@@ -311,6 +317,11 @@ export const settleCreditPayment = asyncHandler(async (req, res) => {
 
   if (nextStatus === 'PAID') {
     await completeOrderAfterPayment(payment.order);
+    try {
+      await createCounterReceiptJob({ user: req.user, payment });
+    } catch (error) {
+      console.warn('[printing] counter receipt job was not created', error?.message || error);
+    }
   }
 
   const data = await Payment.findById(payment._id)
