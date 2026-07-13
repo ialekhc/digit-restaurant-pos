@@ -58,7 +58,7 @@ const OrderCreatePage = () => {
       tableService.list(),
       customerService.list(),
       menuService.list({ available: true }),
-      orderService.list({ orderType: 'DINE_IN' }),
+      orderService.list(),
       planService.active()
     ]);
 
@@ -94,12 +94,6 @@ const OrderCreatePage = () => {
     }
     didApplyTableContext.current = true;
   }, [tables, tableFromUrl]);
-
-  useEffect(() => {
-    if (orderState.orderType !== 'DINE_IN' && orderState.table) {
-      setOrderState((prev) => ({ ...prev, table: '' }));
-    }
-  }, [orderState.orderType, orderState.table]);
 
   const selectableTables = useMemo(() => {
     return tables.filter((table) => !['RESERVED', 'CLEANING'].includes(table.status));
@@ -241,7 +235,7 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been placed and sent to kitchen${printed ? ' and printed' : ''}. You can add another new order for the same table.`
+        `Order ${created.orderNumber} has been placed and sent to kitchen${printed ? ' and printed' : ''}.${orderState.table ? ' You can add another new order for the same table.' : ''}`
       );
       await load();
     } catch (err) {
@@ -266,7 +260,7 @@ const OrderCreatePage = () => {
           <Select
             label="Table"
             value={orderState.table}
-            options={[{ label: 'No table', value: '' }].concat(
+            options={[{ label: 'None', value: '' }].concat(
               selectableTables.map((t) => {
                 const activeOrders = orders.filter(
                   (order) => order.table?._id === t._id && activeFlowStatuses.includes(order.status)
@@ -278,7 +272,6 @@ const OrderCreatePage = () => {
               })
             )}
             onChange={(e) => setOrderState((p) => ({ ...p, table: e.target.value }))}
-            disabled={orderState.orderType !== 'DINE_IN'}
           />
 
           <Select
