@@ -115,7 +115,7 @@ export const createPurchase = asyncHandler(async (req, res) => {
   }
 
   const created = await PurchaseEntry.create(await withTenantFields(req.user, {
-    purchaseNumber: generatePurchaseNumber(),
+    purchaseNumber: await generatePurchaseNumber(req.user),
     type,
     inventoryItem: inventoryDoc._id,
     supplier: supplier || inventoryDoc.supplier || undefined,

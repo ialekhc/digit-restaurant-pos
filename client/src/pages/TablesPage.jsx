@@ -32,6 +32,13 @@ const statusRowClass = {
   CLEANING: 'border-cyan-200 bg-cyan-50/80'
 };
 
+const statusAccentClass = {
+  AVAILABLE: 'from-emerald-500 to-teal-400',
+  OCCUPIED: 'from-amber-500 to-orange-400',
+  RESERVED: 'from-sky-500 to-blue-400',
+  CLEANING: 'from-cyan-500 to-teal-300'
+};
+
 const statusFilterLabels = {
   ALL: 'All',
   AVAILABLE: 'Available',
@@ -52,6 +59,43 @@ const transferItemType = (item) => {
   if (item.kitchenSection === 'SMOKE' || item.preparationStation === 'SMOKE') return 'SMOKE';
   return 'FOOD';
 };
+
+const SvgIcon = ({ children, className = 'h-4 w-4' }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {children}
+  </svg>
+);
+
+const EditIcon = () => (
+  <SvgIcon>
+    <path d="M12 20h9" />
+    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+  </SvgIcon>
+);
+
+const DeleteIcon = () => (
+  <SvgIcon>
+    <path d="M3 6h18" />
+    <path d="M8 6V4h8v2" />
+    <path d="M19 6l-1 14H6L5 6" />
+    <path d="M10 11v5" />
+    <path d="M14 11v5" />
+  </SvgIcon>
+);
+
+const ScanIcon = () => (
+  <SvgIcon>
+    <path d="M4 7V5a1 1 0 0 1 1-1h2" />
+    <path d="M17 4h2a1 1 0 0 1 1 1v2" />
+    <path d="M20 17v2a1 1 0 0 1-1 1h-2" />
+    <path d="M7 20H5a1 1 0 0 1-1-1v-2" />
+    <path d="M7 8h3v3H7z" />
+    <path d="M14 8h3v3h-3z" />
+    <path d="M7 14h3v3H7z" />
+    <path d="M14 14h1.5" />
+    <path d="M17 14v3h-3" />
+  </SvgIcon>
+);
 
 const TablesPage = () => {
   const { hasAnyPermission } = usePermissions();
@@ -290,6 +334,26 @@ const TablesPage = () => {
       setError(err.message || 'Unable to prepare QR');
     } finally {
       setQrLoading(false);
+    }
+  };
+
+  const editTable = (table) => {
+    setEditingId(table._id);
+    setForm({
+      tableNumber: table.tableNumber,
+      seatingCapacity: table.seatingCapacity,
+      status: table.status
+    });
+  };
+
+  const deleteTable = async (table) => {
+    if (!window.confirm('Delete this table?')) return;
+    try {
+      await tableService.remove(table._id);
+      setError('');
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Unable to delete table');
     }
   };
 
@@ -542,120 +606,110 @@ const TablesPage = () => {
           {visibleTables.map((item) => (
             <article
               key={item._id}
-              className={`rounded-2xl border p-4 shadow-sm transition hover:shadow-md ${statusRowClass[item.status] || 'border-slate-200 bg-white'}`}
+              className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition hover:shadow-md"
             >
-              <div className="mb-3 flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Table</p>
-                  <p className="text-2xl font-bold text-slate-900">{item.tableNumber}</p>
+              <div className={`h-1.5 bg-gradient-to-r ${statusAccentClass[item.status] || 'from-slate-400 to-slate-300'}`} />
+              <div className="space-y-3 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-2xl font-black leading-none text-slate-950">{item.tableNumber}</p>
+                    <p className="mt-1 text-xs font-semibold text-slate-500">
+                      {item.seatingCapacity} guests · {activeOrderCountByTable[item._id] || 0} active order{(activeOrderCountByTable[item._id] || 0) === 1 ? '' : 's'}
+                    </p>
+                  </div>
+                  <div className="flex flex-col items-end gap-2">
+                    <StatusBadge value={item.status} />
+                    {canManageTables ? (
+                      <div className="flex gap-1.5">
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 transition hover:bg-orange-100"
+                          title={`Edit ${item.tableNumber}`}
+                          aria-label={`Edit ${item.tableNumber}`}
+                          onClick={() => editTable(item)}
+                        >
+                          <EditIcon />
+                        </button>
+                        <button
+                          type="button"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-700 transition hover:bg-rose-100"
+                          title={`Delete ${item.tableNumber}`}
+                          aria-label={`Delete ${item.tableNumber}`}
+                          onClick={() => deleteTable(item)}
+                        >
+                          <DeleteIcon />
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-                <StatusBadge value={item.status} />
-              </div>
 
-              <p className="mb-4 text-sm text-slate-700">
-                Capacity: <span className="font-semibold">{item.seatingCapacity} guests</span>
-              </p>
-              <p className="mb-3 text-sm text-slate-700">
-                Active orders: <span className="font-semibold">{activeOrderCountByTable[item._id] || 0}</span>
-              </p>
+                {canPlaceOrders ? (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Link
+                      to={`/orders?table=${item._id}&tableNumber=${encodeURIComponent(item.tableNumber)}`}
+                      className="inline-flex items-center justify-center rounded-xl bg-sky-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-sky-700"
+                    >
+                      View Orders
+                    </Link>
+                    <Link
+                      to={`/orders/create?table=${item._id}&tableNumber=${encodeURIComponent(item.tableNumber)}`}
+                      className="inline-flex items-center justify-center rounded-xl bg-emerald-600 px-3 py-2.5 text-sm font-bold text-white transition hover:bg-emerald-700"
+                    >
+                      New Order
+                    </Link>
+                  </div>
+                ) : null}
 
-              <div className="mb-4">
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Quick Status</p>
-                <div className="flex flex-wrap gap-2">
-                  {TABLE_STATUSES.map((status) => (
-                    <Button
-                      key={status}
-                      variant={status === item.status ? 'primary' : 'secondary'}
-                      className="px-2 py-1 text-xs"
-                      onClick={async () => {
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {canManageTables ? (
+                    <Select
+                      label="Status"
+                      value={item.status}
+                      options={TABLE_STATUSES.map((status) => ({
+                        label: statusFilterLabels[status] || status,
+                        value: status
+                      }))}
+                      onChange={async (e) => {
                         try {
-                          await tableService.updateStatus(item._id, status);
+                          await tableService.updateStatus(item._id, e.target.value);
                           setError('');
                           load();
                         } catch (err) {
                           setError(err.response?.data?.message || 'Unable to update table status');
                         }
                       }}
-                    >
-                      {status}
-                    </Button>
-                  ))}
-                </div>
-              </div>
+                    />
+                  ) : null}
 
-              {canPlaceOrders ? (
-                <div className="mb-3 grid gap-2 sm:grid-cols-2">
-                  <Link
-                    to={`/orders?table=${item._id}&tableNumber=${encodeURIComponent(item.tableNumber)}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-sky-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-sky-700"
-                  >
-                    View Orders
-                  </Link>
-                  <Link
-                    to={`/orders/create?table=${item._id}&tableNumber=${encodeURIComponent(item.tableNumber)}`}
-                    className="inline-flex items-center justify-center rounded-lg bg-emerald-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-emerald-700"
-                  >
-                    New Order
-                  </Link>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    className="sm:col-span-2"
-                    onClick={() => openQrForTable(item)}
-                    disabled={qrLoading}
-                  >
-                    {qrLoading && qrTable?._id === item._id ? 'Loading QR...' : 'Show QR'}
-                  </Button>
-                  {canTransferTables && (activeOrderCountByTable[item._id] || 0) > 0 ? (
+                  {canPlaceOrders ? (
                     <Button
                       type="button"
                       variant="secondary"
-                      className="sm:col-span-2"
-                      onClick={() => {
-                        selectTransferSource(item._id);
-                        setError('');
-                      }}
+                      className={`${canManageTables ? 'mt-auto w-full self-end' : 'w-full'} inline-flex items-center justify-center gap-2`}
+                      onClick={() => openQrForTable(item)}
+                      disabled={qrLoading}
                     >
-                      Transfer From This Table
+                      <ScanIcon />
+                      <span>{qrLoading && qrTable?._id === item._id ? 'Loading QR...' : 'Show QR'}</span>
                     </Button>
                   ) : null}
                 </div>
-              ) : null}
 
-              {canManageTables ? (
-                <div className="flex gap-2">
+                {canTransferTables && (activeOrderCountByTable[item._id] || 0) > 0 ? (
                   <Button
-                    className="flex-1"
+                    type="button"
                     variant="secondary"
+                    className="w-full"
                     onClick={() => {
-                      setEditingId(item._id);
-                      setForm({
-                        tableNumber: item.tableNumber,
-                        seatingCapacity: item.seatingCapacity,
-                        status: item.status
-                      });
+                      selectTransferSource(item._id);
+                      setError('');
                     }}
                   >
-                    Edit
+                    Transfer From This Table
                   </Button>
-                  <Button
-                    className="flex-1"
-                    variant="danger"
-                    onClick={async () => {
-                      if (!window.confirm('Delete this table?')) return;
-                      try {
-                        await tableService.remove(item._id);
-                        setError('');
-                        load();
-                      } catch (err) {
-                        setError(err.response?.data?.message || 'Unable to delete table');
-                      }
-                    }}
-                  >
-                    Delete
-                  </Button>
-                </div>
-              ) : null}
+                ) : null}
+              </div>
             </article>
           ))}
         </div>

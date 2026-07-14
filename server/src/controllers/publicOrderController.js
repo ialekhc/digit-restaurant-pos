@@ -138,7 +138,7 @@ export const createQrOrder = asyncHandler(async (req, res) => {
     : 'PENDING';
 
   const created = await Order.create({
-    orderNumber: generateOrderNumber(),
+    orderNumber: await generateOrderNumber(creator),
     orderType: 'DINE_IN',
     table: table._id,
     items: normalizedItems,

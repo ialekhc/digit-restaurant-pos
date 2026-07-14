@@ -332,7 +332,7 @@ export const transferTable = asyncHandler(async (req, res) => {
     await order.save();
 
     const splitOrder = await Order.create(await withTenantFields(req.user, {
-      orderNumber: generateOrderNumber(),
+      orderNumber: await generateOrderNumber(req.user),
       orderType: 'DINE_IN',
       table: toTable._id,
       customer: order.customer || undefined,
@@ -353,7 +353,7 @@ export const transferTable = asyncHandler(async (req, res) => {
 
       await Payment.create(await withTenantFields(req.user, {
         order: splitOrder._id,
-        billNumber: generateBillNumber(),
+        billNumber: await generateBillNumber(req.user),
         paymentMethod: linkedPayment.paymentMethod,
         amountPaid: splitOrder.total,
         changeAmount: 0,

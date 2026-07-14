@@ -243,11 +243,9 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-<<<<<<< HEAD
-        `Order ${created.orderNumber} has been placed and sent to kitchen${printed ? ' and printed' : ''}.${orderState.table ? ' You can add another new order for the same table.' : ''}`
-=======
-        `Order ${created.orderNumber} has been created and sent to the designated department${printed ? ' with station tickets opened' : ''}. You can add another new order for the same table.`
->>>>>>> 2a11b04 (bills, order & order crud, receipt, order-ticket)
+        `Order ${created.orderNumber} has been created and sent to the designated department${printed ? ' with station tickets opened' : ''}.${
+          orderState.table ? ' You can add another new order for the same table.' : ''
+        }`
       );
       await load();
     } catch (err) {

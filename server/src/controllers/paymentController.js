@@ -199,7 +199,7 @@ export const createPayment = asyncHandler(async (req, res) => {
 
   const data = await Payment.create(await withTenantFields(req.user, {
     order: order._id,
-    billNumber: generateBillNumber(),
+    billNumber: await generateBillNumber(req.user),
     paymentMethod,
     amountPaid: paid,
     changeAmount,

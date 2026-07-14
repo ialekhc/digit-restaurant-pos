@@ -814,7 +814,7 @@ const BillingPage = () => {
 
       {canCreateBills ? (
         <Panel title="Billing & Payment Entry" subtitle="Create one combined table bill from every READY or SERVED unpaid order">
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className={`grid gap-4 ${lookupTableNumber.trim() ? 'xl:grid-cols-2' : ''}`}>
             <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
               <h4 className="text-sm font-semibold text-slate-800">Table Lookup</h4>
               <Select
@@ -844,9 +844,9 @@ const BillingPage = () => {
                     </span>
                   </div>
 
-                  <div className="max-h-[58vh] space-y-3 overflow-y-scroll overscroll-contain pr-2">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                     {occupiedTableCheckouts.map(({ table, activeOrders, billableOrders, itemCount, billableTotal }) => (
-                      <article key={table._id} className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
+                      <article key={table._id} className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-2">
                         <div>
                           <p className="text-lg font-bold text-slate-900">{table.tableNumber}</p>
@@ -857,7 +857,7 @@ const BillingPage = () => {
                         <StatusBadge value={table.status} />
                       </div>
 
-                      <div className="mt-3 space-y-2">
+                      <div className="mt-3 flex-1 space-y-2">
                         {activeOrders.map((order) => (
                           <div key={order._id} className="rounded-lg border border-slate-100 bg-slate-50 p-2.5">
                             <div className="flex flex-wrap items-center justify-between gap-2">
@@ -892,7 +892,7 @@ const BillingPage = () => {
                     ))}
 
                     {!occupiedTableCheckouts.length ? (
-                      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500">
+                      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">
                         No occupied tables with active orders are available.
                       </p>
                     ) : null}
@@ -980,6 +980,7 @@ const BillingPage = () => {
               ) : null}
             </div>
 
+            {lookupTableNumber.trim() ? (
             <div className="space-y-3 rounded-xl border border-slate-200 bg-white p-3">
               <h4 className="text-sm font-semibold text-slate-800">Payment Details</h4>
               <div className="grid gap-3 sm:grid-cols-2">
@@ -1043,10 +1044,12 @@ const BillingPage = () => {
                 </div>
               </div>
             </div>
+            ) : null}
           </div>
 
         {error ? <p className="mt-3 text-sm text-rose-600">{error}</p> : null}
 
+          {lookupTableNumber.trim() ? (
           <div className="mt-4 grid gap-2 sm:flex">
             <Button className="px-6 py-3 text-base" onClick={createPayment}>Accept Payment</Button>
             <Button
@@ -1069,6 +1072,7 @@ const BillingPage = () => {
               Download PDF
             </Button>
           </div>
+          ) : null}
         </Panel>
       ) : null}
 

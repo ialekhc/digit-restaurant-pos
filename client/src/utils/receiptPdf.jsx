@@ -3,19 +3,37 @@ import { getReceiptSettings } from './receiptSettings';
 
 const money = (value) => `NPR ${Number(value || 0).toFixed(2)}`;
 const safe = (value, fallback = '-') => String((value ?? fallback) || '').trim() || fallback;
+const cleanItemName = (value) => safe(value).replace(/\s*\(ORD-[^)]+\)\s*$/i, '');
+const shortenSerial = (value, prefix) => {
+  const text = safe(value, '').trim();
+  if (!text) return '';
+  const parts = text.split('-').filter(Boolean);
+  if (parts[0] !== prefix || parts.length < 2) return text;
+  return `${prefix}-${parts.at(-1)}`;
+};
+const formatSerialList = (value, prefix) => {
+  const entries = safe(value, '')
+    .split(',')
+    .map((entry) => shortenSerial(entry.trim(), prefix))
+    .filter(Boolean);
+
+  if (!entries.length) return '-';
+  const suffixes = entries.map((entry) => entry.replace(`${prefix}-`, ''));
+  return `${prefix}-${suffixes.join(', ')}`;
+};
 
 const styles = StyleSheet.create({
   page: {
     padding: 7,
-    fontSize: 7.4,
+    fontSize: 6.9,
     fontFamily: 'Helvetica',
     color: '#111827',
     backgroundColor: '#ffffff'
   },
   center: { textAlign: 'center' },
-  title: { fontSize: 11.5, fontWeight: 'bold', marginBottom: 2, textAlign: 'center' },
-  subtitle: { fontSize: 8.2, marginBottom: 2, textAlign: 'center', color: '#374151' },
-  muted: { fontSize: 6.7, color: '#4b5563', textAlign: 'center', marginBottom: 1 },
+  title: { fontSize: 10.2, fontWeight: 'bold', marginBottom: 1.5, textAlign: 'center' },
+  subtitle: { fontSize: 7.6, marginBottom: 1.5, textAlign: 'center', color: '#374151' },
+  muted: { fontSize: 6.2, color: '#4b5563', textAlign: 'center', marginBottom: 0.8 },
   divider: { borderTopWidth: 0.8, borderTopColor: '#9ca3af', borderStyle: 'dashed', marginVertical: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 2.5 },
   rowLabel: { width: '38%' },
@@ -30,18 +48,18 @@ const styles = StyleSheet.create({
   itemBlock: {
     borderBottomWidth: 0.5,
     borderBottomColor: '#e5e7eb',
-    paddingVertical: 3
+    paddingVertical: 2.6
   },
-  itemMainRow: { flexDirection: 'row', alignItems: 'flex-start' },
-  itemMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 1.5, paddingLeft: 12 },
-  colIndex: { width: 12, paddingRight: 2 },
-  colItem: { flexGrow: 1, flexShrink: 1, paddingRight: 4 },
-  colAmount: { width: 44, textAlign: 'right' },
-  itemName: { fontSize: 7.6, lineHeight: 1.25 },
-  itemMeta: { fontSize: 6.6, color: '#4b5563' },
+  itemMainRow: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
+  colIndex: { width: 10, paddingRight: 2 },
+  colItem: { width: 96, paddingRight: 3 },
+  colAmount: { width: 38, textAlign: 'right' },
+  itemName: { fontSize: 6.9, lineHeight: 1.18 },
+  itemMeta: { fontSize: 6, color: '#4b5563', marginTop: 1 },
+  itemAmount: { fontSize: 6.9 },
   bold: { fontWeight: 'bold' },
-  total: { fontSize: 8.4, fontWeight: 'bold' },
-  footer: { textAlign: 'center', fontSize: 7.2, color: '#4b5563', marginTop: 5 }
+  total: { fontSize: 7.8, fontWeight: 'bold' },
+  footer: { textAlign: 'center', fontSize: 6.8, color: '#4b5563', marginTop: 5 }
 });
 
 const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
@@ -68,9 +86,9 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
 
         <View style={styles.divider} />
 
-        <View style={styles.row}><Text style={styles.rowLabel}>Bill No</Text><Text style={[styles.rowValue, styles.bold]}>{safe(payment?.billNumber)}</Text></View>
+        <View style={styles.row}><Text style={styles.rowLabel}>Bill No</Text><Text style={[styles.rowValue, styles.bold]}>{formatSerialList(payment?.billNumber, 'BILL')}</Text></View>
         <View style={styles.row}><Text style={styles.rowLabel}>Date</Text><Text style={styles.rowValue}>{date}</Text></View>
-        <View style={styles.row}><Text style={styles.rowLabel}>Order No</Text><Text style={styles.rowValue}>{safe(order.orderNumber)}</Text></View>
+        <View style={styles.row}><Text style={styles.rowLabel}>Order No</Text><Text style={styles.rowValue}>{formatSerialList(order.orderNumber, 'ORD')}</Text></View>
         <View style={styles.row}><Text style={styles.rowLabel}>Table</Text><Text style={styles.rowValue}>{safe(order.table?.tableNumber)}</Text></View>
         <View style={styles.row}><Text style={styles.rowLabel}>Order Type</Text><Text style={styles.rowValue}>{safe(order.orderType)}</Text></View>
 
@@ -89,12 +107,11 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
             <View key={`${item._id || item.name}-${index}`} style={styles.itemBlock} wrap={false}>
               <View style={styles.itemMainRow}>
                 <Text style={styles.colIndex}>{index + 1}</Text>
-                <Text style={[styles.colItem, styles.itemName]}>{safe(item.name)}</Text>
-                <Text style={styles.colAmount}>{lineTotal.toFixed(2)}</Text>
-              </View>
-              <View style={styles.itemMetaRow}>
-                <Text style={styles.itemMeta}>Qty {qty} x {money(price)}</Text>
-                <Text style={styles.itemMeta}>Unit price</Text>
+                <View style={styles.colItem}>
+                  <Text style={styles.itemName}>{cleanItemName(item.name)}</Text>
+                  <Text style={styles.itemMeta}>{qty} x {money(price)}</Text>
+                </View>
+                <Text style={[styles.colAmount, styles.itemAmount]}>{lineTotal.toFixed(2)}</Text>
               </View>
             </View>
           );

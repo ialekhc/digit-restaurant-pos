@@ -41,7 +41,7 @@ const OWNER_OVERRIDE_ROLES = [ROLES.SUPER_ADMIN, ROLES.RESTAURANT_OWNER];
 const STATUS_BY_ROLE = {
   [ROLES.KITCHEN]: ['PREPARING', 'READY'],
   [ROLES.BARISTA]: ['PREPARING', 'READY'],
-  [ROLES.WAITER]: ['SERVED'],
+  [ROLES.WAITER]: ['PREPARING', 'READY', 'SERVED'],
   [ROLES.CASHIER]: ['SERVED', 'COMPLETED'],
   [ROLES.MANAGER]: ['PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED'],
   [ROLES.ADMIN]: ['PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED']
@@ -262,7 +262,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     : 'PENDING';
 
   const data = await Order.create(await withTenantFields(req.user, {
-    orderNumber: generateOrderNumber(),
+    orderNumber: await generateOrderNumber(req.user),
     orderType,
     table: table || undefined,
     customer: customer || undefined,
