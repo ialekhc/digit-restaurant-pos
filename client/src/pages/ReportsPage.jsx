@@ -16,6 +16,7 @@ import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { currency, formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const colors = ['#1f6ff5', '#22c55e', '#f59e0b', '#ef4444', '#14b8a6', '#a855f7'];
 const SALES_PERIODS = ['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY'];
@@ -34,9 +35,9 @@ const ReportsPage = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async () => {
+  const load = async (showLoading = true) => {
     setError('');
-    setLoading(true);
+    if (showLoading) setLoading(true);
     try {
       const selectedYear = Number(year) || new Date().getFullYear();
       const [dailyResult, weeklyResult, monthlyResult, yearlyResult, bestResult, lowResult] = await Promise.allSettled([
@@ -72,6 +73,8 @@ const ReportsPage = () => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useAutoRefresh(() => load(false));
 
   const dailyMethodBreakdown = useMemo(() => {
     const payments = dailySales?.payments || [];

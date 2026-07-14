@@ -235,7 +235,7 @@ export const up = async (client) => {
       name VARCHAR(80) NOT NULL,
       code VARCHAR(60) NOT NULL,
       capacity INTEGER NOT NULL CHECK (capacity > 0),
-      status VARCHAR(30) NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','OCCUPIED','RESERVED','CLEANING','OUT_OF_SERVICE')),
+      status VARCHAR(30) NOT NULL DEFAULT 'AVAILABLE' CHECK (status IN ('AVAILABLE','OCCUPIED','RESERVED','Unavailable','OUT_OF_SERVICE')),
       qr_code_value TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

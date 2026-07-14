@@ -5,6 +5,7 @@ import Panel from '../components/ui/Panel';
 import Button from '../components/ui/Button';
 import Input from '../components/ui/Input';
 import { currency } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const menuTabs = [
   { label: 'Food Menu', value: 'FOOD' },
@@ -42,6 +43,8 @@ const CustomerQrOrderPage = () => {
   useEffect(() => {
     load().catch((err) => setError(err.message || 'Unable to load QR menu'));
   }, [tableId]);
+
+  useAutoRefresh(load, { refreshOnMutation: false });
 
   const total = useMemo(() => {
     return items.reduce((sum, item) => sum + item.price * item.quantity, 0);

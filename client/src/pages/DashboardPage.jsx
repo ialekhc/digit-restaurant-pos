@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { reportService } from '../api/services';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Loader from '../components/Loader';
 import StatCard from '../components/StatCard';
 import StatusBadge from '../components/StatusBadge';
@@ -11,8 +12,8 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState(null);
 
-  const fetchDashboard = async () => {
-    setLoading(true);
+  const fetchDashboard = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const response = await reportService.dashboard();
       setData(response);
@@ -24,6 +25,8 @@ const DashboardPage = () => {
   useEffect(() => {
     fetchDashboard();
   }, []);
+
+  useAutoRefresh(() => fetchDashboard(false));
 
   const topItems = useMemo(() => data?.bestSellingItems || [], [data]);
 

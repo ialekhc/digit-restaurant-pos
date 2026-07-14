@@ -9,6 +9,7 @@ import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
 import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -83,6 +84,8 @@ const OrderCreatePage = () => {
     load();
   }, []);
 
+  useAutoRefresh(load);
+
   useEffect(() => {
     if (!tableFromUrl || !tables.length || didApplyTableContext.current) return;
     const hasTable = tables.some((table) => table._id === tableFromUrl);
@@ -97,7 +100,7 @@ const OrderCreatePage = () => {
   }, [tables, tableFromUrl]);
 
   const selectableTables = useMemo(() => {
-    return tables.filter((table) => !['RESERVED', 'CLEANING'].includes(table.status));
+    return tables.filter((table) => !['RESERVED', 'Unavailable'].includes(table.status));
   }, [tables]);
 
   const selectedTableActiveOrders = useMemo(() => {

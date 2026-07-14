@@ -6,6 +6,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { currency, formatDate, formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const defaultPaymentForm = {
   amount: '',
@@ -42,6 +43,8 @@ const SuperAdminSubscriptionsPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load, { enabled: !selectedVendorId });
 
   const selectedVendor = useMemo(
     () => vendors.find((vendor) => vendor._id === selectedVendorId) || null,

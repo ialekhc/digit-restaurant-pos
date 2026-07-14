@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { currency, formatDate } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const defaultForm = {
   vendorName: '',
@@ -44,6 +45,8 @@ const SuperAdminVendorsPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load, { enabled: !editingId });
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();

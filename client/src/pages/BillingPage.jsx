@@ -6,6 +6,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
@@ -318,20 +319,9 @@ const BillingPage = () => {
 
   useEffect(() => {
     load();
-
-    const refresh = () => {
-      load().catch(() => {
-        // Keep the billing screen usable if a background refresh fails briefly.
-      });
-    };
-    const timer = setInterval(refresh, 10000);
-    window.addEventListener('focus', refresh);
-
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', refresh);
-    };
   }, []);
+
+  useAutoRefresh(load);
 
   const paidOrderIds = useMemo(() => new Set(payments.map((p) => paymentOrderId(p)).filter(Boolean)), [payments]);
 
@@ -844,7 +834,7 @@ const BillingPage = () => {
                     </span>
                   </div>
 
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
                     {occupiedTableCheckouts.map(({ table, activeOrders, billableOrders, itemCount, billableTotal }) => (
                       <article key={table._id} className="flex h-full flex-col rounded-xl border border-slate-200 bg-white p-3 shadow-sm">
                       <div className="flex flex-wrap items-start justify-between gap-2">
@@ -892,7 +882,7 @@ const BillingPage = () => {
                     ))}
 
                     {!occupiedTableCheckouts.length ? (
-                      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3">
+                      <p className="rounded-xl border border-dashed border-slate-300 bg-white p-4 text-center text-sm text-slate-500 md:col-span-2 xl:col-span-3 2xl:col-span-5">
                         No occupied tables with active orders are available.
                       </p>
                     ) : null}

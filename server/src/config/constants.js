@@ -489,7 +489,7 @@ export const ROLE_PERMISSIONS = {
   ]
 };
 
-export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'CLEANING'];
+export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'Unavailable'];
 
 export const ORDER_TYPES = ['DINE_IN', 'TAKEAWAY'];
 export const ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPLETED', 'CANCELLED'];

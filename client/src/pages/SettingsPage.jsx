@@ -16,6 +16,7 @@ import {
   getReceiptSettings,
   saveReceiptSettings
 } from '../utils/receiptSettings';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const schema = z
   .object({
@@ -74,6 +75,8 @@ const SettingsPage = () => {
   useEffect(() => {
     loadPrinters();
   }, []);
+
+  useAutoRefresh(loadPrinters, { enabled: !editingPrinterId });
 
   const onSubmit = async (values) => {
     setError('');

@@ -1,5 +1,19 @@
 import axios from 'axios';
 
+export const DATA_REFRESH_EVENT = 'rms:data-refresh';
+
+const mutationMethods = new Set(['post', 'put', 'patch', 'delete']);
+
+const notifyDataChanged = (response) => {
+  if (typeof window === 'undefined') return;
+  const method = response.config?.method?.toLowerCase();
+  if (!mutationMethods.has(method)) return;
+
+  window.dispatchEvent(new CustomEvent(DATA_REFRESH_EVENT, {
+    detail: { method, url: response.config?.url }
+  }));
+};
+
 export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5500/api';
 
 export const api = axios.create({
@@ -15,7 +29,10 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    notifyDataChanged(response);
+    return response;
+  },
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem('rms_token');

@@ -369,7 +369,7 @@ const seed = async () => {
   const tableRows = Array.from({ length: 12 }, (_, i) => ({
     tableNumber: `T-${i + 1}`,
     seatingCapacity: i < 4 ? 2 : i < 8 ? 4 : 6,
-    status: i === 0 ? 'OCCUPIED' : i === 1 ? 'RESERVED' : i === 2 ? 'CLEANING' : 'AVAILABLE'
+    status: i === 0 ? 'OCCUPIED' : i === 1 ? 'RESERVED' : i === 2 ? 'Unavailable' : 'AVAILABLE'
   }));
 
   const tables = await Table.insertMany(tableRows);

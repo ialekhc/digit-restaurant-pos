@@ -3,6 +3,7 @@ import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { categoryService } from '../api/services';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -46,6 +47,8 @@ const MenuCategoriesPage = () => {
   useEffect(() => {
     load();
   }, [activeMenuType]);
+
+  useAutoRefresh(load);
 
   const onSubmit = async (values) => {
     setError('');

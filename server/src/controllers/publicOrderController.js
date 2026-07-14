@@ -55,7 +55,7 @@ export const getQrMenuByTable = asyncHandler(async (req, res) => {
 
   const table = await Table.findById(req.params.tableId);
   if (!table) throw new ApiError(404, 'Table not found');
-  if (table.status === 'RESERVED' || table.status === 'CLEANING') {
+  if (table.status === 'RESERVED' || table.status === 'Unavailable') {
     throw new ApiError(400, `Table ${table.tableNumber} is currently ${table.status}`);
   }
 
@@ -101,7 +101,7 @@ export const createQrOrder = asyncHandler(async (req, res) => {
 
   const table = await Table.findById(req.params.tableId);
   if (!table) throw new ApiError(404, 'Table not found');
-  if (table.status === 'RESERVED' || table.status === 'CLEANING') {
+  if (table.status === 'RESERVED' || table.status === 'Unavailable') {
     throw new ApiError(400, `Table ${table.tableNumber} is currently ${table.status}`);
   }
 

@@ -178,7 +178,7 @@ export const transferTable = asyncHandler(async (req, res) => {
   if (!fromTable) throw new ApiError(404, 'Source table not found');
   if (!toTable) throw new ApiError(404, 'Target table not found');
 
-  if (toTable.status === 'RESERVED' || toTable.status === 'CLEANING') {
+  if (toTable.status === 'RESERVED' || toTable.status === 'Unavailable') {
     throw new ApiError(400, `Target table ${toTable.tableNumber} is currently ${toTable.status}`);
   }
 

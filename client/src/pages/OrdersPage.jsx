@@ -6,7 +6,9 @@ import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
+import OrderCancellationDialog from '../components/OrderCancellationDialog';
 import { useAuth } from '../hooks/useAuth';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
@@ -21,6 +23,9 @@ const OrdersPage = () => {
   const [tables, setTables] = useState([]);
   const [expandedItemsByOrder, setExpandedItemsByOrder] = useState({});
   const [actionError, setActionError] = useState('');
+  const [cancellationOrder, setCancellationOrder] = useState(null);
+  const [cancellationBusy, setCancellationBusy] = useState(false);
+  const [cancellationError, setCancellationError] = useState('');
   const [filters, setFilters] = useState({
     status: '',
     orderType: '',
@@ -49,20 +54,16 @@ const OrdersPage = () => {
     };
 
     boot();
-
-    const refresh = () => {
-      load(filtersRef.current).catch(() => {
-        // Keep existing orders visible if a background refresh fails briefly.
-      });
-    };
-    const timer = setInterval(refresh, 10000);
-    window.addEventListener('focus', refresh);
-
-    return () => {
-      clearInterval(timer);
-      window.removeEventListener('focus', refresh);
-    };
   }, []);
+
+  useAutoRefresh(async () => {
+    const [orderData, tableData] = await Promise.all([
+      orderService.list(filtersRef.current),
+      tableService.list()
+    ]);
+    setOrders(orderData);
+    setTables(tableData);
+  });
 
   const selectedTable = useMemo(() => {
     return tables.find((table) => table._id === filters.table);
@@ -108,6 +109,31 @@ const OrdersPage = () => {
       await openStationTicketsPdfTab(order);
     } catch (error) {
       setActionError(error?.message || 'Unable to open station tickets');
+    }
+  };
+
+  const openCancellation = (order) => {
+    setActionError('');
+    setCancellationError('');
+    setCancellationOrder(order);
+  };
+
+  const confirmCancellation = async ({ mode, reason, items }) => {
+    if (!cancellationOrder) return;
+    setCancellationBusy(true);
+    setCancellationError('');
+    try {
+      if (mode === 'ORDER') {
+        await orderService.cancel(cancellationOrder._id, reason);
+      } else {
+        await orderService.cancelItems(cancellationOrder._id, items, reason);
+      }
+      await load(filtersRef.current);
+      setCancellationOrder(null);
+    } catch (error) {
+      setCancellationError(error?.response?.data?.message || 'Cancellation failed. Please try again.');
+    } finally {
+      setCancellationBusy(false);
     }
   };
 
@@ -297,10 +323,7 @@ const OrdersPage = () => {
                         <Button
                           variant="danger"
                           className="px-2 py-1 text-xs"
-                          onClick={() => runOrderAction(async () => {
-                            const reason = window.prompt('Cancel reason (optional):') || '';
-                            await orderService.cancel(order._id, reason);
-                          })}
+                          onClick={() => openCancellation(order)}
                         >
                           Cancel
                         </Button>
@@ -362,10 +385,7 @@ const OrdersPage = () => {
                   <Button
                     variant="danger"
                     size="sm"
-                    onClick={() => runOrderAction(async () => {
-                      const reason = window.prompt('Cancel reason (optional):') || '';
-                      await orderService.cancel(order._id, reason);
-                    })}
+                    onClick={() => openCancellation(order)}
                   >
                     Cancel
                   </Button>
@@ -376,6 +396,19 @@ const OrdersPage = () => {
           {!orders.length ? <p className="rounded-xl bg-white p-5 text-center text-sm text-slate-500">No orders found</p> : null}
         </div>
       </Panel>
+      {cancellationOrder ? (
+        <OrderCancellationDialog
+          order={cancellationOrder}
+          busy={cancellationBusy}
+          error={cancellationError}
+          onClose={() => {
+            if (cancellationBusy) return;
+            setCancellationOrder(null);
+            setCancellationError('');
+          }}
+          onConfirm={confirmCancellation}
+        />
+      ) : null}
     </div>
   );
 };

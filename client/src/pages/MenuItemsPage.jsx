@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { API_BASE_URL } from '../api/axios';
 import { currency } from '../utils/format';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { PERMISSIONS } from '../utils/constants';
 
 const initial = {
@@ -86,8 +87,8 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const config = menuTypeConfig[menuType] || menuTypeConfig.FOOD;
   const emptyForm = useMemo(() => ({ ...initial, preparationStation: defaultStationForMenuType(menuType) }), [menuType]);
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [menuData, categoryData] = await Promise.all([
         menuService.list({ menuType }),
@@ -104,6 +105,8 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
     setForm({ ...initial, preparationStation: defaultStationForMenuType(menuType) });
     load();
   }, [menuType]);
+
+  useAutoRefresh(() => load(false));
 
   const categoryOptions = [{ label: 'Select Category', value: '' }].concat(
     categories.map((c) => ({ label: c.name, value: c._id }))

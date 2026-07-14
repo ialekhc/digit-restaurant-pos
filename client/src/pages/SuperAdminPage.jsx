@@ -4,6 +4,7 @@ import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { currency, formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const SuperAdminPage = () => {
   const [catalog, setCatalog] = useState(null);
@@ -16,7 +17,7 @@ const SuperAdminPage = () => {
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [selectedAddons, setSelectedAddons] = useState([]);
 
-  const load = async () => {
+  const load = async (syncForm = true) => {
     setError('');
     try {
       const [catalogData, activeData, overviewData] = await Promise.all([
@@ -28,9 +29,11 @@ const SuperAdminPage = () => {
       setActivePlanData(activeData);
       setOverview(overviewData);
 
-      setSelectedPlanId(activeData?.config?.activePlanId || '');
-      setBillingCycle(activeData?.config?.billingCycle || 'monthly');
-      setSelectedAddons(activeData?.config?.addons || []);
+      if (syncForm) {
+        setSelectedPlanId(activeData?.config?.activePlanId || '');
+        setBillingCycle(activeData?.config?.billingCycle || 'monthly');
+        setSelectedAddons(activeData?.config?.addons || []);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load super admin portal');
     }
@@ -39,6 +42,8 @@ const SuperAdminPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(() => load(false));
 
   const planOptions = useMemo(
     () => (catalog?.plans || []).map((plan) => ({ label: plan.name, value: plan.id })),

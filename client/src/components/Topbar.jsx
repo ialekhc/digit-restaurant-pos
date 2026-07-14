@@ -32,6 +32,13 @@ const Topbar = ({ onMenu, user, onLogout }) => {
       </div>
 
       <div className="ml-auto flex items-center gap-2 sm:gap-3">
+        <span
+          className="hidden items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 md:inline-flex"
+          title="Live data refreshes after changes and every 8 seconds"
+        >
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-500" aria-hidden="true" />
+          Auto-sync 8s
+        </span>
         <div className="hidden text-right sm:block">
           <p className="text-sm font-semibold text-slate-700">{user?.name}</p>
           <p className="text-xs text-slate-500">{user?.role}</p>

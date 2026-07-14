@@ -9,7 +9,7 @@ export const syncTableStatusFromOrders = async (tableId) => {
   if (!table) return null;
 
   // Manual operational states should not be auto-overridden by order sync.
-  if (table.status === 'RESERVED' || table.status === 'CLEANING') {
+  if (table.status === 'RESERVED' || table.status === 'Unavailable') {
     return table;
   }
 

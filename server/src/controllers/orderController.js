@@ -203,7 +203,7 @@ export const createOrder = asyncHandler(async (req, res) => {
       })
     );
     if (!foundTable) throw new ApiError(404, 'Table not found');
-    if (foundTable.status === 'RESERVED' || foundTable.status === 'CLEANING') {
+    if (foundTable.status === 'RESERVED' || foundTable.status === 'Unavailable') {
       throw new ApiError(400, `Table ${foundTable.tableNumber} is currently ${foundTable.status}`);
     }
   }
@@ -459,15 +459,31 @@ export const cancelOrder = asyncHandler(async (req, res) => {
   const order = await findScopedOrderById(req, req.params.id);
   if (!order) throw new ApiError(404, 'Order not found');
 
-  if (order.status === 'COMPLETED') {
-    throw new ApiError(400, 'Completed order cannot be cancelled');
+  if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+    throw new ApiError(400, `${order.status} order cannot be cancelled`);
   }
   if (req.user?.role === ROLES.CUSTOMER && order.status !== 'PENDING') {
     throw new ApiError(403, 'Customers can only cancel pending orders');
   }
 
   order.status = 'CANCELLED';
-  order.cancelledReason = reason;
+  order.cancelledReason = String(reason || '').trim();
+  order.cancellationHistory = [
+    ...(order.cancellationHistory || []),
+    {
+      type: 'ORDER',
+      reason: order.cancelledReason,
+      cancelledBy: req.user?._id,
+      cancelledAt: new Date().toISOString(),
+      items: (order.items || []).map((item) => ({
+        itemId: item._id,
+        menuItem: item.menuItem,
+        name: item.name,
+        price: Number(item.price || 0),
+        quantity: Number(item.quantity || 0)
+      }))
+    }
+  ];
   await order.save();
 
   await syncTableStatusFromOrders(order.table);
@@ -478,6 +494,107 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     .populate('createdBy', 'name role');
 
   res.json({ data });
+});
+
+export const cancelOrderItems = asyncHandler(async (req, res) => {
+  const { items = [], reason = '' } = req.body;
+
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, 'Select at least one item to cancel');
+  }
+
+  const order = await findScopedOrderById(req, req.params.id);
+  if (!order) throw new ApiError(404, 'Order not found');
+
+  if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+    throw new ApiError(400, `Cannot cancel items from ${order.status} order`);
+  }
+  if (req.user?.role === ROLES.CUSTOMER && order.status !== 'PENDING') {
+    throw new ApiError(403, 'Customers can only cancel items from pending orders');
+  }
+
+  const existingPayment = await Payment.findOne({ order: order._id });
+  if (existingPayment) {
+    throw new ApiError(409, 'Cannot cancel individual items after payment has been created');
+  }
+
+  const requestedById = new Map();
+  items.forEach((selection) => {
+    const itemId = String(selection?.itemId || '');
+    const quantity = Number(selection?.quantity);
+    if (!itemId || !Number.isFinite(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+      throw new ApiError(400, 'Each cancelled item must have a valid itemId and whole-number quantity');
+    }
+    if (requestedById.has(itemId)) {
+      throw new ApiError(400, 'Each order item can only be selected once');
+    }
+    requestedById.set(itemId, quantity);
+  });
+
+  const cancelledItems = [];
+  const remainingItems = [];
+  for (const item of order.items || []) {
+    const cancelledQuantity = requestedById.get(String(item._id));
+    if (!cancelledQuantity) {
+      remainingItems.push(item);
+      continue;
+    }
+
+    const currentQuantity = Number(item.quantity || 0);
+    if (cancelledQuantity > currentQuantity) {
+      throw new ApiError(400, `Cannot cancel more than ${currentQuantity} x ${item.name}`);
+    }
+
+    cancelledItems.push({
+      itemId: item._id,
+      menuItem: item.menuItem,
+      name: item.name,
+      price: Number(item.price || 0),
+      quantity: cancelledQuantity,
+      preparationStation: item.preparationStation,
+      kitchenSection: item.kitchenSection,
+      notes: item.notes || ''
+    });
+
+    const quantity = currentQuantity - cancelledQuantity;
+    if (quantity > 0) {
+      item.quantity = quantity;
+      item.readyQuantity = Math.min(quantity, Math.max(0, Number(item.readyQuantity || 0)));
+      item.servedQuantity = Math.min(item.readyQuantity, Math.max(0, Number(item.servedQuantity || 0)));
+      remainingItems.push(item);
+    }
+  }
+
+  if (cancelledItems.length !== requestedById.size) {
+    throw new ApiError(400, 'One or more selected items are not part of this order');
+  }
+  if (!remainingItems.length) {
+    throw new ApiError(400, 'Use entire order cancellation when cancelling every item');
+  }
+
+  order.items = remainingItems;
+  order.cancellationHistory = [
+    ...(order.cancellationHistory || []),
+    {
+      type: 'ITEMS',
+      reason: String(reason || '').trim(),
+      cancelledBy: req.user?._id,
+      cancelledAt: new Date().toISOString(),
+      items: cancelledItems
+    }
+  ];
+  recalculateOrderTotals(order);
+  ensureItemProgressBounds(order);
+  await order.save();
+  await reconcileOrderStatusFromItems(order);
+  await syncTableStatusFromOrders(order.table);
+
+  const data = await Order.findById(order._id)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+
+  res.json({ data, cancelledItems });
 });
 
 export const deleteOrder = asyncHandler(async (req, res) => {
