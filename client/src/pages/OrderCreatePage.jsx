@@ -7,7 +7,8 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
-import { openKitchenPrintWindow, printKitchenTicket, shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
+import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
+import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -215,7 +216,6 @@ const OrderCreatePage = () => {
 
     setSaving(true);
     const autoPrint = shouldAutoPrintKitchenTicket();
-    const printPopup = autoPrint ? openKitchenPrintWindow() : null;
 
     try {
       const created = await orderService.create({
@@ -225,7 +225,15 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
-      const printed = autoPrint ? printKitchenTicket(created, printPopup) : false;
+      let printed = false;
+      if (autoPrint) {
+        try {
+          await openStationTicketsPdfTab(created);
+          printed = true;
+        } catch (printError) {
+          setError(printError?.message || 'Order created, but station ticket preview could not be opened');
+        }
+      }
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -235,11 +243,14 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
+<<<<<<< HEAD
         `Order ${created.orderNumber} has been placed and sent to kitchen${printed ? ' and printed' : ''}.${orderState.table ? ' You can add another new order for the same table.' : ''}`
+=======
+        `Order ${created.orderNumber} has been created and sent to the designated department${printed ? ' with station tickets opened' : ''}. You can add another new order for the same table.`
+>>>>>>> 2a11b04 (bills, order & order crud, receipt, order-ticket)
       );
       await load();
     } catch (err) {
-      if (printPopup && !printPopup.closed) printPopup.close();
       setError(err.response?.data?.message || 'Failed to create order');
     } finally {
       setSaving(false);
@@ -429,7 +440,7 @@ const OrderCreatePage = () => {
 
         <div className="mt-4 grid gap-2 sm:flex">
           <Button className="px-6 py-3 text-base" onClick={submitOrder} disabled={saving}>
-            {saving ? 'Creating Order...' : 'Create Order & Send to Kitchen'}
+            {saving ? 'Creating Order...' : 'Create & Send Order'}
           </Button>
           {orderState.table ? (
             <Link

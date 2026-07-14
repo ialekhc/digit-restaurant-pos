@@ -13,3 +13,11 @@ nginx.conf
 backups/
 client/.env.production
 server/.env.backup.*
+docker-compose.override.yml
+docker-compose.prod.yml
+docker-compose.dev.yml
+docker-compose.override.prod.yml
+docker-compose.yml
+deploy.sh
+.github/workflows/deploy.yml
+

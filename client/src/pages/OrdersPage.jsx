@@ -9,7 +9,7 @@ import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
-import { printKitchenTicket } from '../utils/kitchenPrinting';
+import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
 
 const OrdersPage = () => {
   const { user } = useAuth();
@@ -71,6 +71,14 @@ const OrdersPage = () => {
   const hasPermission = (permission) => Array.isArray(user?.permissions) && user.permissions.includes(permission);
   const isOwnerDeleteRole = ['SUPER_ADMIN', 'RESTAURANT_OWNER'].includes(user?.role);
 
+  const attendedByLabel = (order) => {
+    const attendedBy = order?.createdBy;
+    if (!attendedBy) return 'Unknown staff';
+    const name = attendedBy.name || attendedBy.email || 'Unknown staff';
+    const role = attendedBy.role ? ` (${String(attendedBy.role).replaceAll('_', ' ')})` : '';
+    return `${name}${role}`;
+  };
+
   const getAllowedActions = (order) => {
     if (order.status === 'COMPLETED' || order.status === 'CANCELLED') {
       return { canServe: false, canCancel: false };
@@ -91,6 +99,15 @@ const OrdersPage = () => {
       await load();
     } catch (error) {
       setActionError(error?.response?.data?.message || 'Action failed. Please check your permission and try again.');
+    }
+  };
+
+  const printStationTickets = async (order) => {
+    setActionError('');
+    try {
+      await openStationTicketsPdfTab(order);
+    } catch (error) {
+      setActionError(error?.message || 'Unable to open station tickets');
     }
   };
 
@@ -229,7 +246,7 @@ const OrdersPage = () => {
                 <th className="px-3 py-2">Order #</th>
                 <th className="px-3 py-2">Type</th>
                 <th className="px-3 py-2">Table</th>
-                <th className="px-3 py-2">Customer</th>
+                <th className="px-3 py-2">Attended By</th>
                 <th className="px-3 py-2">Items</th>
                 <th className="px-3 py-2">Total</th>
                 <th className="px-3 py-2">Status</th>
@@ -243,7 +260,7 @@ const OrdersPage = () => {
                   <td className="px-3 py-2 font-semibold">{order.orderNumber}</td>
                   <td className="px-3 py-2">{order.orderType}</td>
                   <td className="px-3 py-2">{order.table?.tableNumber || '-'}</td>
-                  <td className="px-3 py-2">{order.customer?.name || '-'}</td>
+                  <td className="px-3 py-2">{attendedByLabel(order)}</td>
                   <td className="px-3 py-2">
                     {renderItemProgress(order)}
                   </td>
@@ -257,9 +274,9 @@ const OrdersPage = () => {
                       <Button
                         variant="secondary"
                         className="px-2 py-1 text-xs"
-                        onClick={() => printKitchenTicket(order)}
+                        onClick={() => printStationTickets(order)}
                       >
-                        Print Kitchen
+                        Print Tickets
                       </Button>
                       {getAllowedActions(order).canServe ? (
                         <Button
@@ -311,7 +328,7 @@ const OrdersPage = () => {
               </div>
 
               <div className="mt-2 text-sm text-slate-700">
-                <p>Customer: {order.customer?.name || '-'}</p>
+                <p>Attended By: {attendedByLabel(order)}</p>
                 <p>Total: {currency(order.total)}</p>
                 <p>Created: {formatDateTime(order.createdAt)}</p>
               </div>
@@ -322,9 +339,9 @@ const OrdersPage = () => {
                 <Button
                   variant="secondary"
                   size="sm"
-                  onClick={() => printKitchenTicket(order)}
+                  onClick={() => printStationTickets(order)}
                 >
-                  Print Kitchen
+                  Print Tickets
                 </Button>
                 {getAllowedActions(order).canServe ? (
                   <Button
