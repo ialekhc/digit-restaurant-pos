@@ -10,6 +10,7 @@ import Button from '../components/ui/Button';
 import Loader from '../components/Loader';
 import { formatDateTime } from '../utils/format';
 import { useAuth } from '../hooks/useAuth';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const schema = z.object({
   name: z.string().min(2),
@@ -92,8 +93,8 @@ const UsersPage = () => {
     formState: { errors, isSubmitting }
   } = useForm({ resolver: zodResolver(schema), defaultValues });
 
-  const fetchUsers = async () => {
-    setLoading(true);
+  const fetchUsers = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const [userData, vendorData] = await Promise.all([
         userService.list({ search }),
@@ -109,6 +110,8 @@ const UsersPage = () => {
   useEffect(() => {
     fetchUsers();
   }, []);
+
+  useAutoRefresh(() => fetchUsers(false));
 
   const onSubmit = async (values) => {
     setError('');

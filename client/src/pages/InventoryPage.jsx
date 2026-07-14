@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { inventoryService, supplierService } from '../api/services';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Select from '../components/ui/Select';
@@ -68,6 +69,8 @@ const InventoryPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load);
 
   const categories = useMemo(() => {
     return Array.from(new Set(items.map((item) => item.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));

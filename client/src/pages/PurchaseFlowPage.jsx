@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { currency, formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const getTodayValue = () => new Date().toISOString().slice(0, 10);
 
@@ -55,8 +56,8 @@ const PurchaseFlowPage = () => {
     return Number((qty * rate).toFixed(2));
   }, [form.quantity, form.unitPrice, selectedItem?.purchasePrice]);
 
-  const load = async (nextFilters = filters) => {
-    setLoading(true);
+  const load = async (nextFilters = filters, showLoading = true) => {
+    if (showLoading) setLoading(true);
     try {
       const query = {
         type: isPurchaseIn ? 'IN' : 'OUT',
@@ -85,6 +86,8 @@ const PurchaseFlowPage = () => {
     load({ search: '', from: '', to: '' });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pathname]);
+
+  useAutoRefresh(() => load(filters, false));
 
   useEffect(() => {
     if (!selectedItem) return;

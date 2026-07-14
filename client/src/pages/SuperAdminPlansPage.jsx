@@ -4,6 +4,7 @@ import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import { currency } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const SuperAdminPlansPage = () => {
   const [catalog, setCatalog] = useState(null);
@@ -15,15 +16,17 @@ const SuperAdminPlansPage = () => {
   const [billingCycle, setBillingCycle] = useState('monthly');
   const [selectedAddons, setSelectedAddons] = useState([]);
 
-  const load = async () => {
+  const load = async (syncForm = true) => {
     setError('');
     try {
       const [catalogData, activeData] = await Promise.all([planService.catalog(), planService.active()]);
       setCatalog(catalogData);
       setActivePlanData(activeData);
-      setSelectedPlanId(activeData?.config?.activePlanId || '');
-      setBillingCycle(activeData?.config?.billingCycle || 'monthly');
-      setSelectedAddons(activeData?.config?.addons || []);
+      if (syncForm) {
+        setSelectedPlanId(activeData?.config?.activePlanId || '');
+        setBillingCycle(activeData?.config?.billingCycle || 'monthly');
+        setSelectedAddons(activeData?.config?.addons || []);
+      }
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to load plan catalog');
     }
@@ -32,6 +35,8 @@ const SuperAdminPlansPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(() => load(false));
 
   const activePlan = useMemo(
     () => (catalog?.plans || []).find((plan) => plan.id === selectedPlanId),

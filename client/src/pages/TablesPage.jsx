@@ -8,6 +8,7 @@ import Select from '../components/ui/Select';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { usePermissions } from '../hooks/usePermissions';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { PERMISSIONS, TABLE_STATUSES } from '../utils/constants';
 
 const defaultForm = {
@@ -22,21 +23,21 @@ const statusPriority = {
   AVAILABLE: 1,
   OCCUPIED: 2,
   RESERVED: 3,
-  CLEANING: 4
+  Unavailable: 4
 };
 
 const statusRowClass = {
   AVAILABLE: 'border-emerald-200 bg-emerald-50/80',
   OCCUPIED: 'border-amber-200 bg-amber-50/80',
   RESERVED: 'border-sky-200 bg-sky-50/80',
-  CLEANING: 'border-cyan-200 bg-cyan-50/80'
+  Unavailable: 'border-cyan-200 bg-cyan-50/80'
 };
 
 const statusAccentClass = {
   AVAILABLE: 'from-emerald-500 to-teal-400',
   OCCUPIED: 'from-amber-500 to-orange-400',
   RESERVED: 'from-sky-500 to-blue-400',
-  CLEANING: 'from-cyan-500 to-teal-300'
+  Unavailable: 'from-cyan-500 to-teal-300'
 };
 
 const statusFilterLabels = {
@@ -44,7 +45,7 @@ const statusFilterLabels = {
   AVAILABLE: 'Available',
   OCCUPIED: 'Occupied',
   RESERVED: 'Reserved',
-  CLEANING: 'Cleaning'
+  Unavailable: 'Unavailable'
 };
 
 const tableNumberValue = (tableNumber) => {
@@ -131,6 +132,8 @@ const TablesPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load);
 
   const sortedTables = useMemo(() => {
     return [...tables].sort((a, b) => {

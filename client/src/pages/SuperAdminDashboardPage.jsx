@@ -3,6 +3,7 @@ import Panel from '../components/ui/Panel';
 import StatusBadge from '../components/StatusBadge';
 import { reportService, vendorService } from '../api/services';
 import { currency, formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const SuperAdminDashboardPage = () => {
   const [overview, setOverview] = useState(null);
@@ -23,6 +24,8 @@ const SuperAdminDashboardPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load);
 
   const cards = useMemo(() => {
     const summary = overview?.summary || {};

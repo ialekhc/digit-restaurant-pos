@@ -4,6 +4,7 @@ import Button from '../components/ui/Button';
 import Panel from '../components/ui/Panel';
 import StatusBadge from '../components/StatusBadge';
 import { useAuth } from '../hooks/useAuth';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { formatDateTime } from '../utils/format';
 
 const orderAgeLabel = (value) => {
@@ -124,17 +125,95 @@ const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => 
   </article>
 );
 
+const humanizeOrderType = (value) => String(value || '').replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+
+const CompletedOrderCard = ({ order, stationLabel }) => {
+  const completedAt = order.updatedAt || order.createdAt;
+  const completedItems = order.stationMeta.completedItems.length
+    ? order.stationMeta.completedItems
+    : order.items;
+  const totalQuantity = completedItems.reduce(
+    (sum, item) => sum + Number(item.servedQuantity || item.quantity || 0),
+    0
+  );
+
+  return (
+    <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
+      <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+      <div className="p-4">
+        <header className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-slate-900">{order.orderNumber}</p>
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-slate-700">
+                {humanizeOrderType(order.orderType)}
+              </span>
+              {order.table?.tableNumber ? (
+                <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-800 ring-1 ring-inset ring-amber-200">
+                  Table {order.table.tableNumber}
+                </span>
+              ) : null}
+              <span className="rounded-full bg-sky-50 px-2.5 py-1 text-sky-700 ring-1 ring-inset ring-sky-200">
+                {stationLabel}
+              </span>
+            </div>
+          </div>
+          <StatusBadge value="COMPLETED" />
+        </header>
+
+        <div className="mt-4 overflow-hidden rounded-xl border border-slate-200">
+          <div className="flex items-center justify-between bg-slate-50 px-3 py-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Completed items</p>
+            <p className="text-xs font-semibold text-slate-500">
+              {totalQuantity} item{totalQuantity === 1 ? '' : 's'}
+            </p>
+          </div>
+          <ul className="divide-y divide-slate-100 bg-white">
+            {completedItems.map((item) => {
+              const completedQuantity = Number(item.servedQuantity || item.quantity || 0);
+              return (
+                <li key={item._id || item.orderItemIndex} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-slate-800">{item.name}</p>
+                    {item.notes ? <p className="mt-0.5 truncate text-xs text-slate-500">Note: {item.notes}</p> : null}
+                  </div>
+                  <span className="shrink-0 rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+                    {completedQuantity}/{Number(item.quantity || 0)} done
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <footer className="mt-4 flex flex-wrap items-end justify-between gap-2 border-t border-slate-100 pt-3">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-wide text-slate-400">Completed at</p>
+            <p className="mt-0.5 text-xs font-semibold text-slate-700">{formatDateTime(completedAt)}</p>
+          </div>
+          <span className="rounded-lg bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">
+            {orderAgeLabel(completedAt)}
+          </span>
+        </footer>
+      </div>
+    </article>
+  );
+};
+
 const stationConfig = {
   FOOD: {
     title: 'Kitchen Display',
+    stationLabel: 'Kitchen',
     emptyLabel: 'No kitchen orders available.'
   },
   BAR: {
     title: 'Bar Display',
+    stationLabel: 'Bar',
     emptyLabel: 'No bar orders available.'
   },
   SMOKE: {
     title: 'Smoke Display',
+    stationLabel: 'Smoke',
     emptyLabel: 'No smoke orders available.'
   }
 };
@@ -153,9 +232,9 @@ const KitchenPage = ({ station = 'FOOD' }) => {
 
   useEffect(() => {
     load();
-    const timer = setInterval(load, 15000);
-    return () => clearInterval(timer);
   }, []);
+
+  useAutoRefresh(load);
 
   const stationOrders = useMemo(() => {
     return orders
@@ -171,6 +250,8 @@ const KitchenPage = ({ station = 'FOOD' }) => {
   const stationOrderMeta = useMemo(() => {
     return stationOrders.map((order) => {
       const globallyClosed = ['COMPLETED', 'CANCELLED'].includes(order.status);
+      const globallyCompleted = order.status === 'COMPLETED';
+      const isCancelled = order.status === 'CANCELLED';
       const allServed = order.items.every(isItemFullyServed);
       const allReady = order.items.every(isItemFullyReady);
       const anyReadyToServe = order.items.some(
@@ -179,7 +260,7 @@ const KitchenPage = ({ station = 'FOOD' }) => {
       const anyUnready = order.items.some((item) => !isItemFullyReady(item));
       const isPending = !globallyClosed && order.status === 'PENDING' && !anyReadyToServe && anyUnready;
       const isPreparing = !globallyClosed && ACTIVE_ORDER_STATUSES.includes(order.status) && !allServed && !isPending && anyUnready;
-      const isCompletedForStation = globallyClosed || allServed;
+      const isCompletedForStation = !isCancelled && (globallyCompleted || allServed);
       const completedItems = order.items.filter((item) => Number(item.servedQuantity || 0) > 0);
 
       return {
@@ -189,6 +270,8 @@ const KitchenPage = ({ station = 'FOOD' }) => {
           allReady,
           anyReadyToServe,
           anyUnready,
+          globallyClosed,
+          isCancelled,
           isPending,
           isPreparing,
           isCompletedForStation,
@@ -242,7 +325,7 @@ const KitchenPage = ({ station = 'FOOD' }) => {
     [stationOrderMeta]
   );
   const activeOrders = useMemo(
-    () => stationOrderMeta.filter((x) => !x.stationMeta.isCompletedForStation),
+    () => stationOrderMeta.filter((x) => !x.stationMeta.globallyClosed && !x.stationMeta.isCompletedForStation),
     [stationOrderMeta]
   );
 
@@ -347,31 +430,25 @@ const KitchenPage = ({ station = 'FOOD' }) => {
         </Panel>
       </div>
 
-      <Panel title="Recently Completed Orders" subtitle="Most recent completed tickets">
-        <div className="space-y-2">
+      <Panel
+        title={`Recently Completed Orders (${completedOrders.length})`}
+        subtitle={`Latest ${config.stationLabel.toLowerCase()} tickets, newest first`}
+        right={completedOrders.length ? (
+          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+            Latest {completedOrders.length} ticket{completedOrders.length === 1 ? '' : 's'} · up to 12 shown
+          </span>
+        ) : null}
+      >
+        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
           {completedOrders.map((order) => (
-            <article key={order._id} className="rounded-xl border border-emerald-200 bg-emerald-50 p-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <p className="text-sm font-semibold text-emerald-900">{order.orderNumber}</p>
-                  <p className="text-xs text-emerald-800">
-                    {order.orderType} {order.table?.tableNumber ? `- ${order.table.tableNumber}` : ''}
-                  </p>
-                  <p className="mt-1 text-xs text-emerald-900">
-                    Items: {order.stationMeta.completedItems.length
-                      ? order.stationMeta.completedItems.map((item) => `${item.servedQuantity}/${item.quantity} ${item.name}`).join(', ')
-                      : order.items.map((item) => `${item.quantity} ${item.name}`).join(', ')}
-                  </p>
-                </div>
-                <StatusBadge value="COMPLETED" />
-              </div>
-              <p className="mt-1 text-xs text-emerald-800">
-                Completed: {formatDateTime(order.updatedAt || order.createdAt)} ({orderAgeLabel(order.updatedAt || order.createdAt)})
-              </p>
-            </article>
+            <CompletedOrderCard key={order._id} order={order} stationLabel={config.stationLabel} />
           ))}
           {!completedOrders.length ? (
-            <p className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-800">No completed orders yet.</p>
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center lg:col-span-2 xl:col-span-3 2xl:col-span-5">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">✓</div>
+              <p className="mt-3 text-sm font-bold text-slate-700">No completed {config.stationLabel.toLowerCase()} orders yet</p>
+              <p className="mt-1 text-xs text-slate-500">Finished tickets will appear here automatically.</p>
+            </div>
           ) : null}
         </div>
       </Panel>

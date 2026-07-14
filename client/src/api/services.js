@@ -73,6 +73,7 @@ export const orderService = {
   create: async (payload) => unwrap(await api.post('/orders', payload)),
   updateItems: async (id, payload) => unwrap(await api.patch(`/orders/${id}/items`, payload)),
   updateStatus: async (id, status, extra = {}) => unwrap(await api.patch(`/orders/${id}/status`, { status, ...extra })),
+  cancelItems: async (id, items, reason) => unwrap(await api.patch(`/orders/${id}/cancel-items`, { items, reason })),
   cancel: async (id, reason) => unwrap(await api.patch(`/orders/${id}/cancel`, { reason })),
   printStationTickets: async (id, payload) => unwrap(await api.post(`/orders/${id}/print-station-tickets`, payload)),
   printAddedItems: async (id, payload) => unwrap(await api.post(`/orders/${id}/print-added-items`, payload)),

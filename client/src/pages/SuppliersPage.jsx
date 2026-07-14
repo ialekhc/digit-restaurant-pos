@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supplierService } from '../api/services';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -26,6 +27,8 @@ const SuppliersPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load);
 
   const submit = async (e) => {
     e.preventDefault();

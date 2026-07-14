@@ -5,6 +5,7 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { formatDateTime } from '../utils/format';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const todayInputValue = () => {
   const today = new Date();
@@ -27,8 +28,8 @@ const RegisterDashboardPage = () => {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState('');
 
-  const load = async () => {
-    setLoading(true);
+  const load = async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError('');
     try {
       const data = await paymentService.list({ date: selectedDate });
@@ -43,6 +44,8 @@ const RegisterDashboardPage = () => {
   useEffect(() => {
     load();
   }, [selectedDate]);
+
+  useAutoRefresh(() => load(false));
 
   const stats = useMemo(() => {
     const totalPayments = payments.reduce((sum, payment) => sum + Number(payment.amountPaid || 0), 0);

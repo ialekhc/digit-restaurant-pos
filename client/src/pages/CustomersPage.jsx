@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { customerService } from '../api/services';
+import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import Panel from '../components/ui/Panel';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
@@ -28,6 +29,8 @@ const CustomersPage = () => {
   useEffect(() => {
     load();
   }, []);
+
+  useAutoRefresh(load);
 
   const submit = async (e) => {
     e.preventDefault();
