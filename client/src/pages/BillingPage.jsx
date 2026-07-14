@@ -9,7 +9,7 @@ import { useAuth } from '../hooks/useAuth';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
-import { downloadReceiptPdf } from '../utils/receiptPdf';
+import { downloadReceiptPdf, openReceiptPdfTab } from '../utils/receiptPdf';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -498,36 +498,18 @@ const BillingPage = () => {
     }
   }, [paymentMethodOptions, paymentMethod]);
 
-  const printReceipt = (payment) => {
+  const printReceipt = async (payment) => {
     setError('');
     if (!payment) {
       setError('No receipt available to print');
       return;
     }
 
-    const popup = window.open('', '_blank', 'width=420,height=760');
-    if (!popup) {
-      setError('Please allow pop-ups to print receipt');
-      return;
+    try {
+      await openReceiptPdfTab(payment, user?.name || 'Cashier');
+    } catch (err) {
+      setError(err.message || 'Unable to open receipt PDF');
     }
-
-    let printed = false;
-    const doPrint = () => {
-      if (printed) return;
-      printed = true;
-      fitReceiptToSinglePrintPage(popup);
-      popup.setTimeout(() => {
-        popup.focus();
-        popup.print();
-        popup.close();
-      }, 50);
-    };
-
-    popup.document.open();
-    popup.document.write(buildReceiptHtml(payment, user?.name || 'Cashier'));
-    popup.document.close();
-    popup.onload = doPrint;
-    setTimeout(doPrint, 500);
   };
 
   const getPrintablePayment = (payment) => {
@@ -569,10 +551,10 @@ const BillingPage = () => {
     return payment;
   };
 
-  const printPaymentReceipt = (payment) => {
+  const printPaymentReceipt = async (payment) => {
     const printablePayment = getPrintablePayment(payment);
     setReceiptPayment(printablePayment);
-    printReceipt(printablePayment);
+    await printReceipt(printablePayment);
   };
 
   const downloadPaymentReceiptPdf = async (payment) => {

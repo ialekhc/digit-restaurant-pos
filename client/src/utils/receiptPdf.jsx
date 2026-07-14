@@ -6,30 +6,42 @@ const safe = (value, fallback = '-') => String((value ?? fallback) || '').trim()
 
 const styles = StyleSheet.create({
   page: {
-    padding: 8,
-    fontSize: 8,
-    fontFamily: 'Courier',
+    padding: 7,
+    fontSize: 7.4,
+    fontFamily: 'Helvetica',
     color: '#111827',
     backgroundColor: '#ffffff'
   },
   center: { textAlign: 'center' },
-  title: { fontSize: 12, fontWeight: 'bold', marginBottom: 2, textAlign: 'center' },
-  subtitle: { fontSize: 9, marginBottom: 2, textAlign: 'center', color: '#374151' },
-  muted: { fontSize: 7, color: '#4b5563', textAlign: 'center', marginBottom: 1 },
-  divider: { borderTopWidth: 1, borderTopColor: '#9ca3af', borderStyle: 'dashed', marginVertical: 5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 3 },
+  title: { fontSize: 11.5, fontWeight: 'bold', marginBottom: 2, textAlign: 'center' },
+  subtitle: { fontSize: 8.2, marginBottom: 2, textAlign: 'center', color: '#374151' },
+  muted: { fontSize: 6.7, color: '#4b5563', textAlign: 'center', marginBottom: 1 },
+  divider: { borderTopWidth: 0.8, borderTopColor: '#9ca3af', borderStyle: 'dashed', marginVertical: 4 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 2.5 },
   rowLabel: { width: '38%' },
   rowValue: { width: '62%', textAlign: 'right' },
-  tableHeader: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: '#d1d5db', paddingBottom: 3, marginBottom: 3 },
-  tableRow: { flexDirection: 'row', borderBottomWidth: 0.5, borderBottomColor: '#e5e7eb', paddingVertical: 3 },
-  colIndex: { width: '8%' },
-  colItem: { width: '40%' },
-  colQty: { width: '12%', textAlign: 'right' },
-  colPrice: { width: '20%', textAlign: 'right' },
-  colTotal: { width: '20%', textAlign: 'right' },
+  tableHeader: {
+    flexDirection: 'row',
+    borderBottomWidth: 0.8,
+    borderBottomColor: '#d1d5db',
+    paddingBottom: 3,
+    marginBottom: 2
+  },
+  itemBlock: {
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#e5e7eb',
+    paddingVertical: 3
+  },
+  itemMainRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  itemMetaRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 1.5, paddingLeft: 12 },
+  colIndex: { width: 12, paddingRight: 2 },
+  colItem: { flexGrow: 1, flexShrink: 1, paddingRight: 4 },
+  colAmount: { width: 44, textAlign: 'right' },
+  itemName: { fontSize: 7.6, lineHeight: 1.25 },
+  itemMeta: { fontSize: 6.6, color: '#4b5563' },
   bold: { fontWeight: 'bold' },
-  total: { fontSize: 9, fontWeight: 'bold' },
-  footer: { textAlign: 'center', fontSize: 8, color: '#4b5563', marginTop: 5 }
+  total: { fontSize: 8.4, fontWeight: 'bold' },
+  footer: { textAlign: 'center', fontSize: 7.2, color: '#4b5563', marginTop: 5 }
 });
 
 const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
@@ -67,20 +79,23 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
         <View style={styles.tableHeader}>
           <Text style={[styles.colIndex, styles.bold]}>#</Text>
           <Text style={[styles.colItem, styles.bold]}>Item</Text>
-          <Text style={[styles.colQty, styles.bold]}>Qty</Text>
-          <Text style={[styles.colPrice, styles.bold]}>Price</Text>
-          <Text style={[styles.colTotal, styles.bold]}>Total</Text>
+          <Text style={[styles.colAmount, styles.bold]}>Amount</Text>
         </View>
         {items.length ? items.map((item, index) => {
           const qty = Number(item.quantity || 0);
           const price = Number(item.price || 0);
+          const lineTotal = qty * price;
           return (
-            <View key={`${item._id || item.name}-${index}`} style={styles.tableRow} wrap={false}>
-              <Text style={styles.colIndex}>{index + 1}</Text>
-              <Text style={styles.colItem}>{safe(item.name)}</Text>
-              <Text style={styles.colQty}>{qty}</Text>
-              <Text style={styles.colPrice}>{price.toFixed(2)}</Text>
-              <Text style={styles.colTotal}>{(qty * price).toFixed(2)}</Text>
+            <View key={`${item._id || item.name}-${index}`} style={styles.itemBlock} wrap={false}>
+              <View style={styles.itemMainRow}>
+                <Text style={styles.colIndex}>{index + 1}</Text>
+                <Text style={[styles.colItem, styles.itemName]}>{safe(item.name)}</Text>
+                <Text style={styles.colAmount}>{lineTotal.toFixed(2)}</Text>
+              </View>
+              <View style={styles.itemMetaRow}>
+                <Text style={styles.itemMeta}>Qty {qty} x {money(price)}</Text>
+                <Text style={styles.itemMeta}>Unit price</Text>
+              </View>
             </View>
           );
         }) : (
@@ -105,9 +120,35 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
   );
 };
 
+export const createReceiptPdfBlob = async (payment, cashierName = '') => {
+  if (!payment) throw new Error('No receipt available to download');
+  return pdf(<ReceiptPdfDocument payment={payment} cashierName={cashierName} />).toBlob();
+};
+
+export const openReceiptPdfTab = async (payment, cashierName = '') => {
+  if (!payment) throw new Error('No receipt available to print');
+
+  const tab = window.open('', '_blank');
+  if (!tab) throw new Error('Please allow pop-ups to open receipt PDF');
+
+  tab.document.write('<!doctype html><title>Preparing receipt...</title><p style="font-family:Arial;padding:16px;">Preparing receipt PDF...</p>');
+  tab.document.close();
+
+  try {
+    const blob = await createReceiptPdfBlob(payment, cashierName);
+    const url = URL.createObjectURL(blob);
+    tab.location.href = url;
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return true;
+  } catch (error) {
+    tab.close();
+    throw error;
+  }
+};
+
 export const downloadReceiptPdf = async (payment, cashierName = '') => {
   if (!payment) throw new Error('No receipt available to download');
-  const blob = await pdf(<ReceiptPdfDocument payment={payment} cashierName={cashierName} />).toBlob();
+  const blob = await createReceiptPdfBlob(payment, cashierName);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   const bill = safe(payment.billNumber, 'receipt').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();
