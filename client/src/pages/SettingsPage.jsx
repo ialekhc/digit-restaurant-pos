@@ -239,7 +239,7 @@ const SettingsPage = () => {
 
       <Panel title="Printer Settings" subtitle="Configure one printer route for Kitchen, Bar, Smoke, and Counter receipts">
         <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
-          <div className="rounded-2xl border border-orange-100 bg-white/80 p-4">
+          <div className="rounded-2xl border border-brand-100 bg-white/80 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <Input label="Printer Name" value={printerForm.name} onChange={(e) => setPrinterForm((p) => ({ ...p, name: e.target.value }))} />
               <Select label="Purpose" value={printerForm.purpose} onChange={(e) => setPrinterForm((p) => ({ ...p, purpose: e.target.value }))} options={printerPurposes} />
@@ -275,7 +275,7 @@ const SettingsPage = () => {
               const printer = printers.find((row) => row.purpose === purpose.value);
               const configured = Boolean(printer);
               return (
-                <div key={purpose.value} className="rounded-2xl border border-orange-100 bg-white/85 p-4 shadow-sm">
+                <div key={purpose.value} className="rounded-2xl border border-brand-100 bg-white/85 p-4 shadow-sm">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-bold text-slate-900">{purpose.label}</p>

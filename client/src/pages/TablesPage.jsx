@@ -35,7 +35,7 @@ const statusRowClass = {
 
 const statusAccentClass = {
   AVAILABLE: 'from-emerald-500 to-teal-400',
-  OCCUPIED: 'from-amber-500 to-orange-400',
+  OCCUPIED: 'from-amber-500 to-yellow-400',
   RESERVED: 'from-sky-500 to-blue-400',
   Unavailable: 'from-cyan-500 to-teal-300'
 };
@@ -431,9 +431,9 @@ const TablesPage = () => {
         </div>
 
         {canTransferTables ? (
-          <div className="mb-4 rounded-2xl border border-orange-200 bg-orange-50 p-4">
-            <h4 className="text-sm font-semibold text-orange-900">Transfer Table</h4>
-            <p className="mt-1 text-xs text-orange-800">
+          <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
+            <h4 className="text-sm font-semibold text-brand-900">Transfer Table</h4>
+            <p className="mt-1 text-xs text-brand-800">
               Choose particular food, drink, or smoke items—or select all items—to move between tables.
             </p>
             <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -495,17 +495,17 @@ const TablesPage = () => {
             </div>
 
             {sourceTableForTransfer ? (
-              <div className="mt-3 rounded-xl border border-orange-200 bg-white/80 p-3">
+              <div className="mt-3 rounded-xl border border-brand-200 bg-white/80 p-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-xs text-orange-900">
+                  <p className="text-xs text-brand-900">
                     Source table: <span className="font-semibold">{sourceTableForTransfer.tableNumber}</span>.{' '}
                     <span className="font-semibold">{selectedTransferQuantity}</span> of{' '}
                     <span className="font-semibold">{sourceTotalQuantity}</span> unit(s) selected.
                   </p>
-                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-orange-900">
+                  <label className="flex cursor-pointer items-center gap-2 text-xs font-semibold text-brand-900">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-300"
+                      className="h-4 w-4 rounded border-brand-300 text-brand-600 focus:ring-brand-300"
                       checked={allSourceItemsSelected}
                       onChange={(e) => {
                         setTransferItemQuantities(
@@ -543,14 +543,14 @@ const TablesPage = () => {
                               key={item._id}
                               className={`flex cursor-pointer gap-3 rounded-lg border p-3 transition ${
                                 selected
-                                  ? 'border-orange-400 bg-orange-50'
-                                  : 'border-slate-200 bg-white hover:border-orange-200'
+                                  ? 'border-brand-400 bg-brand-50'
+                                  : 'border-slate-200 bg-white hover:border-brand-200'
                               }`}
                             >
                               <label className="flex min-w-0 flex-1 cursor-pointer gap-3">
                                 <input
                                   type="checkbox"
-                                  className="mt-0.5 h-4 w-4 rounded border-orange-300 text-orange-600 focus:ring-orange-300"
+                                  className="mt-0.5 h-4 w-4 rounded border-brand-300 text-brand-600 focus:ring-brand-300"
                                   checked={selected}
                                   onChange={(e) => {
                                     setTransferItemQuantities((current) => ({
@@ -570,7 +570,7 @@ const TablesPage = () => {
                                 </span>
                               </label>
                               {selected ? (
-                                <label className="w-20 text-[11px] font-semibold text-orange-900">
+                                <label className="w-20 text-[11px] font-semibold text-brand-900">
                                   Move qty
                                   <input
                                     type="number"
@@ -585,7 +585,7 @@ const TablesPage = () => {
                                       setTransferMessage('');
                                       setTransferError('');
                                     }}
-                                    className="mt-1 w-full rounded-lg border border-orange-200 bg-white px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+                                    className="mt-1 w-full rounded-lg border border-brand-200 bg-white px-2 py-1.5 text-sm text-slate-800 outline-none focus:border-brand-400 focus:ring-2 focus:ring-brand-100"
                                     aria-label={`Transfer quantity for ${item.name}`}
                                   />
                                 </label>
@@ -626,7 +626,7 @@ const TablesPage = () => {
                       <div className="flex gap-1.5">
                         <button
                           type="button"
-                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-orange-200 bg-orange-50 text-orange-700 transition hover:bg-orange-100"
+                          className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-brand-200 bg-brand-50 text-brand-700 transition hover:bg-brand-100"
                           title={`Edit ${item.tableNumber}`}
                           aria-label={`Edit ${item.tableNumber}`}
                           onClick={() => editTable(item)}

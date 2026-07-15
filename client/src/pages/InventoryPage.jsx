@@ -257,7 +257,7 @@ const InventoryPage = () => {
       <Panel
         title="Expiring Stock"
         right={
-          <span className="rounded-full bg-orange-50 px-3 py-1 text-sm font-semibold text-orange-700">
+          <span className="rounded-full bg-brand-50 px-3 py-1 text-sm font-semibold text-brand-700">
             {expiringItems.length} {expiringItems.length === 1 ? 'item' : 'items'}
           </span>
         }
@@ -267,16 +267,16 @@ const InventoryPage = () => {
             {expiringItems.map((item) => (
               <article
                 key={item._id}
-                className="rounded-lg border-l-4 border-orange-500 bg-orange-50/70 px-4 py-3"
+                className="rounded-lg border-l-4 border-brand-500 bg-brand-50/70 px-4 py-3"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div>
                     <p className="text-base font-bold text-slate-900">{item.name}</p>
-                    <p className="mt-1 text-sm font-semibold text-orange-700">{item.expiryInfo.label}</p>
+                    <p className="mt-1 text-sm font-semibold text-brand-700">{item.expiryInfo.label}</p>
                   </div>
                   <div className="text-left sm:text-right">
                     <p className="text-sm text-slate-500">{item.category}</p>
-                    <p className="mt-1 text-sm font-bold text-orange-700">
+                    <p className="mt-1 text-sm font-bold text-brand-700">
                       Stock: {Number(item.quantity || 0).toFixed(2)} {item.unit}
                     </p>
                   </div>

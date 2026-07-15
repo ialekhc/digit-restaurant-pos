@@ -139,7 +139,7 @@ const CompletedOrderCard = ({ order, stationLabel }) => {
 
   return (
     <article className="group overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-emerald-200 hover:shadow-md">
-      <div className="h-1 bg-gradient-to-r from-emerald-400 via-teal-400 to-cyan-400" />
+      <div className="h-1 bg-gradient-to-r from-brand-500 via-brand-300 to-secondary-900" />
       <div className="p-4">
         <header className="flex items-start justify-between gap-3">
           <div className="min-w-0">

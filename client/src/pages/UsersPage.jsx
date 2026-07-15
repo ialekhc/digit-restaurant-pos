@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -68,12 +68,33 @@ const vendorAdminRoleOptions = [
   value: x
 }));
 
+const sortOptions = [
+  { label: 'Name', value: 'name' },
+  { label: 'Email', value: 'email' },
+  { label: 'Role', value: 'role' },
+  { label: 'Vendor', value: 'vendor' },
+  { label: 'Status', value: 'status' },
+  { label: 'Created Date', value: 'createdAt' }
+];
+
+const getVendorLabel = (item) =>
+  item.vendor?.vendorName || (item.restaurantId ? `Vendor ${String(item.restaurantId).slice(0, 6)}` : '-');
+
+const normalizeSortValue = (item, key) => {
+  if (key === 'vendor') return getVendorLabel(item).toLowerCase();
+  if (key === 'status') return item.isActive ? 'active' : 'inactive';
+  if (key === 'createdAt') return new Date(item.createdAt || 0).getTime();
+  return String(item[key] || '').toLowerCase();
+};
+
 const UsersPage = () => {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [vendors, setVendors] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [sortDirection, setSortDirection] = useState('desc');
   const [editing, setEditing] = useState(null);
   const [error, setError] = useState('');
   const isVendorOwner = user?.role === 'RESTAURANT_OWNER';
@@ -85,6 +106,23 @@ const UsersPage = () => {
     { label: 'Select vendor', value: '' },
     ...vendors.map((vendor) => ({ label: vendor.vendorName, value: vendor._id }))
   ];
+  const sortedUsers = useMemo(() => {
+    const direction = sortDirection === 'asc' ? 1 : -1;
+
+    return [...users].sort((a, b) => {
+      const aValue = normalizeSortValue(a, sortBy);
+      const bValue = normalizeSortValue(b, sortBy);
+
+      if (typeof aValue === 'number' && typeof bValue === 'number') {
+        return (aValue - bValue) * direction;
+      }
+
+      return String(aValue).localeCompare(String(bValue), undefined, {
+        numeric: true,
+        sensitivity: 'base'
+      }) * direction;
+    });
+  }, [users, sortBy, sortDirection]);
 
   const {
     register,
@@ -166,6 +204,34 @@ const UsersPage = () => {
     fetchUsers();
   };
 
+  const toggleSort = (key) => {
+    setSortBy((current) => {
+      if (current === key) {
+        setSortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'));
+        return current;
+      }
+
+      setSortDirection(key === 'createdAt' ? 'desc' : 'asc');
+      return key;
+    });
+  };
+
+  const sortIndicator = (key) => {
+    if (sortBy !== key) return 'Sort';
+    return sortDirection === 'asc' ? 'Asc' : 'Desc';
+  };
+
+  const SortHeader = ({ label, sortKey }) => (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 rounded-lg px-1 py-0.5 font-semibold text-slate-700 transition hover:bg-brand-50 hover:text-brand-700"
+      onClick={() => toggleSort(sortKey)}
+    >
+      <span>{label}</span>
+      <span className="text-[10px] uppercase tracking-wide text-slate-400">{sortIndicator(sortKey)}</span>
+    </button>
+  );
+
   if (loading) return <Loader text="Loading users..." />;
 
   return (
@@ -173,17 +239,17 @@ const UsersPage = () => {
       {isVendorOwner ? (
         <div className="grid gap-3 md:grid-cols-3">
           <div className="app-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Vendor</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Vendor</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{vendorName}</p>
             <p className="text-xs text-slate-500">Only users from this vendor are shown here.</p>
           </div>
           <div className="app-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Total Users</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Total Users</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{users.length} / 20</p>
             <p className="text-xs text-slate-500">Vendor account limit includes owner and staff.</p>
           </div>
           <div className="app-card p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-orange-600">Active Users</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Active Users</p>
             <p className="mt-1 text-xl font-bold text-slate-800">{activeUserCount}</p>
             <p className="text-xs text-slate-500">Users currently enabled for login.</p>
           </div>
@@ -235,8 +301,25 @@ const UsersPage = () => {
         title={isVendorOwner ? 'My Vendor Users' : 'User List'}
         subtitle={isVendorOwner ? 'This list is scoped to your vendor account only' : 'View users and their vendor ownership'}
         right={
-          <div className="flex gap-2">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
             <Input placeholder="Search users" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <Select
+              label="Sort By"
+              value={sortBy}
+              options={sortOptions}
+              onChange={(e) => setSortBy(e.target.value)}
+              className="min-w-36"
+            />
+            <Select
+              label="Order"
+              value={sortDirection}
+              options={[
+                { label: 'Ascending', value: 'asc' },
+                { label: 'Descending', value: 'desc' }
+              ]}
+              onChange={(e) => setSortDirection(e.target.value)}
+              className="min-w-36"
+            />
             <Button type="button" onClick={fetchUsers}>Search</Button>
           </div>
         }
@@ -245,23 +328,23 @@ const UsersPage = () => {
           <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">
               <tr>
-                <th className="px-3 py-2">Name</th>
-                <th className="px-3 py-2">Email</th>
-                <th className="px-3 py-2">Role</th>
-                <th className="px-3 py-2">Vendor</th>
+                <th className="px-3 py-2"><SortHeader label="Name" sortKey="name" /></th>
+                <th className="px-3 py-2"><SortHeader label="Email" sortKey="email" /></th>
+                <th className="px-3 py-2"><SortHeader label="Role" sortKey="role" /></th>
+                <th className="px-3 py-2"><SortHeader label="Vendor" sortKey="vendor" /></th>
                 <th className="px-3 py-2">Phone</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Created</th>
+                <th className="px-3 py-2"><SortHeader label="Status" sortKey="status" /></th>
+                <th className="px-3 py-2"><SortHeader label="Created" sortKey="createdAt" /></th>
                 <th className="px-3 py-2">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {users.map((item) => (
+              {sortedUsers.map((item) => (
                 <tr key={item._id} className="border-b border-slate-100">
                   <td className="px-3 py-2 font-medium text-slate-800">{item.name}</td>
                   <td className="px-3 py-2">{item.email}</td>
                   <td className="px-3 py-2">{item.role}</td>
-                  <td className="px-3 py-2">{item.vendor?.vendorName || (item.restaurantId ? `Vendor ${String(item.restaurantId).slice(0, 6)}` : '-')}</td>
+                  <td className="px-3 py-2">{getVendorLabel(item)}</td>
                   <td className="px-3 py-2">{item.phone || '-'}</td>
                   <td className="px-3 py-2">{item.isActive ? 'Active' : 'Inactive'}</td>
                   <td className="px-3 py-2">{formatDateTime(item.createdAt)}</td>
@@ -273,6 +356,13 @@ const UsersPage = () => {
                   </td>
                 </tr>
               ))}
+              {!sortedUsers.length ? (
+                <tr>
+                  <td className="px-3 py-6 text-center text-sm text-slate-500" colSpan={8}>
+                    No users found for the current search.
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
         </div>

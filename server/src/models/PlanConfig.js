@@ -7,6 +7,7 @@ export const PlanConfig = createPostgresModel('PlanConfig', {
     billingCycle: 'monthly',
     addons: [],
     currency: 'NPR',
-    profitMargin: '41.6%'
+    profitMargin: '41.6%',
+    customPlans: []
   }
 });

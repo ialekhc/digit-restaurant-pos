@@ -31,6 +31,7 @@ import SuperAdminVendorsPage from './pages/SuperAdminVendorsPage';
 import SuperAdminSubscriptionsPage from './pages/SuperAdminSubscriptionsPage';
 import SuperAdminPlansPage from './pages/SuperAdminPlansPage';
 import SuperAdminUsersPage from './pages/SuperAdminUsersPage';
+import SuperAdminSettingsPage from './pages/SuperAdminSettingsPage';
 import NotFoundPage from './pages/NotFoundPage';
 import { PERMISSIONS } from './utils/constants';
 
@@ -50,6 +51,7 @@ const App = () => {
             <Route path="/super-admin/subscriptions" element={<SuperAdminSubscriptionsPage />} />
             <Route path="/super-admin/plans" element={<SuperAdminPlansPage />} />
             <Route path="/super-admin/users" element={<SuperAdminUsersPage />} />
+            <Route path="/super-admin/settings" element={<SuperAdminSettingsPage />} />
           </Route>
 
           <Route element={<ProtectedRoute permission={PERMISSIONS.DASHBOARD_VIEW} />}>

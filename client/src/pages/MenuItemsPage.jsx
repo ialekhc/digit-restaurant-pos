@@ -311,7 +311,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
 
       <Panel
         title={editingId ? config.editTitle : config.createTitle}
-        right={<span className="rounded-full bg-orange-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-orange-700">{config.badgeText}</span>}
+        right={<span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-brand-700">{config.badgeText}</span>}
       >
         <form className="grid gap-3 md:grid-cols-2 lg:grid-cols-3" onSubmit={submit}>
           <Input label="Name" value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} />

@@ -143,15 +143,23 @@ const OrdersPage = () => {
     const hiddenCount = Math.max(0, order.items.length - 3);
 
     return (
-      <ul className={compact ? 'mt-2 space-y-1 text-sm' : 'space-y-1'}>
+      <ul className={compact ? 'mt-3 space-y-2 text-sm' : 'min-w-[320px] space-y-2'}>
         {visibleItems.map((item, i) => {
           const ready = Number(item.readyQuantity || 0);
           const served = Number(item.servedQuantity || 0);
           return (
-            <li key={`${item.name}-${i}`}>
-              {item.quantity} x {item.name}
-              <span className="ml-1 text-xs text-slate-500">
-                (R {ready}/{item.quantity}, {order.orderType === 'TAKEAWAY' ? 'P' : 'S'} {served}/{item.quantity})
+            <li
+              key={`${item.name}-${i}`}
+              className="flex items-start justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/80 px-3 py-2"
+            >
+              <span className="min-w-0 text-slate-800">
+                <span className="mr-2 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-white px-2 text-xs font-bold text-slate-700 shadow-sm">
+                  {item.quantity}x
+                </span>
+                <span className="font-semibold">{item.name}</span>
+              </span>
+              <span className="shrink-0 whitespace-nowrap text-xs font-semibold text-slate-500">
+                R {ready}/{item.quantity} · {order.orderType === 'TAKEAWAY' ? 'P' : 'S'} {served}/{item.quantity}
               </span>
             </li>
           );
@@ -160,7 +168,7 @@ const OrdersPage = () => {
           <li>
             <button
               type="button"
-              className="text-xs font-semibold text-sky-700 hover:text-sky-900"
+              className="rounded-full bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-700 hover:bg-sky-100 hover:text-sky-900"
               onClick={() => setExpandedItemsByOrder((prev) => ({ ...prev, [order._id]: true }))}
             >
               +{hiddenCount} more
@@ -171,7 +179,7 @@ const OrdersPage = () => {
           <li>
             <button
               type="button"
-              className="text-xs font-semibold text-slate-600 hover:text-slate-800"
+              className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 hover:bg-slate-200 hover:text-slate-800"
               onClick={() => setExpandedItemsByOrder((prev) => ({ ...prev, [order._id]: false }))}
             >
               Show less
@@ -182,9 +190,72 @@ const OrdersPage = () => {
     );
   };
 
+  const orderStats = useMemo(() => {
+    const activeStatuses = new Set(['PENDING', 'CONFIRMED', 'PREPARING', 'READY', 'SERVED']);
+    return {
+      total: orders.length,
+      active: orders.filter((order) => activeStatuses.has(order.status)).length,
+      completed: orders.filter((order) => order.status === 'COMPLETED').length,
+      cancelled: orders.filter((order) => order.status === 'CANCELLED').length,
+      revenue: orders
+        .filter((order) => order.status !== 'CANCELLED')
+        .reduce((sum, order) => sum + Number(order.total || 0), 0)
+    };
+  }, [orders]);
+
+  const renderOrderActions = (order, compact = false) => (
+    <div className={compact ? 'mt-4 grid grid-cols-2 gap-2' : 'flex flex-col gap-2 xl:flex-row xl:flex-wrap'}>
+      <Button
+        variant="secondary"
+        size="sm"
+        className={compact ? 'min-h-11' : 'whitespace-nowrap'}
+        onClick={() => printStationTickets(order)}
+      >
+        Print Tickets
+      </Button>
+      {getAllowedActions(order).canServe ? (
+        <Button
+          variant="success"
+          size="sm"
+          className={compact ? 'min-h-11' : 'whitespace-nowrap'}
+          onClick={() => runOrderAction(async () => {
+            const itemIndex = order.items.findIndex(
+              (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
+            );
+            if (itemIndex < 0) return;
+            await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
+          })}
+        >
+          {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
+        </Button>
+      ) : null}
+      {getAllowedActions(order).canCancel ? (
+        <Button
+          variant="danger"
+          size="sm"
+          className={compact ? 'col-span-2 min-h-11' : 'whitespace-nowrap'}
+          onClick={() => openCancellation(order)}
+        >
+          Cancel
+        </Button>
+      ) : null}
+    </div>
+  );
+
   return (
     <div className="space-y-5">
-      <Panel title="Order Filters">
+      <Panel
+        title="Find Orders"
+        subtitle="Search by order, table, status, or service type."
+        right={
+          <Link
+            to="/orders/create"
+            className="inline-flex min-h-10 items-center justify-center rounded-xl bg-gradient-to-r from-brand-500 to-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-brand-200/70 transition hover:from-brand-600 hover:to-brand-700"
+          >
+            New Order
+          </Link>
+        }
+      >
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <Input
             label="Search"
@@ -215,7 +286,7 @@ const OrdersPage = () => {
           />
           <div className="flex items-end">
             <Button
-              className="w-full"
+              className="min-h-11 w-full"
               onClick={async () => {
                 const params = new URLSearchParams();
                 if (filters.table) {
@@ -232,7 +303,25 @@ const OrdersPage = () => {
         </div>
       </Panel>
 
-      <Panel title="Orders">
+      <Panel
+        title="Orders"
+        subtitle="Live order history with station ticket reprint and service actions."
+        right={
+          <div className="grid grid-cols-2 gap-2 text-right sm:flex sm:flex-wrap sm:justify-end">
+            {[
+              ['Total', orderStats.total, 'bg-slate-50 text-slate-800'],
+              ['Active', orderStats.active, 'bg-amber-50 text-amber-800'],
+              ['Completed', orderStats.completed, 'bg-emerald-50 text-emerald-800'],
+              ['Sales', currency(orderStats.revenue), 'bg-cyan-50 text-cyan-800']
+            ].map(([label, value, tone]) => (
+              <div key={label} className={`rounded-2xl border border-white px-4 py-2 shadow-sm ${tone}`}>
+                <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">{label}</p>
+                <p className="text-base font-extrabold">{value}</p>
+              </div>
+            ))}
+          </div>
+        }
+      >
         {actionError ? (
           <div className="mb-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700">
             {actionError}
@@ -265,132 +354,105 @@ const OrdersPage = () => {
           </div>
         ) : null}
 
-        <div className="hidden overflow-x-auto md:block">
-          <table className="table-ui">
-            <thead className="bg-slate-100 text-left text-slate-600">
+        <div className="hidden overflow-hidden rounded-2xl border border-brand-100 bg-white shadow-sm md:block">
+          <div className="overflow-x-auto">
+          <table className="w-full min-w-[1280px] text-sm">
+            <colgroup>
+              <col className="w-[13%]" />
+              <col className="w-[8%]" />
+              <col className="w-[13%]" />
+              <col className="w-[30%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+              <col className="w-[11%]" />
+              <col className="w-[5%]" />
+            </colgroup>
+            <thead className="bg-gradient-to-r from-brand-50 via-white to-secondary-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-3 py-2">Order #</th>
-                <th className="px-3 py-2">Type</th>
-                <th className="px-3 py-2">Table</th>
-                <th className="px-3 py-2">Attended By</th>
-                <th className="px-3 py-2">Items</th>
-                <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2">Status</th>
-                <th className="px-3 py-2">Created</th>
-                <th className="px-3 py-2">Actions</th>
+                <th className="px-4 py-4">Order</th>
+                <th className="px-4 py-4">Service</th>
+                <th className="px-4 py-4">Attended By</th>
+                <th className="px-4 py-4">Ordered Items</th>
+                <th className="px-4 py-4 text-right">Total</th>
+                <th className="px-4 py-4">Status</th>
+                <th className="px-4 py-4">Created</th>
+                <th className="px-4 py-4 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-brand-100/70">
               {orders.map((order) => (
-                <tr key={order._id} className="border-b border-slate-100 align-top">
-                  <td className="px-3 py-2 font-semibold">{order.orderNumber}</td>
-                  <td className="px-3 py-2">{order.orderType}</td>
-                  <td className="px-3 py-2">{order.table?.tableNumber || '-'}</td>
-                  <td className="px-3 py-2">{attendedByLabel(order)}</td>
-                  <td className="px-3 py-2">
+                <tr key={order._id} className="align-top transition hover:bg-brand-50/35">
+                  <td className="px-4 py-4">
+                    <p className="font-display text-base font-bold text-slate-900">{order.orderNumber}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {order.items.length} item{order.items.length === 1 ? '' : 's'}
+                    </p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="space-y-2">
+                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-700">
+                        {order.orderType.replaceAll('_', ' ')}
+                      </span>
+                      <p className="text-sm font-bold text-slate-900">{order.table?.tableNumber || 'No table'}</p>
+                    </div>
+                  </td>
+                  <td className="max-w-[220px] px-4 py-4">
+                    <p className="font-semibold text-slate-800">{attendedByLabel(order).replace(/\s\([^)]+\)$/, '')}</p>
+                    <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                      {order.createdBy?.role ? String(order.createdBy.role).replaceAll('_', ' ') : 'Staff'}
+                    </p>
+                  </td>
+                  <td className="px-4 py-4">
                     {renderItemProgress(order)}
                   </td>
-                  <td className="px-3 py-2">{currency(order.total)}</td>
-                  <td className="px-3 py-2">
+                  <td className="px-4 py-4 text-right">
+                    <p className="font-display text-base font-extrabold text-slate-900">{currency(order.total)}</p>
+                  </td>
+                  <td className="px-4 py-4">
                     <StatusBadge value={order.orderType === 'TAKEAWAY' && order.status === 'SERVED' ? 'PACKED' : order.status} />
                   </td>
-                  <td className="px-3 py-2">{formatDateTime(order.createdAt)}</td>
-                  <td className="px-3 py-2">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="secondary"
-                        className="px-2 py-1 text-xs"
-                        onClick={() => printStationTickets(order)}
-                      >
-                        Print Tickets
-                      </Button>
-                      {getAllowedActions(order).canServe ? (
-                        <Button
-                          variant="secondary"
-                          className="px-2 py-1 text-xs"
-                          onClick={() => runOrderAction(async () => {
-                            const itemIndex = order.items.findIndex(
-                              (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
-                            );
-                            if (itemIndex < 0) return;
-                            await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
-                          })}
-                        >
-                          {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
-                        </Button>
-                      ) : null}
-                      {getAllowedActions(order).canCancel ? (
-                        <Button
-                          variant="danger"
-                          className="px-2 py-1 text-xs"
-                          onClick={() => openCancellation(order)}
-                        >
-                          Cancel
-                        </Button>
-                      ) : null}
-                    </div>
+                  <td className="px-4 py-4">
+                    <p className="font-semibold text-slate-700">{formatDateTime(order.createdAt)}</p>
+                  </td>
+                  <td className="px-4 py-4">
+                    <div className="flex justify-end">{renderOrderActions(order)}</div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
           {!orders.length ? <p className="p-5 text-center text-sm text-slate-500">No orders found</p> : null}
         </div>
 
         <div className="space-y-3 md:hidden">
           {orders.map((order) => (
-            <article key={order._id} className="rounded-xl border border-slate-200 bg-white p-3">
+            <article key={order._id} className="rounded-2xl border border-brand-100 bg-white p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div>
-                  <p className="text-xs text-slate-500">{order.orderNumber}</p>
-                  <p className="text-sm font-semibold text-slate-800">
-                    {order.orderType} {order.table?.tableNumber ? `- ${order.table.tableNumber}` : ''}
+                  <p className="font-display text-base font-bold text-slate-900">{order.orderNumber}</p>
+                  <p className="mt-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    {order.orderType.replaceAll('_', ' ')} {order.table?.tableNumber ? `· ${order.table.tableNumber}` : ''}
                   </p>
                 </div>
                 <StatusBadge value={order.orderType === 'TAKEAWAY' && order.status === 'SERVED' ? 'PACKED' : order.status} />
               </div>
 
-              <div className="mt-2 text-sm text-slate-700">
-                <p>Attended By: {attendedByLabel(order)}</p>
-                <p>Total: {currency(order.total)}</p>
-                <p>Created: {formatDateTime(order.createdAt)}</p>
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <div className="rounded-xl bg-slate-50 p-3">
+                  <p className="text-xs font-bold uppercase text-slate-400">Attended</p>
+                  <p className="mt-1 font-semibold text-slate-800">{attendedByLabel(order)}</p>
+                </div>
+                <div className="rounded-xl bg-brand-50 p-3 text-right">
+                  <p className="text-xs font-bold uppercase text-brand-500">Total</p>
+                  <p className="mt-1 font-display text-lg font-extrabold text-brand-800">{currency(order.total)}</p>
+                </div>
               </div>
+              <p className="mt-2 text-xs font-medium text-slate-500">{formatDateTime(order.createdAt)}</p>
 
               {renderItemProgress(order, true)}
 
-              <div className="mt-3 flex flex-wrap gap-2">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  onClick={() => printStationTickets(order)}
-                >
-                  Print Tickets
-                </Button>
-                {getAllowedActions(order).canServe ? (
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    onClick={() => runOrderAction(async () => {
-                      const itemIndex = order.items.findIndex(
-                        (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
-                      );
-                      if (itemIndex < 0) return;
-                      await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
-                    })}
-                  >
-                    {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
-                  </Button>
-                ) : null}
-                {getAllowedActions(order).canCancel ? (
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    onClick={() => openCancellation(order)}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-              </div>
+              {renderOrderActions(order, true)}
             </article>
           ))}
           {!orders.length ? <p className="rounded-xl bg-white p-5 text-center text-sm text-slate-500">No orders found</p> : null}

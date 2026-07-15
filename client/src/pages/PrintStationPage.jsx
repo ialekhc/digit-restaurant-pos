@@ -16,7 +16,7 @@ const purposeOptions = [
 const stationBadge = {
   KITCHEN: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   BAR: 'bg-sky-100 text-sky-800 border-sky-200',
-  SMOKE: 'bg-orange-100 text-orange-800 border-orange-200',
+  SMOKE: 'bg-amber-100 text-amber-800 border-amber-200',
   COUNTER: 'bg-violet-100 text-violet-800 border-violet-200'
 };
 
@@ -105,7 +105,7 @@ const PrintStationPage = () => {
   };
 
   const renderJobCard = (job, showActions = true) => (
-    <div key={job._id} className="rounded-2xl border border-orange-100 bg-white/85 p-4 shadow-sm">
+    <div key={job._id} className="rounded-2xl border border-brand-100 bg-white/85 p-4 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-900">{job.documentType?.replaceAll('_', ' ')}</p>
@@ -147,7 +147,7 @@ const PrintStationPage = () => {
             <p className="mt-1 text-lg font-bold text-sky-950">{jobs.length}</p>
           </div>
           <Select label="Queue Filter" value={purpose} onChange={(e) => setPurpose(e.target.value)} options={purposeOptions} />
-          <label className="flex items-end gap-2 rounded-2xl border border-orange-100 bg-white/80 p-4 text-sm font-semibold text-slate-700">
+          <label className="flex items-end gap-2 rounded-2xl border border-brand-100 bg-white/80 p-4 text-sm font-semibold text-slate-700">
             <input type="checkbox" checked={autoProcess} onChange={(e) => setAutoProcess(e.target.checked)} />
             Auto process jobs
           </label>
@@ -158,12 +158,12 @@ const PrintStationPage = () => {
       <div className="grid gap-5 xl:grid-cols-2">
         <Panel title="Pending Jobs" subtitle="Jobs are claimed before printing to avoid duplicate processing.">
           <div className="space-y-3">
-            {jobs.length ? jobs.map((job) => renderJobCard(job)) : <p className="rounded-2xl border border-dashed border-orange-200 p-6 text-sm text-slate-500">No pending print jobs.</p>}
+            {jobs.length ? jobs.map((job) => renderJobCard(job)) : <p className="rounded-2xl border border-dashed border-brand-200 p-6 text-sm text-slate-500">No pending print jobs.</p>}
           </div>
         </Panel>
         <Panel title="Recent Print Results" subtitle="Local processing history for this print station session.">
           <div className="space-y-3">
-            {history.length ? history.map((job) => renderJobCard(job, false)) : <p className="rounded-2xl border border-dashed border-orange-200 p-6 text-sm text-slate-500">No jobs processed in this session.</p>}
+            {history.length ? history.map((job) => renderJobCard(job, false)) : <p className="rounded-2xl border border-dashed border-brand-200 p-6 text-sm text-slate-500">No jobs processed in this session.</p>}
           </div>
         </Panel>
       </div>

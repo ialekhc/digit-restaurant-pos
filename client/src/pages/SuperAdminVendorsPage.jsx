@@ -362,8 +362,8 @@ const SuperAdminVendorsPage = () => {
                   </tr>
                   {expandedVendorId === vendor._id ? (
                     <tr>
-                      <td colSpan={11} className="bg-orange-50/60">
-                        <div className="rounded-xl border border-orange-100 bg-white p-3">
+                      <td colSpan={11} className="bg-brand-50/60">
+                        <div className="rounded-xl border border-brand-100 bg-white p-3">
                           <p className="mb-2 text-sm font-semibold text-slate-800">Users in {vendor.vendorName}</p>
                           {vendor.users?.length ? (
                             <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
@@ -437,7 +437,7 @@ const SuperAdminVendorsPage = () => {
                 </Button>
               </div>
               {expandedVendorId === vendor._id ? (
-                <div className="mt-3 space-y-2 rounded-xl border border-orange-100 bg-orange-50/70 p-3">
+                <div className="mt-3 space-y-2 rounded-xl border border-brand-100 bg-brand-50/70 p-3">
                   {vendor.users?.length ? (
                     vendor.users.map((item) => (
                       <div key={item._id} className="rounded-lg border border-slate-200 bg-white p-3 text-xs">

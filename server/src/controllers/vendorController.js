@@ -1,10 +1,10 @@
 import { Vendor } from '../models/Vendor.js';
 import { User } from '../models/User.js';
-import { PLAN_CATALOG } from '../config/planCatalog.js';
 import { ROLES } from '../config/constants.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { ensureVendorUserLimitAvailable } from '../services/vendorUserLimitService.js';
+import { getPlanCatalog } from '../services/planService.js';
 
 const BILLING_CYCLES = ['monthly', 'semiAnnual', 'annual'];
 const SUBSCRIPTION_STATUSES = ['ACTIVE', 'PAUSED', 'EXPIRED', 'CANCELLED'];
@@ -177,11 +177,11 @@ const parseDateValue = (value, fieldName) => {
   return parsed;
 };
 
-const getPlanById = (planId) => PLAN_CATALOG.plans.find((plan) => plan.id === planId);
+const getPlanByIdFromCatalog = (catalog, planId) => catalog.plans.find((plan) => plan.id === planId);
 
-const validateAddons = (addons = []) => {
+const validateAddons = (catalog, addons = []) => {
   if (!Array.isArray(addons)) throw new ApiError(400, 'addons must be an array');
-  const allowed = new Set(PLAN_CATALOG.addons.map((addon) => addon.name));
+  const allowed = new Set(catalog.addons.map((addon) => addon.name));
   const invalid = addons.filter((addon) => !allowed.has(addon));
   if (invalid.length) {
     throw new ApiError(400, `Invalid addons: ${invalid.join(', ')}`);
@@ -195,16 +195,16 @@ const billingMultiplier = (cycle) => {
   return 1;
 };
 
-const resolveSubscriptionAmount = ({ planId, billingCycle, addons = [], amount }) => {
+const resolveSubscriptionAmount = ({ catalog, planId, billingCycle, addons = [], amount }) => {
   const amountNum = Number(amount);
   if (!Number.isNaN(amountNum) && amountNum >= 0) return amountNum;
 
-  const plan = getPlanById(planId);
+  const plan = getPlanByIdFromCatalog(catalog, planId);
   if (!plan) throw new ApiError(404, 'Plan not found');
 
   const planPrice = Number(plan.pricing?.[billingCycle] || 0);
   const addonMonthlyTotal = addons.reduce((sum, addonName) => {
-    const addon = PLAN_CATALOG.addons.find((row) => row.name === addonName);
+    const addon = catalog.addons.find((row) => row.name === addonName);
     return sum + Number(addon?.monthlyPrice || 0);
   }, 0);
 
@@ -227,13 +227,14 @@ const recalculateVendorPayments = (vendor) => {
   vendor.lastPaymentDate = Number.isNaN(latest.getTime()) ? undefined : latest;
 };
 
-const buildSubscriptionPayload = (body, existing = {}) => {
+const buildSubscriptionPayload = async (body, existing = {}) => {
+  const catalog = await getPlanCatalog();
   const planId = body.planId || existing.planId || 'STARTER';
   const billingCycle = body.billingCycle || existing.billingCycle || 'monthly';
   const status = body.status || existing.status || 'ACTIVE';
-  const addons = validateAddons(body.addons || existing.addons || []);
+  const addons = validateAddons(catalog, body.addons || existing.addons || []);
 
-  if (!getPlanById(planId)) {
+  if (!getPlanByIdFromCatalog(catalog, planId)) {
     throw new ApiError(404, 'Plan not found');
   }
   if (!BILLING_CYCLES.includes(billingCycle)) {
@@ -256,6 +257,7 @@ const buildSubscriptionPayload = (body, existing = {}) => {
   }
 
   const amount = resolveSubscriptionAmount({
+    catalog,
     planId,
     billingCycle,
     addons,
@@ -337,7 +339,7 @@ export const createVendor = asyncHandler(async (req, res) => {
   if (!vendorName) throw new ApiError(400, 'vendorName is required');
   const parsedLoginAccess = parseLoginPayload(loginAccess);
 
-  const subscriptionPayload = buildSubscriptionPayload(subscription, {});
+  const subscriptionPayload = await buildSubscriptionPayload(subscription, {});
 
   let vendor;
   let createdLoginUser = null;
@@ -417,7 +419,7 @@ export const updateVendorSubscription = asyncHandler(async (req, res) => {
   if (!vendor) throw new ApiError(404, 'Vendor not found');
 
   pushSubscriptionHistory(vendor, 'UPDATED', req.user?._id);
-  vendor.subscription = buildSubscriptionPayload(req.body, vendor.subscription || {});
+  vendor.subscription = await buildSubscriptionPayload(req.body, vendor.subscription || {});
   await vendor.save();
 
   const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);
@@ -443,7 +445,7 @@ export const updateVendorSubscriptionStatus = asyncHandler(async (req, res) => {
   }
 
   pushSubscriptionHistory(vendor, normalizedAction, req.user?._id);
-  vendor.subscription = buildSubscriptionPayload({ ...vendor.subscription, status: nextStatus }, vendor.subscription || {});
+  vendor.subscription = await buildSubscriptionPayload({ ...vendor.subscription, status: nextStatus }, vendor.subscription || {});
   await vendor.save();
 
   const [data] = await attachUsersToVendors([await findVendorByIdWithPopulate(vendor._id)]);

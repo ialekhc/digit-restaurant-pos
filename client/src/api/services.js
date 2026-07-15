@@ -147,6 +147,7 @@ export const reportService = {
 
 export const planService = {
   catalog: async () => unwrap(await api.get('/plans/catalog')),
+  updateCatalog: async (payload) => unwrap(await api.put('/plans/catalog', payload)),
   active: async () => unwrap(await api.get('/plans/active')),
   updateActive: async (payload) => unwrap(await api.put('/plans/active', payload))
 };
