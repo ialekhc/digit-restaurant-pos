@@ -1,4 +1,5 @@
 export const RECEIPT_SETTINGS_KEY = 'rms_receipt_settings';
+export const RECEIPT_SETTINGS_EVENT = 'rms_receipt_settings_updated';
 
 const defaultReceiptSettings = {
   businessName: 'Restaurant RMS',
@@ -28,6 +29,7 @@ export const getReceiptSettings = () => {
 export const saveReceiptSettings = (settings) => {
   const normalized = normalizeSettings(settings);
   localStorage.setItem(RECEIPT_SETTINGS_KEY, JSON.stringify(normalized));
+  window.dispatchEvent(new CustomEvent(RECEIPT_SETTINGS_EVENT, { detail: normalized }));
   return normalized;
 };
 

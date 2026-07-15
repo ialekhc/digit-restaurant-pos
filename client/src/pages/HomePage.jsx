@@ -34,21 +34,19 @@ const workflow = [
 
 const HomePage = () => {
   return (
-    <div className="min-h-screen bg-[#fffef8] text-slate-950">
+    <div className="min-h-screen bg-[#fbfaf8] text-slate-950">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute -left-32 -top-32 h-96 w-96 rounded-full bg-brand-200/60 blur-3xl" />
-        <div className="absolute right-[-10rem] top-24 h-[30rem] w-[30rem] rounded-full bg-aqua-100/80 blur-3xl" />
-        <div className="absolute bottom-[-12rem] left-1/4 h-[30rem] w-[30rem] rounded-full bg-aqua-100 blur-3xl" />
+        <div className="absolute right-[-10rem] top-24 h-[30rem] w-[30rem] rounded-full bg-secondary-100/80 blur-3xl" />
+        <div className="absolute bottom-[-12rem] left-1/4 h-[30rem] w-[30rem] rounded-full bg-secondary-100 blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-40 border-b border-brand-100/80 bg-[#fffef8]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-brand-100/80 bg-[#fbfaf8]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <a href="#top" className="flex items-center gap-3">
-            <span className="grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-brand-600 to-aqua-500 text-sm font-black text-white shadow-lg shadow-brand-200">
-              DP
-            </span>
+            <img src="/digit-nepal/mark-light.png" alt="Digit Nepal" className="h-11 w-11 rounded-2xl object-cover shadow-lg shadow-brand-100 ring-1 ring-brand-100" />
             <span>
-              <span className="block font-display text-base font-extrabold leading-4">Digit Restaurant POS</span>
+              <span className="block font-display text-base font-extrabold leading-4">Digit Restaurant Management System</span>
               <span className="text-xs font-bold text-brand-700">Restaurant Subscription Cloud</span>
             </span>
           </a>
@@ -79,15 +77,14 @@ const HomePage = () => {
               Manage restaurants, vendors, subscriptions, sales, kitchen, and inventory from one platform.
             </h1>
             <p className="mt-5 max-w-3xl text-base font-semibold leading-7 text-slate-600 sm:text-lg">
-              Digit Restaurant POS is a practical MERN/Postgres restaurant management system for teams that need fast
-              table service, clean NPR billing, kitchen visibility, inventory control, and SaaS-style vendor
-              subscription management.
+              Digit Restaurant Management System is a practical platform for teams that need fast table service, clean
+              NPR billing, kitchen visibility, inventory control, and SaaS-style vendor subscription management.
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row">
               <Link
                 to="/login"
-                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-brand-700 to-aqua-500 px-6 text-sm font-black text-white shadow-xl shadow-brand-200 transition hover:scale-[1.01]"
+                className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-brand-700 to-secondary-500 px-6 text-sm font-black text-white shadow-xl shadow-brand-200 transition hover:scale-[1.01]"
               >
                 Login to workspace
               </Link>
@@ -211,7 +208,7 @@ const HomePage = () => {
         </section>
 
         <section id="contact" className="mt-8 grid gap-5 lg:grid-cols-[0.8fr_1fr]">
-          <div className="rounded-[2.25rem] border border-brand-100 bg-gradient-to-br from-brand-700 to-aqua-500 p-6 text-white shadow-xl shadow-brand-200">
+          <div className="rounded-[2.25rem] border border-brand-100 bg-gradient-to-br from-brand-700 to-secondary-500 p-6 text-white shadow-xl shadow-brand-200">
             <p className="text-xs font-black uppercase tracking-[0.2em] text-brand-100">Contact</p>
             <h2 className="mt-5 font-display text-4xl font-extrabold">Need a restaurant system for your team?</h2>
             <p className="mt-4 text-sm font-bold leading-6 text-white/90">

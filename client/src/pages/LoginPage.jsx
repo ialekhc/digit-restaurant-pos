@@ -89,21 +89,19 @@ const LoginPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#fffef8] text-slate-900">
+    <div className="min-h-screen bg-[#fbfaf8] text-slate-900">
       <div className="pointer-events-none fixed inset-0 -z-10 overflow-hidden">
         <div className="absolute left-[-9rem] top-[-7rem] h-96 w-96 rounded-full bg-brand-200/55 blur-3xl" />
         <div className="absolute right-[-8rem] top-28 h-[26rem] w-[26rem] rounded-full bg-brand-100/80 blur-3xl" />
-        <div className="absolute bottom-[-10rem] left-1/3 h-[28rem] w-[28rem] rounded-full bg-aqua-100/90 blur-3xl" />
+        <div className="absolute bottom-[-10rem] left-1/3 h-[28rem] w-[28rem] rounded-full bg-secondary-100/90 blur-3xl" />
       </div>
 
-      <header className="sticky top-0 z-30 border-b border-brand-100/80 bg-[#fffef8]/90 backdrop-blur-xl">
+      <header className="sticky top-0 z-30 border-b border-brand-100/80 bg-[#fbfaf8]/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-3 sm:px-6 lg:px-8">
           <a href="#top" className="flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-aqua-400 text-sm font-black text-white shadow-lg shadow-brand-200">
-              D
-            </span>
+            <img src="/digit-nepal/mark-light.png" alt="Digit Nepal" className="h-10 w-10 rounded-2xl object-cover shadow-lg shadow-brand-100 ring-1 ring-brand-100" />
             <span>
-              <span className="block font-display text-base font-extrabold leading-4 text-slate-950">Digit Restaurant POS</span>
+              <span className="block font-display text-base font-extrabold leading-4 text-slate-950">Digit Restaurant Management System</span>
               <span className="text-xs font-semibold text-brand-700">Subscription Restaurant Cloud</span>
             </span>
           </a>
@@ -135,14 +133,15 @@ const LoginPage = () => {
                 One cloud workspace for every restaurant operation.
               </h1>
               <p className="mt-5 max-w-2xl text-base font-semibold leading-7 text-slate-600 sm:text-lg">
-                Digit Restaurant POS is a subscription platform for restaurants that need table service, kitchen routing,
-                NPR billing, inventory, reports, vendor subscriptions, and staff access in one clean system.
+                Digit Restaurant Management System is a subscription platform for restaurants that need table service,
+                kitchen routing, NPR billing, inventory, reports, vendor subscriptions, and staff access in one clean
+                system.
               </p>
 
               <div className="mt-7 flex flex-col gap-3 sm:flex-row">
                 <a
                   href="#login"
-                  className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-brand-600 to-aqua-500 px-5 text-sm font-black text-white shadow-xl shadow-brand-200 transition hover:scale-[1.01]"
+                  className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-gradient-to-r from-brand-600 to-secondary-500 px-5 text-sm font-black text-white shadow-xl shadow-brand-200 transition hover:scale-[1.01]"
                 >
                   Staff login
                 </a>
@@ -267,13 +266,13 @@ const LoginPage = () => {
               </p>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 {['Menu and table management', 'Kitchen display system', 'Inventory and suppliers', 'Advanced sales reports'].map((item) => (
-                  <div key={item} className="rounded-2xl bg-aqua-50 px-4 py-3 text-sm font-black text-aqua-800">
+                  <div key={item} className="rounded-2xl bg-secondary-50 px-4 py-3 text-sm font-black text-secondary-800">
                     {item}
                   </div>
                 ))}
               </div>
             </div>
-            <div className="rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-600 to-aqua-500 p-6 text-white shadow-xl shadow-brand-200">
+            <div className="rounded-[2rem] border border-brand-100 bg-gradient-to-br from-brand-600 to-secondary-500 p-6 text-white shadow-xl shadow-brand-200">
               <p className="text-sm font-black uppercase tracking-[0.2em] text-white/80">For owners</p>
               <p className="mt-6 font-display text-5xl font-extrabold">Track subscriptions</p>
               <p className="mt-3 text-sm font-bold leading-6 text-white/90">
@@ -304,6 +303,7 @@ const LoginPage = () => {
         <aside id="login" className="lg:sticky lg:top-24 lg:h-fit">
           <div className="rounded-[2rem] border border-brand-100 bg-white p-5 shadow-2xl shadow-brand-100/80 sm:p-6">
             <div className="mb-6">
+              <img src="/digit-nepal/logo-full-dark.png" alt="Digit Nepal" className="mb-5 h-auto w-36 object-contain" />
               <div className="inline-flex rounded-full bg-brand-100 px-3 py-1 text-xs font-black uppercase tracking-[0.16em] text-brand-800">
                 Secure staff access
               </div>

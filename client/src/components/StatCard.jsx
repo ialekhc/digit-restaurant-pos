@@ -1,7 +1,7 @@
 import { currency } from '../utils/format';
 
 const accentMap = {
-  brand: 'text-brand-700 bg-orange-50 border-orange-200',
+  brand: 'text-brand-700 bg-brand-50 border-brand-200',
   emerald: 'text-emerald-700 bg-emerald-50 border-emerald-200',
   rose: 'text-rose-700 bg-rose-50 border-rose-200',
   slate: 'text-slate-700 bg-slate-50 border-slate-200',

@@ -279,6 +279,7 @@ export const PAGE_TITLES = {
   '/super-admin/subscriptions': 'Subscriptions',
   '/super-admin/plans': 'Plans & Features',
   '/super-admin/users': 'Users',
+  '/super-admin/settings': 'Super Admin Settings',
   '/dashboard': 'Dashboard',
   '/users': 'Users',
   '/menu/categories': 'Menu Categories',
