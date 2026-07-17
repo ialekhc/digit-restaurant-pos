@@ -8,7 +8,8 @@ import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
+import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
+import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -217,6 +218,7 @@ const OrderCreatePage = () => {
     }
 
     setSaving(true);
+    const autoPrint = shouldAutoPrintKitchenTicket();
     try {
       const created = await orderService.create({
         ...orderState,
@@ -225,7 +227,15 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
-      const printResult = await printCreatedOrderJobs(created.printJobs);
+      let printed = false;
+      if (autoPrint) {
+        try {
+          await openStationTicketsPdfTab(created);
+          printed = true;
+        } catch (printError) {
+          setError(printError?.message || 'Order created, but the station-ticket PDF could not be opened');
+        }
+      }
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -235,13 +245,10 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created. ${printResult.printedCount} of ${printResult.totalCount} tickets printed automatically.${
+        `Order ${created.orderNumber} has been created${printed ? ' and the station-ticket PDF opened in Chrome' : ''}.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );
-      if (printResult.errorMessage) {
-        setError(`Order was created, but printing needs attention: ${printResult.errorMessage}`);
-      }
       await load();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create order');
