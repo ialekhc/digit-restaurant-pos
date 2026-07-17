@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { printJobService } from '../api/services';
+import { printJobService, qzSecurityService } from '../api/services';
 import Button from '../components/ui/Button';
 import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
@@ -13,6 +13,29 @@ const stationBadge = {
 };
 
 const clientId = `print-station-${Math.random().toString(36).slice(2)}`;
+const PRINTER_ROUTES_KEY = 'rms_print_station_routes_v1';
+
+const loadPrinterRoutes = () => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(PRINTER_ROUTES_KEY) || '{}');
+    return { kitchen: stored.kitchen || '', reception: stored.reception || '' };
+  } catch (_error) {
+    return { kitchen: '', reception: '' };
+  }
+};
+
+const routeKeyForJob = (job = {}) => {
+  if (job.documentType === 'TEST_PRINT') return '';
+  if (job.station === 'KITCHEN') return 'kitchen';
+  if (['BAR', 'SMOKE', 'COUNTER'].includes(job.station)) return 'reception';
+  return '';
+};
+
+const systemPrinterNameForJob = (job, routes) => {
+  const routeKey = routeKeyForJob(job);
+  if (routeKey) return routes[routeKey] || '';
+  return job.printer?.printerSystemName || '';
+};
 
 const PrintStationPage = () => {
   const adapterRef = useRef(null);
@@ -21,8 +44,10 @@ const PrintStationPage = () => {
   const [history, setHistory] = useState([]);
   const [systemPrinters, setSystemPrinters] = useState([]);
   const [printerName, setPrinterName] = useState('');
+  const [printerRoutes, setPrinterRoutes] = useState(loadPrinterRoutes);
   const [autoProcess, setAutoProcess] = useState(true);
-  const [bridgeStatus, setBridgeStatus] = useState('Disconnected');
+  const [bridgeStatus, setBridgeStatus] = useState('Not connected');
+  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState('');
 
   const adapter = useMemo(() => {
@@ -35,9 +60,19 @@ const PrintStationPage = () => {
     ...systemPrinters.map((name) => ({ value: name, label: name }))
   ], [systemPrinters]);
 
+  const routePrinterOptions = useMemo(() => {
+    const names = new Set(systemPrinters);
+    if (printerRoutes.kitchen) names.add(printerRoutes.kitchen);
+    if (printerRoutes.reception) names.add(printerRoutes.reception);
+    return [
+      { value: '', label: 'Select a system printer' },
+      ...[...names].sort((left, right) => left.localeCompare(right)).map((name) => ({ value: name, label: name }))
+    ];
+  }, [printerRoutes, systemPrinters]);
+
   const loadSystemPrinters = useCallback(async () => {
-    if (!adapter.isConnected()) return;
     try {
+      if (!adapter.isConnected()) return;
       const discovered = await adapter.getPrinters();
       const names = (Array.isArray(discovered) ? discovered : [discovered])
         .map((name) => String(name || '').trim())
@@ -49,29 +84,76 @@ const PrintStationPage = () => {
     }
   }, [adapter]);
 
+  const connectPrinters = useCallback(async () => {
+    setConnecting(true);
+    setError('');
+    try {
+      const security = await qzSecurityService.status();
+      if (security?.configured) {
+        adapter.configureSecurity({
+          getCertificate: () => qzSecurityService.certificate(),
+          sign: (request) => qzSecurityService.sign(request)
+        });
+      }
+
+      if (adapter.isConnected()) await adapter.disconnect();
+      await adapter.connect();
+      if (!adapter.isConnected()) {
+        throw new Error('QZ Tray is not available. Start QZ Tray and try again.');
+      }
+
+      setBridgeStatus(security?.configured ? 'QZ Tray connected (trusted)' : 'QZ Tray connected (approval required)');
+      if (!security?.configured) {
+        setError('Trusted QZ signing is not configured. QZ Tray may ask once; choose Allow and Remember this decision, or configure the server signing certificate.');
+      }
+      await loadSystemPrinters();
+    } catch (err) {
+      setBridgeStatus('Not connected');
+      setError(err.response?.data?.message || err.message || 'Unable to connect to QZ Tray');
+    } finally {
+      setConnecting(false);
+    }
+  }, [adapter, loadSystemPrinters]);
+
   const fetchJobs = useCallback(async () => {
     try {
       const data = await printJobService.pending({ limit: 100 });
       const pendingJobs = Array.isArray(data) ? data : [];
       const selectedName = printerName.trim().toLowerCase();
       setJobs(selectedName
-        ? pendingJobs.filter((job) => String(job.printer?.printerSystemName || '').trim().toLowerCase() === selectedName)
+        ? pendingJobs.filter((job) => systemPrinterNameForJob(job, printerRoutes).trim().toLowerCase() === selectedName)
         : pendingJobs);
       setError('');
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to load print jobs');
     }
-  }, [printerName]);
+  }, [printerName, printerRoutes]);
 
   const printJob = useCallback(async (job) => {
     const id = job._id;
     if (!id || processingRef.current.has(id)) return;
+    if (!adapter.isConnected()) {
+      setError('Connect printers before processing print jobs');
+      return;
+    }
+    const selectedSystemPrinter = systemPrinterNameForJob(job, printerRoutes);
+    if (!selectedSystemPrinter) {
+      const routeLabel = routeKeyForJob(job) === 'kitchen' ? 'Kitchen' : 'Bar, Smoke & Reception';
+      setError(`Select the ${routeLabel} printer before processing this job`);
+      return;
+    }
     processingRef.current.add(id);
 
     try {
       const claimed = await printJobService.claim(id, { clientId });
       const html = buildPrintHtmlForJob(claimed);
-      await adapter.printHtml({ html, printer: claimed.printer, job: claimed });
+      const physicalPrinter = {
+        ...(claimed.printer || {}),
+        name: selectedSystemPrinter,
+        printerSystemName: selectedSystemPrinter,
+        connectionType: 'QZ_TRAY'
+      };
+      await adapter.printHtml({ html, printer: physicalPrinter, job: claimed });
       const completed = await printJobService.complete(id);
       setHistory((prev) => [{ ...completed, localStatus: 'PRINTED' }, ...prev].slice(0, 30));
       setJobs((prev) => prev.filter((row) => row._id !== id));
@@ -87,16 +169,11 @@ const PrintStationPage = () => {
     } finally {
       processingRef.current.delete(id);
     }
-  }, [adapter]);
+  }, [adapter, printerRoutes]);
 
   useEffect(() => {
-    adapter.connect()
-      .then(async () => {
-        setBridgeStatus(adapter.statusMessage());
-        await loadSystemPrinters();
-      })
-      .catch((err) => setBridgeStatus(`Disconnected: ${err.message}`));
-  }, [adapter, loadSystemPrinters]);
+    localStorage.setItem(PRINTER_ROUTES_KEY, JSON.stringify(printerRoutes));
+  }, [printerRoutes]);
 
   useEffect(() => {
     fetchJobs();
@@ -110,9 +187,9 @@ const PrintStationPage = () => {
   }, [fetchJobs]);
 
   useEffect(() => {
-    if (!autoProcess || !jobs.length) return;
-    jobs.forEach((job) => printJob(job));
-  }, [autoProcess, jobs, printJob]);
+    if (!autoProcess || !jobs.length || !adapter.isConnected()) return;
+    jobs.filter((job) => systemPrinterNameForJob(job, printerRoutes)).forEach((job) => printJob(job));
+  }, [adapter, autoProcess, bridgeStatus, jobs, printJob, printerRoutes]);
 
   const retry = async (job) => {
     try {
@@ -156,7 +233,14 @@ const PrintStationPage = () => {
       <Panel
         title="Print Station"
         subtitle="Claims pending jobs, routes them to the configured printer, and records success or failure."
-        right={<Button variant="secondary" onClick={() => { fetchJobs(); loadSystemPrinters(); }}>Refresh</Button>}
+        right={(
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={connectPrinters} disabled={connecting}>
+              {connecting ? 'Connecting...' : adapter.isConnected() ? 'Reconnect Printers' : 'Connect Printers'}
+            </Button>
+            <Button variant="secondary" onClick={fetchJobs}>Refresh Jobs</Button>
+          </div>
+        )}
       >
         <div className="grid gap-3 lg:grid-cols-4">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -172,6 +256,25 @@ const PrintStationPage = () => {
             <input type="checkbox" checked={autoProcess} onChange={(e) => setAutoProcess(e.target.checked)} />
             Auto process jobs
           </label>
+        </div>
+        <div className="mt-4 rounded-2xl border border-brand-100 bg-white/80 p-4">
+          <p className="mb-3 text-sm font-bold text-slate-900">Section Printer Assignment</p>
+          <div className="grid gap-3 md:grid-cols-2">
+            <Select
+              label="Kitchen Printer (Food)"
+              value={printerRoutes.kitchen}
+              onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, kitchen: event.target.value }))}
+              options={routePrinterOptions}
+              helperText="All Food Menu tickets print on this printer."
+            />
+            <Select
+              label="Reception Printer (Bar & Smoke)"
+              value={printerRoutes.reception}
+              onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, reception: event.target.value }))}
+              options={routePrinterOptions}
+              helperText="Bar, Smoke, full order bills, and receipts print on this printer."
+            />
+          </div>
         </div>
         {error ? <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       </Panel>

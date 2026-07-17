@@ -19,6 +19,7 @@ import roleRoutes from './roleRoutes.js';
 import meRoutes from './meRoutes.js';
 import printerRoutes from './printerRoutes.js';
 import printJobRoutes from './printJobRoutes.js';
+import qzSecurityRoutes from './qzSecurityRoutes.js';
 
 const router = Router();
 
@@ -42,5 +43,6 @@ router.use('/vendors', vendorRoutes);
 router.use('/public', publicRoutes);
 router.use('/printers', printerRoutes);
 router.use('/print-jobs', printJobRoutes);
+router.use('/qz-security', qzSecurityRoutes);
 
 export default router;

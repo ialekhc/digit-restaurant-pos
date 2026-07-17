@@ -91,9 +91,8 @@ export const getPrinterForPurpose = async ({ user, restaurantId, purpose }) => {
 };
 
 const createPrintJobIfMissing = async ({ user, restaurantId, printer, order, payment, documentType, station, payload, idempotencyKey }) => {
-  if (!printer) return null;
-  const scopedRestaurantId = await resolveRestaurantId(user, restaurantId || printer.restaurantId || order?.restaurantId);
-  if (String(printer.restaurantId) !== scopedRestaurantId) {
+  const scopedRestaurantId = await resolveRestaurantId(user, restaurantId || printer?.restaurantId || order?.restaurantId);
+  if (printer && String(printer.restaurantId) !== scopedRestaurantId) {
     throw new ApiError(403, 'Printer does not belong to this restaurant');
   }
 
@@ -102,7 +101,7 @@ const createPrintJobIfMissing = async ({ user, restaurantId, printer, order, pay
 
   return PrintJob.create(await withTenantFields(user, {
     restaurantId: scopedRestaurantId,
-    printer: printer._id,
+    printer: printer?._id || null,
     order: order?._id,
     payment: payment?._id,
     documentType,
@@ -147,7 +146,6 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
   for (const [station, stationItems] of Object.entries(grouped)) {
     if (!stationItems.length) continue;
     const printer = await getPrinterForPurpose({ user, restaurantId: order.restaurantId, purpose: station });
-    if (!printer) continue;
 
     const documentType = source === 'CANCELLED_ITEMS' ? 'CANCELLED_ITEMS' : stationDocumentTypes[station];
     const itemKey = stationItems
@@ -263,7 +261,6 @@ const createCounterOrderBillJob = async ({ user, order, restaurant, source }) =>
     restaurantId: order.restaurantId,
     purpose: 'COUNTER'
   });
-  if (!printer) return null;
 
   return createPrintJobIfMissing({
     user,
@@ -299,7 +296,6 @@ export const createCounterReceiptJob = async ({ user, payment, force = false }) 
   }
 
   const printer = await getPrinterForPurpose({ user, restaurantId: payment.restaurantId || order.restaurantId, purpose: 'COUNTER' });
-  if (!printer) return null;
   const restaurant = await getRestaurantDetails(payment.restaurantId || order.restaurantId);
 
   const groupKey = payment.billGroupId || payment._id;

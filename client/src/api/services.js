@@ -97,6 +97,12 @@ export const printJobService = {
   retry: async (id) => unwrap(await api.post(`/print-jobs/${id}/retry`))
 };
 
+export const qzSecurityService = {
+  status: async () => unwrap(await api.get('/qz-security/status')),
+  certificate: async () => (await api.get('/qz-security/certificate')).data?.data?.certificate,
+  sign: async (request) => (await api.post('/qz-security/sign', { request })).data?.data?.signature
+};
+
 export const paymentService = {
   list: async (params) => unwrap(await api.get('/payments', { params })),
   create: async (payload) => unwrap(await api.post('/payments', payload)),

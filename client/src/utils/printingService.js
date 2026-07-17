@@ -64,6 +64,12 @@ class QzTrayAdapter {
     return true;
   }
 
+  configureSecurity({ getCertificate, sign }) {
+    this.qz.security.setCertificatePromise(async () => getCertificate());
+    this.qz.security.setSignatureAlgorithm('SHA512');
+    this.qz.security.setSignaturePromise(async (request) => sign(request));
+  }
+
   async disconnect() {
     if (this.qz?.websocket?.isActive()) await this.qz.websocket.disconnect();
   }
@@ -117,6 +123,10 @@ class RoutedPrinterAdapter {
       this.qzError = error.message || 'QZ Tray is unavailable';
     }
     return true;
+  }
+
+  configureSecurity(providers) {
+    this.qz.configureSecurity(providers);
   }
 
   async disconnect() {
