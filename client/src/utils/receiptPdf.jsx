@@ -32,8 +32,8 @@ const styles = StyleSheet.create({
   },
   center: { textAlign: 'center' },
   title: { fontSize: 10.2, fontWeight: 'bold', marginBottom: 1.5, textAlign: 'center' },
-  subtitle: { fontSize: 7.6, marginBottom: 1.5, textAlign: 'center', color: '#374151' },
-  muted: { fontSize: 6.2, color: '#4b5563', textAlign: 'center', marginBottom: 0.8 },
+  subtitle: { fontSize: 7.6, marginBottom: 1.5, textAlign: 'center', color: '#000000' },
+  muted: { fontSize: 6.2, color: '#000000', textAlign: 'center', marginBottom: 0.8 },
   divider: { borderTopWidth: 0.8, borderTopColor: '#9ca3af', borderStyle: 'dashed', marginVertical: 4 },
   row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 2.5 },
   rowLabel: { width: '38%' },
@@ -55,11 +55,11 @@ const styles = StyleSheet.create({
   colItem: { width: 96, paddingRight: 3 },
   colAmount: { width: 38, textAlign: 'right' },
   itemName: { fontSize: 6.9, lineHeight: 1.18 },
-  itemMeta: { fontSize: 6, color: '#4b5563', marginTop: 1 },
+  itemMeta: { fontSize: 6, color: '#000000', marginTop: 1 },
   itemAmount: { fontSize: 6.9 },
   bold: { fontWeight: 'bold' },
   total: { fontSize: 7.8, fontWeight: 'bold' },
-  footer: { textAlign: 'center', fontSize: 6.8, color: '#4b5563', marginTop: 5 }
+  footer: { textAlign: 'center', fontSize: 6.8, color: '#000000', marginTop: 5 }
 });
 
 const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
