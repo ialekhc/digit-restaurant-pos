@@ -60,6 +60,14 @@ const findScopedOrderById = async (req, id) => {
   return Order.findOne(query);
 };
 
+const findPopulatedScopedOrderById = async (req, id) => {
+  const query = await buildTenantScopedQuery(req.user, { _id: id }, { userFields: ['createdBy'] });
+  return Order.findOne(query)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+};
+
 const recalculateOrderTotals = (order) => {
   order.subtotal = order.items.reduce(
     (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
@@ -287,10 +295,7 @@ export const createOrder = asyncHandler(async (req, res) => {
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {
-  const data = await findScopedOrderById(req, req.params.id)
-    .populate('table')
-    .populate('customer')
-    .populate('createdBy', 'name role');
+  const data = await findPopulatedScopedOrderById(req, req.params.id);
 
   if (!data) throw new ApiError(404, 'Order not found');
   await reconcileOrderStatusFromItems(data);
@@ -612,10 +617,7 @@ export const deleteOrder = asyncHandler(async (req, res) => {
 });
 
 export const printStationTickets = asyncHandler(async (req, res) => {
-  const order = await findScopedOrderById(req, req.params.orderId)
-    .populate('table')
-    .populate('customer')
-    .populate('createdBy', 'name role');
+  const order = await findPopulatedScopedOrderById(req, req.params.orderId);
   if (!order) throw new ApiError(404, 'Order not found');
 
   const data = await createStationPrintJobs({ user: req.user, order, source: req.body?.source || 'INITIAL_ORDER' });
@@ -623,10 +625,7 @@ export const printStationTickets = asyncHandler(async (req, res) => {
 });
 
 export const printAddedItems = asyncHandler(async (req, res) => {
-  const order = await findScopedOrderById(req, req.params.orderId)
-    .populate('table')
-    .populate('customer')
-    .populate('createdBy', 'name role');
+  const order = await findPopulatedScopedOrderById(req, req.params.orderId);
   if (!order) throw new ApiError(404, 'Order not found');
 
   const itemIds = new Set((req.body?.itemIds || []).map(String));
@@ -638,10 +637,7 @@ export const printAddedItems = asyncHandler(async (req, res) => {
 });
 
 export const printCancellation = asyncHandler(async (req, res) => {
-  const order = await findScopedOrderById(req, req.params.orderId)
-    .populate('table')
-    .populate('customer')
-    .populate('createdBy', 'name role');
+  const order = await findPopulatedScopedOrderById(req, req.params.orderId);
   if (!order) throw new ApiError(404, 'Order not found');
 
   const itemIds = new Set((req.body?.itemIds || []).map(String));

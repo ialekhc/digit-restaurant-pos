@@ -62,15 +62,10 @@ const PrintStationPage = () => {
     ...systemPrinters.map((name) => ({ value: name, label: name }))
   ], [systemPrinters]);
 
-  const routePrinterOptions = useMemo(() => {
-    const names = new Set(systemPrinters);
-    if (printerRoutes.kitchen) names.add(printerRoutes.kitchen);
-    if (printerRoutes.reception) names.add(printerRoutes.reception);
-    return [
-      { value: '', label: 'Select a system printer' },
-      ...[...names].sort((left, right) => left.localeCompare(right)).map((name) => ({ value: name, label: name }))
-    ];
-  }, [printerRoutes, systemPrinters]);
+  const routePrinterOptions = useMemo(() => [
+    { value: '', label: systemPrinters.length ? 'Select an installed printer name' : 'Connect printers to load names' },
+    ...systemPrinters.map((name) => ({ value: name, label: name }))
+  ], [systemPrinters]);
 
   const loadSystemPrinters = useCallback(async () => {
     try {
@@ -80,11 +75,29 @@ const PrintStationPage = () => {
         .map((name) => String(name || '').trim())
         .filter(Boolean)
         .sort((left, right) => left.localeCompare(right));
-      setSystemPrinters([...new Set(names)]);
+      const installedNames = [...new Set(names)];
+      setSystemPrinters(installedNames);
+
+      const installedName = (savedName) => installedNames.find(
+        (name) => name.toLowerCase() === String(savedName || '').trim().toLowerCase()
+      ) || '';
+      const nextRoutes = {
+        kitchen: installedName(printerRoutes.kitchen),
+        reception: installedName(printerRoutes.reception)
+      };
+      const removedStaleRoute = (
+        (printerRoutes.kitchen && !nextRoutes.kitchen)
+        || (printerRoutes.reception && !nextRoutes.reception)
+      );
+      setPrinterRoutes(nextRoutes);
+      if (removedStaleRoute) {
+        setMessage('An old printer name was removed because it is no longer installed. Select the current Windows printer names below.');
+      }
+      if (printerName && !installedName(printerName)) setPrinterName('');
     } catch (err) {
       setBridgeStatus(`Printer discovery failed: ${err.message}`);
     }
-  }, [adapter]);
+  }, [adapter, printerName, printerRoutes]);
 
   const connectPrinters = useCallback(async () => {
     setConnecting(true);
