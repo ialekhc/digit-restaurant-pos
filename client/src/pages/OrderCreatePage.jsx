@@ -8,6 +8,7 @@ import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { requestPrintJobProcessing } from '../utils/printStationRoutes';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -224,6 +225,7 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
+      requestPrintJobProcessing();
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -233,7 +235,7 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created and routed to the Kitchen, Bar, Smoke, and Counter print queues.${
+        `Order ${created.orderNumber} has been created and sent automatically to the Kitchen, Bar, Smoke, and Counter printers.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );

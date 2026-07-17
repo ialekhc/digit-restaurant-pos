@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { printJobService } from '../api/services';
+import { printJobService, qzSecurityService } from '../api/services';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 import {
   loadPrinterRoutes,
+  PROCESS_PRINT_JOBS_EVENT,
   PRINT_JOB_RESULT_EVENT,
   shouldAutoProcessPrintJobs,
   systemPrinterNameForJob
 } from '../utils/printStationRoutes';
 
 const POLL_INTERVAL_MS = 1500;
+const CONNECTION_RETRY_INTERVAL_MS = 15000;
 const clientId = `background-print-${Math.random().toString(36).slice(2)}`;
 
 const notifyResult = (detail) => {
@@ -19,14 +21,42 @@ const BackgroundPrintProcessor = () => {
   const adapterRef = useRef(createPrinterAdapter());
   const runningRef = useRef(false);
   const processingRef = useRef(new Set());
+  const lastConnectionAttemptRef = useRef(0);
 
-  const processPendingJobs = useCallback(async () => {
+  const connectPrinter = useCallback(async (force = false) => {
     const adapter = adapterRef.current;
-    if (runningRef.current || !adapter.isConnected() || !shouldAutoProcessPrintJobs()) return;
+    if (adapter.isConnected()) return true;
+
+    const now = Date.now();
+    if (!force && now - lastConnectionAttemptRef.current < CONNECTION_RETRY_INTERVAL_MS) return false;
+    lastConnectionAttemptRef.current = now;
+
+    try {
+      const security = await qzSecurityService.status();
+      if (security?.configured) {
+        adapter.configureSecurity({
+          getCertificate: () => qzSecurityService.certificate(),
+          sign: (request) => qzSecurityService.sign(request)
+        });
+      }
+      await adapter.connect();
+      return adapter.isConnected();
+    } catch (_error) {
+      return false;
+    }
+  }, []);
+
+  const processPendingJobs = useCallback(async ({ forceConnect = false } = {}) => {
+    const adapter = adapterRef.current;
+    if (runningRef.current || !shouldAutoProcessPrintJobs()) return;
+
+    const routes = loadPrinterRoutes();
+    if (!routes.kitchen && !routes.reception) return;
 
     runningRef.current = true;
     try {
-      const routes = loadPrinterRoutes();
+      if (!adapter.isConnected() && !(await connectPrinter(forceConnect))) return;
+
       const pending = await printJobService.pending({ status: 'PENDING', limit: 100 });
       const jobs = Array.isArray(pending) ? pending : [];
 
@@ -70,15 +100,19 @@ const BackgroundPrintProcessor = () => {
     } finally {
       runningRef.current = false;
     }
-  }, []);
+  }, [connectPrinter]);
 
   useEffect(() => {
-    processPendingJobs();
-    const timer = window.setInterval(processPendingJobs, POLL_INTERVAL_MS);
-    window.addEventListener('focus', processPendingJobs);
+    const processAutomatically = () => processPendingJobs();
+    const processImmediately = () => processPendingJobs({ forceConnect: true });
+    processAutomatically();
+    const timer = window.setInterval(processAutomatically, POLL_INTERVAL_MS);
+    window.addEventListener('focus', processImmediately);
+    window.addEventListener(PROCESS_PRINT_JOBS_EVENT, processImmediately);
     return () => {
       window.clearInterval(timer);
-      window.removeEventListener('focus', processPendingJobs);
+      window.removeEventListener('focus', processImmediately);
+      window.removeEventListener(PROCESS_PRINT_JOBS_EVENT, processImmediately);
     };
   }, [processPendingJobs]);
 

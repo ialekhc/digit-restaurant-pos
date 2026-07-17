@@ -10,7 +10,8 @@ const printStationPermissions = [
   PERMISSIONS.SETTINGS_VIEW,
   PERMISSIONS.KITCHEN_VIEW_ORDERS,
   PERMISSIONS.PAYMENT_VIEW,
-  PERMISSIONS.ORDER_VIEW
+  PERMISSIONS.ORDER_VIEW,
+  PERMISSIONS.ORDER_CREATE
 ];
 
 router.use(authenticate, requireAnyPermission(printStationPermissions));

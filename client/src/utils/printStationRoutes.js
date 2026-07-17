@@ -1,6 +1,11 @@
 export const PRINTER_ROUTES_KEY = 'rms_print_station_routes_v1';
 export const AUTO_PROCESS_PRINT_JOBS_KEY = 'rms_print_station_auto_process_v1';
 export const PRINT_JOB_RESULT_EVENT = 'rms:print-job-result';
+export const PROCESS_PRINT_JOBS_EVENT = 'rms:process-print-jobs';
+
+export const requestPrintJobProcessing = () => {
+  window.dispatchEvent(new CustomEvent(PROCESS_PRINT_JOBS_EVENT));
+};
 
 export const loadPrinterRoutes = () => {
   try {
