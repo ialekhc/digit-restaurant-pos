@@ -276,12 +276,12 @@ export const createOrder = asyncHandler(async (req, res) => {
 
   await syncTableStatusFromOrders(data.table);
 
-  await createStationPrintJobs({ user: req.user, order: data, source: 'INITIAL_ORDER' });
-
   const populated = await Order.findById(data._id)
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role');
+
+  await createStationPrintJobs({ user: req.user, order: populated, source: 'INITIAL_ORDER' });
 
   res.status(201).json({ data: populated });
 });

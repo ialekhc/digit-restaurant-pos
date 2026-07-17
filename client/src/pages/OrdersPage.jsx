@@ -11,7 +11,6 @@ import { useAuth } from '../hooks/useAuth';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
 
 const OrdersPage = () => {
   const { user } = useAuth();
@@ -106,9 +105,9 @@ const OrdersPage = () => {
   const printStationTickets = async (order) => {
     setActionError('');
     try {
-      await openStationTicketsPdfTab(order);
+      await orderService.printStationTickets(order._id, { source: `MANUAL_REPRINT:${Date.now()}` });
     } catch (error) {
-      setActionError(error?.message || 'Unable to open station tickets');
+      setActionError(error?.response?.data?.message || 'Unable to queue routed station tickets');
     }
   };
 

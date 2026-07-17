@@ -7,8 +7,6 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
-import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 
 const initialState = {
@@ -218,8 +216,6 @@ const OrderCreatePage = () => {
     }
 
     setSaving(true);
-    const autoPrint = shouldAutoPrintKitchenTicket();
-
     try {
       const created = await orderService.create({
         ...orderState,
@@ -228,15 +224,6 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
-      let printed = false;
-      if (autoPrint) {
-        try {
-          await openStationTicketsPdfTab(created);
-          printed = true;
-        } catch (printError) {
-          setError(printError?.message || 'Order created, but station ticket preview could not be opened');
-        }
-      }
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -246,7 +233,7 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created and sent to the designated department${printed ? ' with station tickets opened' : ''}.${
+        `Order ${created.orderNumber} has been created and routed to the Kitchen, Bar, Smoke, and Counter print queues.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );

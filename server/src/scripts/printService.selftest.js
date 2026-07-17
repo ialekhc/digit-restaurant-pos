@@ -1,6 +1,7 @@
 import assert from 'assert/strict';
 import {
   buildCounterReceiptPayload,
+  buildCounterOrderBillPayload,
   buildStationPayload,
   groupItemsByStation,
   normalizeStation,
@@ -34,6 +35,23 @@ assert.equal(stationPayload.items.length, 1, 'Station ticket should include only
 assert.equal(stationPayload.items[0].name, 'Cold Coffee');
 assert.equal(stationPayload.subtotal, undefined, 'Station ticket must not include financial totals');
 assert.equal(stationPayload.paymentMethod, undefined, 'Station ticket must not include payment information');
+
+const counterOrderBillPayload = buildCounterOrderBillPayload({
+  order: {
+    orderNumber: 'ORD-1',
+    orderType: 'DINE_IN',
+    table: { tableNumber: 'T-1' },
+    createdBy: { name: 'Waiter' },
+    items: mixedItems,
+    subtotal: 610,
+    discount: 0,
+    total: 610
+  },
+  restaurant: { restaurantName: 'Demo Cafe' }
+});
+assert.equal(counterOrderBillPayload.items.length, 4, 'Counter order bill should include every ordered item');
+assert.equal(counterOrderBillPayload.grandTotal, 610);
+assert.equal(counterOrderBillPayload.paymentMethod, undefined, 'Order-time counter bill must not claim a payment method');
 
 const receiptPayload = buildCounterReceiptPayload({
   payment: { billNumber: 'BILL-1', amountPaid: 610, changeAmount: 0, paymentMethod: 'CASH', paidBy: { name: 'Cashier' } },

@@ -8,10 +8,6 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import {
-  setAutoPrintKitchenTicket,
-  shouldAutoPrintKitchenTicket
-} from '../utils/kitchenPrinting';
-import {
   buildReceiptSettingsFromVendor,
   getReceiptSettings,
   saveReceiptSettings
@@ -51,7 +47,6 @@ const defaultPrinterForm = {
 const SettingsPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [autoPrintKitchen, setAutoPrintKitchen] = useState(() => shouldAutoPrintKitchenTicket());
   const [receiptForm, setReceiptForm] = useState(() => getReceiptSettings());
   const [printers, setPrinters] = useState([]);
   const [printerForm, setPrinterForm] = useState(defaultPrinterForm);
@@ -207,32 +202,14 @@ const SettingsPage = () => {
         </p>
       </Panel>
 
-      <Panel title="Kitchen Printing" subtitle="Control how order tickets are printed for the kitchen">
+      <Panel title="Department Printing" subtitle="Orders are split and routed through the Print Station">
         <div className="max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-slate-900">Auto-print kitchen ticket after order creation</p>
-              <p className="mt-1 text-sm text-slate-600">
-                When enabled, creating an order opens the kitchen ticket print window immediately after the order is sent.
-              </p>
-            </div>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-amber-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={autoPrintKitchen}
-                onChange={(event) => {
-                  const enabled = event.target.checked;
-                  setAutoPrintKitchen(enabled);
-                  setAutoPrintKitchenTicket(enabled);
-                }}
-              />
-              {autoPrintKitchen ? 'Enabled' : 'Disabled'}
-            </label>
-          </div>
+          <p className="font-semibold text-slate-900">One order creates separate printer jobs</p>
+          <p className="mt-1 text-sm text-slate-600">
+            Kitchen, Bar, and Smoke receive only their own items. Counter receives the complete order bill with every item and total.
+          </p>
           <p className="mt-3 text-xs text-slate-500">
-            For silent direct printing to a kitchen printer, the browser still needs a print bridge such as QZ Tray or a
-            network printer service. Without that, the browser print dialog may appear.
+            Keep QZ Tray running and keep the Print Station page open with Auto process enabled for direct printing to each configured system printer.
           </p>
         </div>
       </Panel>

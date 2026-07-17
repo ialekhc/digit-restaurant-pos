@@ -159,6 +159,13 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
     if (job) jobs.push(job);
   }
 
+  // The counter copy is the master order bill: it intentionally contains every
+  // item while production printers receive only their own station's items.
+  if (source === 'INITIAL_ORDER' || String(source).startsWith('MANUAL_REPRINT')) {
+    const counterJob = await createCounterOrderBillJob({ user, order, restaurant, source });
+    if (counterJob) jobs.push(counterJob);
+  }
+
   return jobs;
 };
 
@@ -209,6 +216,56 @@ export const buildCounterReceiptPayload = ({ payment, order, payments = [], orde
     remainingBalance: Math.max(0, grandTotal - paidAmount),
     paidAt: payment?.createdAt || new Date().toISOString()
   };
+};
+
+export const buildCounterOrderBillPayload = ({ order, restaurant = {} }) => {
+  const plainOrder = toPlain(order);
+  const items = plainOrder.items || [];
+  return {
+    restaurantName: restaurant.restaurantName || 'Restaurant RMS',
+    restaurantAddress: restaurant.restaurantAddress || '',
+    restaurantPhone: restaurant.restaurantPhone || '',
+    panVatNumber: restaurant.panVatNumber || '',
+    orderNumber: plainOrder.orderNumber,
+    orderType: plainOrder.orderType,
+    tableNumber: plainOrder.table?.tableNumber || '',
+    staff: plainOrder.createdBy?.name || '',
+    customer: plainOrder.customer || null,
+    items: items.map((item) => ({
+      name: item.name,
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.price || 0),
+      lineTotal: Number(item.price || 0) * Number(item.quantity || 0),
+      station: normalizeStation(item.preparationStation || item.kitchenSection),
+      notes: item.notes || ''
+    })),
+    subtotal: Number(plainOrder.subtotal || 0),
+    discount: Number(plainOrder.discount || 0),
+    serviceCharge: Number(plainOrder.serviceCharge || 0),
+    tax: Number(plainOrder.tax || 0),
+    grandTotal: Number(plainOrder.total || 0),
+    createdAt: plainOrder.createdAt || new Date().toISOString()
+  };
+};
+
+const createCounterOrderBillJob = async ({ user, order, restaurant, source }) => {
+  const printer = await getPrinterForPurpose({
+    user,
+    restaurantId: order.restaurantId,
+    purpose: 'COUNTER'
+  });
+  if (!printer) return null;
+
+  return createPrintJobIfMissing({
+    user,
+    restaurantId: order.restaurantId,
+    printer,
+    order,
+    documentType: 'COUNTER_ORDER_BILL',
+    station: 'COUNTER',
+    payload: buildCounterOrderBillPayload({ order, restaurant }),
+    idempotencyKey: `${source}:COUNTER_ORDER_BILL:${order._id}`
+  });
 };
 
 export const createCounterReceiptJob = async ({ user, payment, force = false }) => {

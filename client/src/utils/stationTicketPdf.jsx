@@ -70,11 +70,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e5e7eb',
     paddingVertical: 4
   },
-  colIndex: { width: 12, paddingRight: 2 },
+  colIndex: { width: 12, paddingRight: 2, color: '#000000' },
   colItem: { flexGrow: 1, flexShrink: 1, paddingRight: 5 },
-  colQty: { width: 28, textAlign: 'right', fontWeight: 'bold' },
-  itemName: { fontSize: 8.2, lineHeight: 1.25 },
-  note: { marginTop: 1.5, fontSize: 6.8, color: '#4b5563', lineHeight: 1.2 },
+  colQty: { width: 28, textAlign: 'right', fontWeight: 'bold', color: '#000000' },
+  itemName: { fontSize: 8.2, lineHeight: 1.25, color: '#000000', fontWeight: 'bold' },
+  note: { marginTop: 1.5, fontSize: 6.8, color: '#000000', lineHeight: 1.2 },
   footer: { marginTop: 6, textAlign: 'center', fontSize: 7, color: '#4b5563' }
 });
 

@@ -1,3 +1,5 @@
+import qz from 'qz-tray';
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (char) => ({
   '&': '&amp;',
   '<': '&lt;',
@@ -53,7 +55,7 @@ class BrowserPrintAdapter {
 
 class QzTrayAdapter {
   constructor() {
-    this.qz = window.qz;
+    this.qz = qz;
   }
 
   async connect() {
@@ -99,9 +101,59 @@ class QzTrayAdapter {
   }
 }
 
+class RoutedPrinterAdapter {
+  constructor() {
+    this.browser = new BrowserPrintAdapter();
+    this.qz = new QzTrayAdapter();
+    this.qzError = '';
+  }
+
+  async connect() {
+    await this.browser.connect();
+    try {
+      await this.qz.connect();
+      this.qzError = '';
+    } catch (error) {
+      this.qzError = error.message || 'QZ Tray is unavailable';
+    }
+    return true;
+  }
+
+  async disconnect() {
+    await Promise.allSettled([this.browser.disconnect(), this.qz.disconnect()]);
+  }
+
+  isConnected() {
+    return this.qz.isConnected();
+  }
+
+  statusMessage() {
+    return this.isConnected() ? 'QZ Tray connected' : `Browser fallback only${this.qzError ? `: ${this.qzError}` : ''}`;
+  }
+
+  adapterFor(printer = {}) {
+    return String(printer.connectionType || '').toUpperCase() === 'BROWSER' ? this.browser : this.qz;
+  }
+
+  async getPrinters() {
+    return this.qz.getPrinters();
+  }
+
+  async printHtml(options) {
+    return this.adapterFor(options.printer).printHtml(options);
+  }
+
+  async printRaw(options) {
+    return this.adapterFor(options.printer).printRaw(options);
+  }
+
+  async testPrint(options) {
+    return this.adapterFor(options.printer).testPrint(options);
+  }
+}
+
 export const createPrinterAdapter = () => {
-  if (typeof window !== 'undefined' && window.qz) return new QzTrayAdapter();
-  return new BrowserPrintAdapter();
+  return new RoutedPrinterAdapter();
 };
 
 const baseStyles = (width = 58) => `
@@ -161,18 +213,20 @@ export const buildStationTicketHtml = (job) => {
 export const buildReceiptHtml = (job) => {
   const printer = job.printer || {};
   const payload = job.payload || {};
-  return `<!doctype html><html><head><title>Receipt</title>${baseStyles(printer.paperWidthMm)}</head><body>
+  const isOrderBill = job.documentType === 'COUNTER_ORDER_BILL';
+  const title = isOrderBill ? 'Full Order Bill' : 'Customer Receipt';
+  return `<!doctype html><html><head><title>${title}</title>${baseStyles(printer.paperWidthMm)}</head><body>
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
       ${payload.restaurantAddress ? `<p class="center muted">${escapeHtml(payload.restaurantAddress)}</p>` : ''}
       ${payload.panVatNumber ? `<p class="center muted">PAN/VAT: ${escapeHtml(payload.panVatNumber)}</p>` : ''}
-      <h2>Customer Receipt</h2>
+      <h2>${title}</h2>
       <div class="line"></div>
-      <div class="row"><span>Invoice</span><strong>${escapeHtml(payload.invoiceNumber || '-')}</strong></div>
+      ${isOrderBill ? '' : `<div class="row"><span>Invoice</span><strong>${escapeHtml(payload.invoiceNumber || '-')}</strong></div>`}
       <div class="row"><span>Order</span><span>${escapeHtml(payload.orderNumber || '-')}</span></div>
       <div class="row"><span>Table/Type</span><span>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</span></div>
-      <div class="row"><span>Date</span><span>${escapeHtml(new Date(payload.paidAt || Date.now()).toLocaleString())}</span></div>
-      <div class="row"><span>Cashier</span><span>${escapeHtml(payload.cashier || '-')}</span></div>
+      <div class="row"><span>Date</span><span>${escapeHtml(new Date(payload.paidAt || payload.createdAt || Date.now()).toLocaleString())}</span></div>
+      <div class="row"><span>${isOrderBill ? 'Staff' : 'Cashier'}</span><span>${escapeHtml(payload.staff || payload.cashier || '-')}</span></div>
       <div class="line"></div>
       <table>
         <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
@@ -188,11 +242,13 @@ export const buildReceiptHtml = (job) => {
       <div class="row"><span>Service</span><span>${money(payload.serviceCharge)}</span></div>
       <div class="row"><span>Tax</span><span>${money(payload.tax)}</span></div>
       <div class="row total"><span>Grand Total</span><span>${money(payload.grandTotal)}</span></div>
-      <div class="row"><span>Paid</span><span>${money(payload.paidAmount)}</span></div>
-      <div class="row"><span>Method</span><span>${escapeHtml(payload.paymentMethod || '-')}</span></div>
-      <div class="row"><span>Change/Due</span><span>${money(Number(payload.change || 0) || Number(payload.remainingBalance || 0))}</span></div>
+      ${isOrderBill ? '' : `
+        <div class="row"><span>Paid</span><span>${money(payload.paidAmount)}</span></div>
+        <div class="row"><span>Method</span><span>${escapeHtml(payload.paymentMethod || '-')}</span></div>
+        <div class="row"><span>Change/Due</span><span>${money(Number(payload.change || 0) || Number(payload.remainingBalance || 0))}</span></div>
+      `}
       <div class="line"></div>
-      <p class="center">Thank you for dining with us.</p>
+      <p class="center">${isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.'}</p>
     </section>
   </body></html>`;
 };
@@ -211,7 +267,7 @@ export const buildTestPrintHtml = (printer = {}) => `<!doctype html><html><head>
 </body></html>`;
 
 export const buildPrintHtmlForJob = (job) => {
-  if (['COUNTER_RECEIPT', 'CUSTOMER_RECEIPT', 'RECEIPT_REPRINT'].includes(job.documentType)) return buildReceiptHtml(job);
+  if (['COUNTER_ORDER_BILL', 'COUNTER_RECEIPT', 'CUSTOMER_RECEIPT', 'RECEIPT_REPRINT'].includes(job.documentType)) return buildReceiptHtml(job);
   if (job.documentType === 'TEST_PRINT') return buildTestPrintHtml(job.printer || job.payload || {});
   return buildStationTicketHtml(job);
 };

@@ -75,7 +75,7 @@ const PrintStationPage = () => {
 
   useEffect(() => {
     adapter.connect()
-      .then(() => setBridgeStatus(adapter.isConnected() ? 'Connected' : 'Connected'))
+      .then(() => setBridgeStatus(adapter.statusMessage()))
       .catch((err) => setBridgeStatus(`Disconnected: ${err.message}`));
   }, [adapter]);
 
