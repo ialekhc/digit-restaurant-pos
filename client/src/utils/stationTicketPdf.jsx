@@ -40,7 +40,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff'
   },
   title: { fontSize: 10.2, fontWeight: 'bold', textAlign: 'center', marginBottom: 1.5 },
-  subtitle: { fontSize: 6.8, textAlign: 'center', color: '#4b5563', marginBottom: 0.8 },
+  subtitle: { fontSize: 6.8, textAlign: 'center', color: '#000000', marginBottom: 0.8 },
   stationPill: {
     marginTop: 5,
     marginBottom: 5,
@@ -53,8 +53,8 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase'
   },
   divider: { borderTopWidth: 0.8, borderTopColor: '#9ca3af', borderStyle: 'dashed', marginVertical: 5 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 3 },
-  rowLabel: { width: '36%', color: '#374151' },
+  row: { flexDirection: 'row', justifyContent: 'space-between', gap: 4, marginBottom: 3 , color: '#000000' },
+  rowLabel: { width: '36%', color: '#000000' },
   rowValue: { width: '64%', textAlign: 'right', fontWeight: 'bold' },
   tableHeader: {
     flexDirection: 'row',
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   colQty: { width: 28, textAlign: 'right', fontWeight: 'bold', color: '#000000' },
   itemName: { fontSize: 8.2, lineHeight: 1.25, color: '#000000', fontWeight: 'bold' },
   note: { marginTop: 1.5, fontSize: 6.8, color: '#000000', lineHeight: 1.2 },
-  footer: { marginTop: 6, textAlign: 'center', fontSize: 7, color: '#4b5563' }
+  footer: { marginTop: 6, textAlign: 'center', fontSize: 7, color: '#000000' }
 });
 
 const ticketPageSize = (items = []) => {

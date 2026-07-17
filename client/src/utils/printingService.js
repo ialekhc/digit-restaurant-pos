@@ -60,7 +60,7 @@ class QzTrayAdapter {
 
   async connect() {
     if (!this.qz) throw new Error('QZ Tray is not loaded on this page');
-    if (!this.qz.websocket.isActive()) await this.qz.websocket.connect();
+    if (!this.qz.websocket.isActive()) await this.qz.websocket.connect({ retries: 3, delay: 1 });
     return true;
   }
 

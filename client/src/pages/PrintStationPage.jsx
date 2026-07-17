@@ -5,14 +5,6 @@ import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 
-const purposeOptions = [
-  { value: '', label: 'All printers' },
-  { value: 'KITCHEN', label: 'Kitchen' },
-  { value: 'BAR', label: 'Bar' },
-  { value: 'SMOKE', label: 'Smoke' },
-  { value: 'COUNTER', label: 'Counter' }
-];
-
 const stationBadge = {
   KITCHEN: 'bg-emerald-100 text-emerald-800 border-emerald-200',
   BAR: 'bg-sky-100 text-sky-800 border-sky-200',
@@ -27,7 +19,8 @@ const PrintStationPage = () => {
   const processingRef = useRef(new Set());
   const [jobs, setJobs] = useState([]);
   const [history, setHistory] = useState([]);
-  const [purpose, setPurpose] = useState('');
+  const [systemPrinters, setSystemPrinters] = useState([]);
+  const [printerName, setPrinterName] = useState('');
   const [autoProcess, setAutoProcess] = useState(true);
   const [bridgeStatus, setBridgeStatus] = useState('Disconnected');
   const [error, setError] = useState('');
@@ -37,15 +30,38 @@ const PrintStationPage = () => {
     return adapterRef.current;
   }, []);
 
+  const printerOptions = useMemo(() => [
+    { value: '', label: 'All system printers' },
+    ...systemPrinters.map((name) => ({ value: name, label: name }))
+  ], [systemPrinters]);
+
+  const loadSystemPrinters = useCallback(async () => {
+    if (!adapter.isConnected()) return;
+    try {
+      const discovered = await adapter.getPrinters();
+      const names = (Array.isArray(discovered) ? discovered : [discovered])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean)
+        .sort((left, right) => left.localeCompare(right));
+      setSystemPrinters([...new Set(names)]);
+    } catch (err) {
+      setBridgeStatus(`Printer discovery failed: ${err.message}`);
+    }
+  }, [adapter]);
+
   const fetchJobs = useCallback(async () => {
     try {
-      const data = await printJobService.pending({ purpose, limit: 75 });
-      setJobs(Array.isArray(data) ? data : []);
+      const data = await printJobService.pending({ limit: 100 });
+      const pendingJobs = Array.isArray(data) ? data : [];
+      const selectedName = printerName.trim().toLowerCase();
+      setJobs(selectedName
+        ? pendingJobs.filter((job) => String(job.printer?.printerSystemName || '').trim().toLowerCase() === selectedName)
+        : pendingJobs);
       setError('');
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to load print jobs');
     }
-  }, [purpose]);
+  }, [printerName]);
 
   const printJob = useCallback(async (job) => {
     const id = job._id;
@@ -75,9 +91,12 @@ const PrintStationPage = () => {
 
   useEffect(() => {
     adapter.connect()
-      .then(() => setBridgeStatus(adapter.statusMessage()))
+      .then(async () => {
+        setBridgeStatus(adapter.statusMessage());
+        await loadSystemPrinters();
+      })
       .catch((err) => setBridgeStatus(`Disconnected: ${err.message}`));
-  }, [adapter]);
+  }, [adapter, loadSystemPrinters]);
 
   useEffect(() => {
     fetchJobs();
@@ -109,7 +128,9 @@ const PrintStationPage = () => {
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div>
           <p className="text-sm font-bold text-slate-900">{job.documentType?.replaceAll('_', ' ')}</p>
-          <p className="text-xs text-slate-500">{job.order?.orderNumber || job.payload?.orderNumber || 'No order'} • {job.printer?.name || 'Printer not configured'}</p>
+          <p className="text-xs text-slate-500">
+            {job.order?.orderNumber || job.payload?.orderNumber || 'No order'} • {job.printer?.printerSystemName || job.printer?.name || 'Printer not configured'}
+          </p>
         </div>
         <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${stationBadge[job.station] || 'border-slate-200 bg-slate-100 text-slate-700'}`}>
           {job.station || 'GENERAL'}
@@ -135,7 +156,7 @@ const PrintStationPage = () => {
       <Panel
         title="Print Station"
         subtitle="Claims pending jobs, routes them to the configured printer, and records success or failure."
-        right={<Button variant="secondary" onClick={fetchJobs}>Refresh</Button>}
+        right={<Button variant="secondary" onClick={() => { fetchJobs(); loadSystemPrinters(); }}>Refresh</Button>}
       >
         <div className="grid gap-3 lg:grid-cols-4">
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
@@ -146,7 +167,7 @@ const PrintStationPage = () => {
             <p className="text-xs font-semibold uppercase text-sky-700">Pending</p>
             <p className="mt-1 text-lg font-bold text-sky-950">{jobs.length}</p>
           </div>
-          <Select label="Queue Filter" value={purpose} onChange={(e) => setPurpose(e.target.value)} options={purposeOptions} />
+          <Select label="Queue Filter" value={printerName} onChange={(e) => setPrinterName(e.target.value)} options={printerOptions} />
           <label className="flex items-end gap-2 rounded-2xl border border-brand-100 bg-white/80 p-4 text-sm font-semibold text-slate-700">
             <input type="checkbox" checked={autoProcess} onChange={(e) => setAutoProcess(e.target.checked)} />
             Auto process jobs

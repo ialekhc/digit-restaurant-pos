@@ -38,6 +38,15 @@ export const stationFromMenu = (menu = {}) => {
   return normalizeStation(menu.kitchenSection, STATIONS.KITCHEN);
 };
 
+// This installation uses two physical printers. Food is prepared in the
+// kitchen; drink and smoke tickets are handled by the reception printer.
+export const printerPurposeForStation = (station) => {
+  if (String(station || '').trim().toUpperCase() === 'COUNTER') return 'COUNTER';
+  const normalized = normalizeStation(station);
+  if (normalized === STATIONS.BAR || normalized === STATIONS.SMOKE) return 'COUNTER';
+  return normalized;
+};
+
 export const groupItemsByStation = (items = []) => {
   return items.reduce((acc, item) => {
     const station = normalizeStation(item.preparationStation || item.station || item.kitchenSection);
@@ -76,7 +85,7 @@ export const getPrinterForPurpose = async ({ user, restaurantId, purpose }) => {
   const scopedRestaurantId = await resolveRestaurantId(user, restaurantId);
   return Printer.findOne({
     restaurantId: scopedRestaurantId,
-    purpose,
+    purpose: printerPurposeForStation(purpose),
     isActive: true
   });
 };

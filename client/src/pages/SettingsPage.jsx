@@ -27,9 +27,7 @@ const schema = z
 
 const printerPurposes = [
   { value: 'KITCHEN', label: 'Kitchen printer' },
-  { value: 'BAR', label: 'Bar printer' },
-  { value: 'SMOKE', label: 'Smoke printer' },
-  { value: 'COUNTER', label: 'Counter printer' }
+  { value: 'COUNTER', label: 'Reception printer' }
 ];
 
 const defaultPrinterForm = {
@@ -214,7 +212,7 @@ const SettingsPage = () => {
         </div>
       </Panel>
 
-      <Panel title="Printer Settings" subtitle="Configure one printer route for Kitchen, Bar, Smoke, and Counter receipts">
+      <Panel title="Printer Settings" subtitle="Food routes to Kitchen; Bar, Smoke, full order bills, and receipts route to Reception">
         <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
           <div className="rounded-2xl border border-brand-100 bg-white/80 p-4">
             <div className="grid gap-3 sm:grid-cols-2">

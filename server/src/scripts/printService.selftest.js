@@ -5,6 +5,7 @@ import {
   buildStationPayload,
   groupItemsByStation,
   normalizeStation,
+  printerPurposeForStation,
   stationFromMenu
 } from '../services/printService.js';
 
@@ -18,6 +19,10 @@ const mixedItems = [
 assert.equal(normalizeStation('FOOD'), 'KITCHEN');
 assert.equal(stationFromMenu({ menuType: 'DRINK' }), 'BAR');
 assert.equal(stationFromMenu({ menuType: 'SMOKE' }), 'SMOKE');
+assert.equal(printerPurposeForStation('KITCHEN'), 'KITCHEN');
+assert.equal(printerPurposeForStation('BAR'), 'COUNTER');
+assert.equal(printerPurposeForStation('SMOKE'), 'COUNTER');
+assert.equal(printerPurposeForStation('COUNTER'), 'COUNTER');
 
 const grouped = groupItemsByStation(mixedItems);
 assert.equal(grouped.KITCHEN.length, 1, 'Kitchen group should contain only kitchen items');
