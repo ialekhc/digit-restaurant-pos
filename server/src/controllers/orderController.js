@@ -289,9 +289,14 @@ export const createOrder = asyncHandler(async (req, res) => {
     .populate('customer')
     .populate('createdBy', 'name role');
 
-  await createStationPrintJobs({ user: req.user, order: populated, source: 'INITIAL_ORDER' });
+  const printJobs = await createStationPrintJobs({ user: req.user, order: populated, source: 'INITIAL_ORDER' });
 
-  res.status(201).json({ data: populated });
+  res.status(201).json({
+    data: {
+      ...(populated.toJSON ? populated.toJSON() : populated),
+      printJobs
+    }
+  });
 });
 
 export const getOrderById = asyncHandler(async (req, res) => {

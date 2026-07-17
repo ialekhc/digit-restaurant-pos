@@ -8,7 +8,7 @@ import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { requestPrintJobProcessing } from '../utils/printStationRoutes';
+import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -225,7 +225,7 @@ const OrderCreatePage = () => {
         items,
         discount: Number(orderState.discount || 0)
       });
-      requestPrintJobProcessing();
+      const printResult = await printCreatedOrderJobs(created.printJobs);
       setItems([]);
       setSelectedMenu('');
       setQuantity(1);
@@ -235,10 +235,13 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created and sent automatically to the Kitchen, Bar, Smoke, and Counter printers.${
+        `Order ${created.orderNumber} has been created. ${printResult.printedCount} of ${printResult.totalCount} tickets printed automatically.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );
+      if (printResult.errorMessage) {
+        setError(`Order was created, but printing needs attention: ${printResult.errorMessage}`);
+      }
       await load();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to create order');

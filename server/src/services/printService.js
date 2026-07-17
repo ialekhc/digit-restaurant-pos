@@ -176,7 +176,9 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
     if (counterJob) jobs.push(counterJob);
   }
 
-  return jobs;
+  return Promise.all(
+    jobs.map((job) => PrintJob.findById(job._id).populate('printer').populate('order').populate('payment'))
+  );
 };
 
 export const createAddedItemPrintJobs = ({ user, order, items }) =>

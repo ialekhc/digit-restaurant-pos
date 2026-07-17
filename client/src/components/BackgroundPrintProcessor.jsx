@@ -61,6 +61,11 @@ const BackgroundPrintProcessor = () => {
       const jobs = Array.isArray(pending) ? pending : [];
 
       for (const job of jobs) {
+        // Initial order tickets are printed synchronously by Create & Send Order.
+        // Leaving them out here prevents the background queue from racing and
+        // claiming the same ticket before the create-order screen can print it.
+        if (String(job.idempotencyKey || '').startsWith('INITIAL_ORDER:')) continue;
+
         const id = job._id;
         const printerName = systemPrinterNameForJob(job, routes);
         if (!id || !printerName || processingRef.current.has(id)) continue;
