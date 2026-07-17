@@ -48,6 +48,8 @@ const PrintStationPage = () => {
   const [autoProcess, setAutoProcess] = useState(true);
   const [bridgeStatus, setBridgeStatus] = useState('Not connected');
   const [connecting, setConnecting] = useState(false);
+  const [testingRoute, setTestingRoute] = useState('');
+  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
   const adapter = useMemo(() => {
@@ -86,6 +88,7 @@ const PrintStationPage = () => {
 
   const connectPrinters = useCallback(async () => {
     setConnecting(true);
+    setMessage('');
     setError('');
     try {
       const security = await qzSecurityService.status();
@@ -114,6 +117,40 @@ const PrintStationPage = () => {
       setConnecting(false);
     }
   }, [adapter, loadSystemPrinters]);
+
+  const testAssignedPrinter = useCallback(async (routeKey) => {
+    setMessage('');
+    setError('');
+    if (!adapter.isConnected()) {
+      setError('Connect printers before running a test print');
+      return;
+    }
+
+    const selectedName = printerRoutes[routeKey];
+    if (!selectedName) {
+      setError(`Select the ${routeKey === 'kitchen' ? 'Kitchen' : 'Reception'} printer first`);
+      return;
+    }
+
+    setTestingRoute(routeKey);
+    try {
+      const purpose = routeKey === 'kitchen' ? 'KITCHEN / FOOD' : 'RECEPTION / BAR / SMOKE';
+      await adapter.testPrint({
+        printer: {
+          name: selectedName,
+          connectionType: 'QZ_TRAY',
+          paperWidthMm: 58,
+          copies: 1,
+          purpose
+        }
+      });
+      setMessage(`Test page sent successfully to printer "${selectedName}"`);
+    } catch (err) {
+      setError(err.message || 'Test print failed');
+    } finally {
+      setTestingRoute('');
+    }
+  }, [adapter, printerRoutes]);
 
   const fetchJobs = useCallback(async () => {
     try {
@@ -150,7 +187,6 @@ const PrintStationPage = () => {
       const physicalPrinter = {
         ...(claimed.printer || {}),
         name: selectedSystemPrinter,
-        printerSystemName: selectedSystemPrinter,
         connectionType: 'QZ_TRAY'
       };
       await adapter.printHtml({ html, printer: physicalPrinter, job: claimed });
@@ -206,7 +242,7 @@ const PrintStationPage = () => {
         <div>
           <p className="text-sm font-bold text-slate-900">{job.documentType?.replaceAll('_', ' ')}</p>
           <p className="text-xs text-slate-500">
-            {job.order?.orderNumber || job.payload?.orderNumber || 'No order'} • {job.printer?.printerSystemName || job.printer?.name || 'Printer not configured'}
+            {job.order?.orderNumber || job.payload?.orderNumber || 'No order'} • Printer: {systemPrinterNameForJob(job, printerRoutes) || 'Not assigned'}
           </p>
         </div>
         <span className={`rounded-full border px-2.5 py-1 text-xs font-bold ${stationBadge[job.station] || 'border-slate-200 bg-slate-100 text-slate-700'}`}>
@@ -260,22 +296,45 @@ const PrintStationPage = () => {
         <div className="mt-4 rounded-2xl border border-brand-100 bg-white/80 p-4">
           <p className="mb-3 text-sm font-bold text-slate-900">Section Printer Assignment</p>
           <div className="grid gap-3 md:grid-cols-2">
-            <Select
-              label="Kitchen Printer (Food)"
-              value={printerRoutes.kitchen}
-              onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, kitchen: event.target.value }))}
-              options={routePrinterOptions}
-              helperText="All Food Menu tickets print on this printer."
-            />
-            <Select
-              label="Reception Printer (Bar & Smoke)"
-              value={printerRoutes.reception}
-              onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, reception: event.target.value }))}
-              options={routePrinterOptions}
-              helperText="Bar, Smoke, full order bills, and receipts print on this printer."
-            />
+            <div className="rounded-xl border border-brand-100 bg-white p-3">
+              <Select
+                label="Kitchen Printer Name (Food)"
+                value={printerRoutes.kitchen}
+                onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, kitchen: event.target.value }))}
+                options={routePrinterOptions}
+                helperText="Uses the exact installed printer name, not its driver or model."
+              />
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="secondary"
+                disabled={!printerRoutes.kitchen || testingRoute === 'kitchen'}
+                onClick={() => testAssignedPrinter('kitchen')}
+              >
+                {testingRoute === 'kitchen' ? 'Testing...' : 'Test Kitchen Printer'}
+              </Button>
+            </div>
+            <div className="rounded-xl border border-brand-100 bg-white p-3">
+              <Select
+                label="Reception Printer Name (Bar & Smoke)"
+                value={printerRoutes.reception}
+                onChange={(event) => setPrinterRoutes((routes) => ({ ...routes, reception: event.target.value }))}
+                options={routePrinterOptions}
+                helperText="Uses the exact installed printer name, not its driver or model."
+              />
+              <Button
+                className="mt-3"
+                size="sm"
+                variant="secondary"
+                disabled={!printerRoutes.reception || testingRoute === 'reception'}
+                onClick={() => testAssignedPrinter('reception')}
+              >
+                {testingRoute === 'reception' ? 'Testing...' : 'Test Reception Printer'}
+              </Button>
+            </div>
           </div>
         </div>
+        {message ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{message}</p> : null}
         {error ? <p className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-sm text-rose-700">{error}</p> : null}
       </Panel>
 

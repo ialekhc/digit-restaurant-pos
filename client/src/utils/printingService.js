@@ -83,10 +83,24 @@ class QzTrayAdapter {
     return Boolean(this.qz?.websocket?.isActive());
   }
 
+  async resolvePrinterName(printer = {}) {
+    const requestedName = String(printer.name || printer.printerSystemName || '').trim();
+    if (!requestedName) throw new Error('Printer name is required');
+
+    const discovered = await this.qz.printers.find();
+    const printerNames = (Array.isArray(discovered) ? discovered : [discovered])
+      .map((name) => String(name || '').trim())
+      .filter(Boolean);
+    const exactName = printerNames.find((name) => name.toLowerCase() === requestedName.toLowerCase());
+    if (!exactName) {
+      throw new Error(`Printer named "${requestedName}" is not connected or is not installed on this system`);
+    }
+    return exactName;
+  }
+
   async printHtml({ html, printer }) {
     await this.connect();
-    const printerName = printer?.printerSystemName || printer?.name;
-    if (!printerName) throw new Error('Printer system name is required');
+    const printerName = await this.resolvePrinterName(printer);
     const config = this.qz.configs.create(printerName, {
       copies: Number(printer?.copies || 1),
       size: { width: Number(printer?.paperWidthMm || 58), units: 'mm' }
@@ -96,8 +110,7 @@ class QzTrayAdapter {
 
   async printRaw({ raw, printer }) {
     await this.connect();
-    const printerName = printer?.printerSystemName || printer?.name;
-    if (!printerName) throw new Error('Printer system name is required');
+    const printerName = await this.resolvePrinterName(printer);
     const config = this.qz.configs.create(printerName, { copies: Number(printer?.copies || 1) });
     return this.qz.print(config, [{ type: 'raw', format: 'plain', data: raw }]);
   }
