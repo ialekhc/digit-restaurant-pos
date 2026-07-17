@@ -19,6 +19,8 @@ const mixedItems = [
 assert.equal(normalizeStation('FOOD'), 'KITCHEN');
 assert.equal(stationFromMenu({ menuType: 'DRINK' }), 'BAR');
 assert.equal(stationFromMenu({ menuType: 'SMOKE' }), 'SMOKE');
+assert.equal(stationFromMenu({ menuType: 'DRINK', preparationStation: 'KITCHEN' }), 'BAR');
+assert.equal(stationFromMenu({ menuType: 'SMOKE', preparationStation: 'KITCHEN' }), 'SMOKE');
 assert.equal(printerPurposeForStation('KITCHEN'), 'KITCHEN');
 assert.equal(printerPurposeForStation('BAR'), 'COUNTER');
 assert.equal(printerPurposeForStation('SMOKE'), 'COUNTER');

@@ -4,6 +4,15 @@ import Button from '../components/ui/Button';
 import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
+import {
+  loadPrinterRoutes,
+  PRINT_JOB_RESULT_EVENT,
+  routeKeyForJob,
+  savePrinterRoutes,
+  setAutoProcessPrintJobs,
+  shouldAutoProcessPrintJobs,
+  systemPrinterNameForJob
+} from '../utils/printStationRoutes';
 
 const stationBadge = {
   KITCHEN: 'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -13,29 +22,6 @@ const stationBadge = {
 };
 
 const clientId = `print-station-${Math.random().toString(36).slice(2)}`;
-const PRINTER_ROUTES_KEY = 'rms_print_station_routes_v1';
-
-const loadPrinterRoutes = () => {
-  try {
-    const stored = JSON.parse(localStorage.getItem(PRINTER_ROUTES_KEY) || '{}');
-    return { kitchen: stored.kitchen || '', reception: stored.reception || '' };
-  } catch (_error) {
-    return { kitchen: '', reception: '' };
-  }
-};
-
-const routeKeyForJob = (job = {}) => {
-  if (job.documentType === 'TEST_PRINT') return '';
-  if (job.station === 'KITCHEN') return 'kitchen';
-  if (['BAR', 'SMOKE', 'COUNTER'].includes(job.station)) return 'reception';
-  return '';
-};
-
-const systemPrinterNameForJob = (job, routes) => {
-  const routeKey = routeKeyForJob(job);
-  if (routeKey) return routes[routeKey] || '';
-  return job.printer?.printerSystemName || '';
-};
 
 const PrintStationPage = () => {
   const adapterRef = useRef(null);
@@ -45,7 +31,7 @@ const PrintStationPage = () => {
   const [systemPrinters, setSystemPrinters] = useState([]);
   const [printerName, setPrinterName] = useState('');
   const [printerRoutes, setPrinterRoutes] = useState(loadPrinterRoutes);
-  const [autoProcess, setAutoProcess] = useState(true);
+  const [autoProcess, setAutoProcess] = useState(shouldAutoProcessPrintJobs);
   const [bridgeStatus, setBridgeStatus] = useState('Not connected');
   const [connecting, setConnecting] = useState(false);
   const [testingRoute, setTestingRoute] = useState('');
@@ -167,13 +153,18 @@ const PrintStationPage = () => {
 
   const fetchJobs = useCallback(async () => {
     try {
-      const data = await printJobService.pending({ limit: 100 });
-      const pendingJobs = Array.isArray(data) ? data : [];
+      const [pending, failed] = await Promise.all([
+        printJobService.pending({ status: 'PENDING', limit: 100 }),
+        printJobService.pending({ status: 'FAILED', limit: 100 })
+      ]);
+      const pendingJobs = [
+        ...(Array.isArray(pending) ? pending : []),
+        ...(Array.isArray(failed) ? failed : [])
+      ];
       const selectedName = printerName.trim().toLowerCase();
       setJobs(selectedName
         ? pendingJobs.filter((job) => systemPrinterNameForJob(job, printerRoutes).trim().toLowerCase() === selectedName)
         : pendingJobs);
-      setError('');
     } catch (err) {
       setError(err.response?.data?.message || 'Unable to load print jobs');
     }
@@ -221,8 +212,21 @@ const PrintStationPage = () => {
   }, [adapter, printerRoutes]);
 
   useEffect(() => {
-    localStorage.setItem(PRINTER_ROUTES_KEY, JSON.stringify(printerRoutes));
+    savePrinterRoutes(printerRoutes);
   }, [printerRoutes]);
+
+  useEffect(() => {
+    setAutoProcessPrintJobs(autoProcess);
+  }, [autoProcess]);
+
+  useEffect(() => {
+    if (!adapter.isConnected()) return;
+    setBridgeStatus('QZ Tray connected');
+    loadSystemPrinters();
+    // The shared adapter stays connected while navigating between dashboard pages.
+    // This restores visible printer names without opening a new QZ connection.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [adapter]);
 
   useEffect(() => {
     fetchJobs();
@@ -236,9 +240,21 @@ const PrintStationPage = () => {
   }, [fetchJobs]);
 
   useEffect(() => {
-    if (!autoProcess || !jobs.length || !adapter.isConnected()) return;
-    jobs.filter((job) => systemPrinterNameForJob(job, printerRoutes)).forEach((job) => printJob(job));
-  }, [adapter, autoProcess, bridgeStatus, jobs, printJob, printerRoutes]);
+    const onResult = (event) => {
+      const { job, status, errorMessage } = event.detail || {};
+      if (!job?._id) return;
+      setHistory((previous) => [{ ...job, localStatus: status, errorMessage }, ...previous].slice(0, 30));
+      if (status === 'PRINTED') {
+        setJobs((previous) => previous.filter((row) => row._id !== job._id));
+        setMessage(`Printed ${job.documentType?.replaceAll('_', ' ') || 'ticket'} successfully`);
+      } else if (status === 'FAILED') {
+        setError(errorMessage || 'Print failed');
+        fetchJobs();
+      }
+    };
+    window.addEventListener(PRINT_JOB_RESULT_EVENT, onResult);
+    return () => window.removeEventListener(PRINT_JOB_RESULT_EVENT, onResult);
+  }, [fetchJobs]);
 
   const retry = async (job) => {
     try {

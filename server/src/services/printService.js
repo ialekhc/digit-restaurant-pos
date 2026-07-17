@@ -32,9 +32,12 @@ export const stationToKitchenSection = (station) => {
 };
 
 export const stationFromMenu = (menu = {}) => {
+  const menuType = String(menu.menuType || '').trim().toUpperCase();
+  // Legacy migrations defaulted preparationStation to KITCHEN for every menu
+  // item. Menu type must win for drinks and smoke or they print in Kitchen.
+  if (menuType === 'DRINK') return STATIONS.BAR;
+  if (menuType === 'SMOKE') return STATIONS.SMOKE;
   if (menu.preparationStation) return normalizeStation(menu.preparationStation);
-  if (menu.menuType === 'DRINK') return STATIONS.BAR;
-  if (menu.menuType === 'SMOKE') return STATIONS.SMOKE;
   return normalizeStation(menu.kitchenSection, STATIONS.KITCHEN);
 };
 

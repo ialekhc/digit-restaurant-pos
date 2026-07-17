@@ -175,8 +175,11 @@ class RoutedPrinterAdapter {
   }
 }
 
+let sharedPrinterAdapter;
+
 export const createPrinterAdapter = () => {
-  return new RoutedPrinterAdapter();
+  if (!sharedPrinterAdapter) sharedPrinterAdapter = new RoutedPrinterAdapter();
+  return sharedPrinterAdapter;
 };
 
 const baseStyles = (width = 58) => `
