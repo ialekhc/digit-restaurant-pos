@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite --port=5400",
     "build": "vite build",
+    "build:desktop": "vite build --mode desktop",
     "preview": "vite preview"
   },
   "dependencies": {

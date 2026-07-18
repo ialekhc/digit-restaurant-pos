@@ -4,8 +4,10 @@ services:
     container_name: digit-pos-postgres
     restart: unless-stopped
 
-    env_file:
-      - ./.env.postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurant_pos}
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -29,6 +31,12 @@ services:
 
     env_file:
       - ./server/.env
+
+    environment:
+      PORT: "5500"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-restaurant_pos}
+      CORE_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-restaurant_pos}
+      DATABASE_SSL: "false"
 
     depends_on:
       postgres:

@@ -1,7 +1,11 @@
 {
   "name": "digit-restaurant-pos-platform",
+  "productName": "Digit Restaurant POS",
+  "description": "Digit Restaurant POS web, Windows, and macOS desktop application",
+  "author": "Digit POS",
   "private": true,
   "version": "1.0.0",
+  "main": "desktop/main.cjs",
   "workspaces": [
     "client",
     "server",
@@ -14,6 +18,15 @@
     "dev:vendor-service": "npm run dev --workspace @pos/vendor-service",
     "dev:microservices": "node scripts/dev-microservices.js",
     "build:client": "npm run build --workspace client",
+    "dev:desktop": "concurrently -k \"cross-env PORT=5500 DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/restaurant_pos DATABASE_SSL=false npm run dev --workspace server\" \"npm run dev:client\" \"wait-on http://127.0.0.1:5500/api/health http://127.0.0.1:5400 && cross-env ELECTRON_START_URL=http://127.0.0.1:5400 DIGIT_DESKTOP_API_BASE_URL=http://127.0.0.1:5500/api DIGIT_DESKTOP_LAUNCH_BACKEND=false electron .\"",
+    "desktop:db": "docker compose up -d postgres",
+    "desktop:migrate": "cross-env DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/restaurant_pos DATABASE_SSL=false npm run db:migrate:core",
+    "desktop:seed": "cross-env DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:5432/restaurant_pos DATABASE_SSL=false npm run seed --workspace server",
+    "build:desktop-ui": "npm run build:desktop --workspace client",
+    "desktop": "npm run build:desktop-ui && electron .",
+    "package:windows": "npm run build:desktop-ui && electron-builder --win nsis portable --x64",
+    "package:mac": "npm run build:desktop-ui && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
+    "package:desktop": "npm run build:desktop-ui && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish never",
     "seed": "npm run seed --workspace server",
     "db:migrate": "npm run db:migrate --workspace @pos/vendor-service && npm run db:migrate --workspace server",
     "db:migrate:core": "npm run db:migrate --workspace server",
@@ -24,5 +37,64 @@
     "db:migrate:documents": "npm run db:migrate:documents --workspace @pos/vendor-service -- --execute && npm run db:migrate:documents --workspace server -- --execute",
     "db:migrate:documents:dry-run": "npm run db:migrate:documents --workspace @pos/vendor-service -- --dry-run && npm run db:migrate:documents --workspace server -- --dry-run",
     "db:migrate:documents:verify": "npm run db:migrate:documents --workspace @pos/vendor-service -- --verify && npm run db:migrate:documents --workspace server -- --verify"
+  },
+  "build": {
+    "appId": "com.digitnp.restaurantpos",
+    "productName": "Digit Restaurant POS",
+    "asar": true,
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "desktop/**/*",
+      "client/dist/**/*",
+      "server/**/*",
+      "!server/.env",
+      "!server/node_modules/**",
+      "!server/src/uploads/**",
+      "server/src/uploads/.gitkeep",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "server/**/*",
+      "node_modules/bcrypt/**/*"
+    ],
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "mac": {
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "identity": null,
+      "category": "public.app-category.business"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
+    }
+  },
+  "dependencies": {
+    "bcrypt": "^5.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "wait-on": "^9.0.10"
   }
 }

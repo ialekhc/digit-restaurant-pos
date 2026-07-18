@@ -1,6 +1,7 @@
 import express from 'express';
 import cors from 'cors';
 import morgan from 'morgan';
+import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import apiRoutes from './routes/index.js';
@@ -16,7 +17,8 @@ app.use(morgan('dev'));
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-const uploadPath = path.resolve(__dirname, 'uploads');
+const uploadPath = process.env.UPLOAD_DIR || path.resolve(__dirname, 'uploads');
+fs.mkdirSync(uploadPath, { recursive: true });
 app.use('/uploads', express.static(uploadPath));
 
 app.get('/api/health', async (_req, res) => {
