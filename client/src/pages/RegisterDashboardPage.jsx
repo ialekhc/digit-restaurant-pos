@@ -6,6 +6,7 @@ import Button from '../components/ui/Button';
 import StatusBadge from '../components/StatusBadge';
 import { formatDateTime } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
+import { downloadRowsAsXlsx } from '../utils/excel';
 
 const todayInputValue = () => {
   const today = new Date();
@@ -82,7 +83,6 @@ const RegisterDashboardPage = () => {
 
     setExporting(true);
     try {
-      const XLSX = await import('xlsx');
       const rows = payments.map((payment, index) => {
         const order = payment.order || {};
         const items = Array.isArray(order.items) ? order.items : [];
@@ -103,25 +103,12 @@ const RegisterDashboardPage = () => {
         };
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet['!cols'] = [
-        { wch: 6 },
-        { wch: 22 },
-        { wch: 18 },
-        { wch: 18 },
-        { wch: 10 },
-        { wch: 16 },
-        { wch: 16 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 42 },
-        { wch: 18 }
-      ];
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Sales Report');
-      XLSX.writeFile(workbook, `register-sales-report-${selectedDate}.xlsx`);
+      await downloadRowsAsXlsx({
+        rows,
+        sheetName: 'Sales Report',
+        filename: `register-sales-report-${selectedDate}.xlsx`,
+        widths: [6, 22, 18, 18, 10, 16, 16, 16, 14, 16, 42, 18]
+      });
     } catch (_err) {
       setError('Unable to export Excel right now. Please try again.');
     } finally {

@@ -9,6 +9,7 @@ import { currency } from '../utils/format';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { PERMISSIONS } from '../utils/constants';
+import { downloadRowsAsXlsx, readRowsFromXlsx } from '../utils/excel';
 
 const initial = {
   name: '',
@@ -190,11 +191,12 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
     ];
     try {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(templateRows);
-      XLSX.utils.book_append_sheet(workbook, worksheet, config.badgeText);
-      XLSX.writeFile(workbook, 'vendor-menu-import-template.xlsx');
+      await downloadRowsAsXlsx({
+        rows: templateRows,
+        sheetName: config.badgeText,
+        filename: 'vendor-menu-import-template.xlsx',
+        widths: [20, 28, 14, 22]
+      });
     } catch (error) {
       setImportError('Unable to generate template file');
     }
@@ -217,11 +219,11 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
 
     try {
       setImporting(true);
-      const XLSX = await import('xlsx');
       const buffer = await importFile.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const matchingSheetName = findImportSheetName(workbook.SheetNames, menuType);
-      const sheetName = matchingSheetName || (workbook.SheetNames.length === 1 ? workbook.SheetNames[0] : '');
+      const preferredSheetNames = importSheetNames[menuType];
+      const { sheetNames, rows: importedRows } = await readRowsFromXlsx(buffer, preferredSheetNames);
+      const matchingSheetName = findImportSheetName(sheetNames, menuType);
+      const sheetName = matchingSheetName || (sheetNames.length === 1 ? sheetNames[0] : '');
 
       if (!sheetName) {
         setImportError(
@@ -230,9 +232,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         return;
       }
 
-      const worksheet = workbook.Sheets[sheetName];
-      const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-      const rows = normalizeImportRows(rawRows);
+      const rows = normalizeImportRows(importedRows);
 
       if (!rows.length) {
         setImportError('No valid rows found. Expected columns: Category, Item, Price (Rs.)');
@@ -260,9 +260,9 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           <Input
             label="Excel File"
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx"
             onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            helperText="Use columns: Category, Item, Price (Rs.)"
+            helperText="Use an .xlsx file with columns: Category, Item, Price (Rs.)"
           />
           <div className="md:col-span-2 lg:col-span-2 flex items-end gap-2">
             <Button type="button" variant="secondary" onClick={downloadTemplate}>

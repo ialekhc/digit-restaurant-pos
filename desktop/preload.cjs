@@ -1,7 +1,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const apiArgument = process.argv.find((argument) => argument.startsWith('--digit-api-base-url='));
-const apiBaseUrl = apiArgument ? apiArgument.replace('--digit-api-base-url=', '') : 'http://127.0.0.1:5500/api';
+const apiBaseUrl = apiArgument ? apiArgument.replace('--digit-api-base-url=', '') : 'https://digitnp.com/api';
 
 contextBridge.exposeInMainWorld('digitDesktop', {
   isDesktop: true,

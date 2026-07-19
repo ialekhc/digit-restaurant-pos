@@ -12,6 +12,9 @@
     "services/*"
   ],
   "scripts": {
+    "check:syntax": "node scripts/check-syntax.cjs",
+    "test": "npm run test --workspace server",
+    "verify": "npm run check:syntax && npm test && npm run build:client && npm run build:desktop-ui",
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",
     "dev:gateway": "npm run dev --workspace @pos/api-gateway",
@@ -25,6 +28,7 @@
     "build:desktop-ui": "npm run build:desktop --workspace client",
     "desktop": "npm run build:desktop-ui && electron .",
     "package:windows": "npm run build:desktop-ui && electron-builder --win nsis portable --x64",
+    "release:windows": "npm run verify && node scripts/release-preflight.cjs && electron-builder --win nsis --x64 --publish never",
     "package:mac": "npm run build:desktop-ui && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg zip --universal",
     "package:desktop": "npm run build:desktop-ui && cross-env CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --publish never",
     "seed": "npm run seed --workspace server",
@@ -42,9 +46,12 @@
     "appId": "com.digitnp.restaurantpos",
     "productName": "Digit Restaurant POS",
     "asar": true,
+    "npmRebuild": false,
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
     "files": [
       "desktop/**/*",
       "client/dist/**/*",
@@ -57,9 +64,11 @@
     ],
     "asarUnpack": [
       "server/**/*",
-      "node_modules/bcrypt/**/*"
+      "node_modules/bcrypt/**/*",
+      "node_modules/node-gyp-build/**/*"
     ],
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"
@@ -77,18 +86,21 @@
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
-      "createStartMenuShortcut": true
+      "createStartMenuShortcut": true,
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false
     }
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
-    "pg": "^8.22.0"
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
+    "pg": "^8.22.0",
+    "uuid": "^11.1.1"
   },
   "devDependencies": {
     "concurrently": "^10.0.3",
@@ -96,5 +108,10 @@
     "electron": "^43.1.1",
     "electron-builder": "^26.15.3",
     "wait-on": "^9.0.10"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

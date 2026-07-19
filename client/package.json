@@ -13,13 +13,13 @@
     "@hookform/resolvers": "^3.9.0",
     "@react-pdf/renderer": "^4.5.1",
     "axios": "^1.7.3",
+    "exceljs": "^4.4.0",
     "qz-tray": "2.2.6",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.53.0",
-    "react-router-dom": "^6.26.1",
+    "react-router-dom": "^6.30.4",
     "recharts": "^2.12.7",
-    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -28,5 +28,10 @@
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.13",
     "vite": "^5.4.10"
+  },
+  "overrides": {
+    "exceljs": {
+      "uuid": "^11.1.1"
+    }
   }
 }

@@ -11,6 +11,7 @@ import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
 import { downloadReceiptPdf, openReceiptPdfTab } from '../utils/receiptPdf';
+import { downloadRowsAsXlsx } from '../utils/excel';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -719,8 +720,6 @@ const BillingPage = () => {
 
     setExporting(true);
     try {
-      const XLSX = await import('xlsx');
-
       const rows = filteredPayments.map((payment, index) => {
         const order = payment.order || {};
         const items = Array.isArray(order.items) ? order.items : [];
@@ -747,33 +746,13 @@ const BillingPage = () => {
         };
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet['!cols'] = [
-        { wch: 6 },
-        { wch: 16 },
-        { wch: 22 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 40 },
-        { wch: 14 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 20 },
-        { wch: 16 }
-      ];
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bills');
-
       const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-      XLSX.writeFile(workbook, `bills-history-${stamp}.xlsx`);
+      await downloadRowsAsXlsx({
+        rows,
+        sheetName: 'Bills',
+        filename: `bills-history-${stamp}.xlsx`,
+        widths: [6, 16, 22, 14, 12, 12, 12, 10, 40, 14, 14, 16, 14, 14, 16, 14, 20, 16]
+      });
     } catch (err) {
       setError('Unable to export Excel right now. Please try again.');
     } finally {

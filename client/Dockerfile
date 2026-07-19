@@ -1,10 +1,9 @@
-FROM node:22.0 AS build
+FROM node:22-alpine AS build
 
 WORKDIR /myapp
 
 COPY package*.json ./
-RUN rm -rf node_modules dist package-lock.json
-RUN npm install
+RUN npm ci
 
 COPY . .
 RUN npm run build

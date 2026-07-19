@@ -3,10 +3,10 @@
 The desktop app uses Electron and packages the same React/Vite interface used by the web app.
 It can connect to:
 
-- a local backend on `http://127.0.0.1:5500/api`
-- a hosted backend by setting `DIGIT_DESKTOP_API_BASE_URL`
+- the hosted production backend on `https://digitnp.com/api` by default
+- a local or alternate backend by setting `DIGIT_DESKTOP_API_BASE_URL`
 
-The packaged desktop app can start the bundled Node/Express backend automatically. PostgreSQL is still required because the system database is PostgreSQL.
+The packaged desktop app does not start its bundled backend when using the hosted API, so no PostgreSQL installation is required on the POS computer. Local development mode can still start the bundled Node/Express backend and requires PostgreSQL.
 
 ## Local Desktop Setup
 
@@ -29,7 +29,7 @@ postgresql://postgres:postgres@127.0.0.1:5432/restaurant_pos
 Default desktop API:
 
 ```text
-http://127.0.0.1:5500/api
+https://digitnp.com/api
 ```
 
 ## Run Packaged-Style Desktop App Locally
@@ -66,17 +66,21 @@ Output files are written to `release/`.
 
 ## Hosted Backend Mode
 
-Use this when the desktop app should connect to a Render/VPS backend instead of local PostgreSQL:
+The installed app uses the hosted Digit API by default. To use another hosted backend:
 
 ```bash
 DIGIT_DESKTOP_API_BASE_URL="https://your-backend.example.com/api" npm run desktop
 ```
 
-For packaged builds, set the same variable before packaging:
+For an installed build, edit `desktop-config.json` in the app-data directory and set:
 
-```bash
-DIGIT_DESKTOP_API_BASE_URL="https://your-backend.example.com/api" npm run package:desktop
+```json
+{
+  "apiBaseUrl": "https://your-backend.example.com/api"
+}
 ```
+
+The desktop app rejects non-local plain HTTP endpoints in packaged mode.
 
 ## Local Data
 
@@ -86,8 +90,9 @@ The app generates a local JWT secret automatically for desktop mode if `JWT_SECR
 
 ## Notes
 
-- PostgreSQL must be available before login will work.
-- For local mode, run `npm run desktop:db` before opening the app.
+- The hosted API must be reachable before login will work.
+- PostgreSQL is only required on the POS computer in local mode.
+- For local mode, set `DIGIT_DESKTOP_API_BASE_URL=http://127.0.0.1:5500/api` and run `npm run desktop:db` before opening the app.
 - For first-time setup, run migrations and seed once.
 - The bundled backend does not package secrets from `server/.env`.
 - Image uploads are written to the desktop app-data folder using `UPLOAD_DIR`.
