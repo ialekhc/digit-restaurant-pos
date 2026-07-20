@@ -662,7 +662,7 @@ def add_waiter(doc, bullet_num_id, decimal_num_id):
         ("Submit", "Create the order and confirm it appears in Orders and the correct station display."),
         ("Serve", "When an item is ready, confirm the table/order and record the item as Served. For takeaway, confirm it is Packed."),
         ("Add rounds", "From the selected table's order view, choose New Order For This Table and submit only the additional items."),
-    ], "Waiter cannot collect payment, apply discounts by default, manage menu/inventory, cancel orders, or modify users. Send billing to Cashier and exceptions to Manager.", bullet_num_id, decimal_num_id)
+    ], "Waiter can cancel active orders with a recorded reason. Waiter cannot collect payment, apply discounts by default, manage menu/inventory, or modify users. Send billing to Cashier and other exceptions to Manager.", bullet_num_id, decimal_num_id)
 
     doc.add_paragraph("Order-entry checklist", style="Heading 2")
     add_bullets(doc, [
