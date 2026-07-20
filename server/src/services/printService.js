@@ -145,7 +145,7 @@ export const buildStationPayload = ({
     restaurantName: restaurant.restaurantName || plainOrder.restaurantName || '',
     orderNumber: plainOrder.orderNumber,
     orderType: plainOrder.orderType,
-    tableNumber: plainOrder.table?.tableNumber || '',
+    tableNumber: plainOrder.table?.tableNumber || plainOrder.tableNumber || '',
     time: new Date().toISOString(),
     createdAt: plainOrder.createdAt,
     waiter: plainOrder.createdBy?.name || '',

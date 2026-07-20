@@ -267,8 +267,8 @@ const baseStyles = (width = 58) => `
   <style>
     @page { size: ${Number(width || 58)}mm auto; margin: 0; }
     * { box-sizing: border-box; }
-    body { margin: 0; background: #fff; color: #111827; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; }
-    .ticket { width: ${Number(width || 58)}mm; padding: 2.5mm; font-size: 11px; line-height: 1.35; }
+    body { margin: 0; background: #fff; color: #111827; font-family: Arial, Helvetica, sans-serif; }
+    .ticket { width: ${Number(width || 58)}mm; padding: 3mm; font-size: 12px; line-height: 1.35; }
     h1, h2, p { margin: 0; }
     h1 { text-align: center; font-size: 16px; }
     h2 { text-align: center; font-size: 13px; margin-top: 2px; }
@@ -280,22 +280,47 @@ const baseStyles = (width = 58) => `
     .center { text-align: center; }
     .muted { color: #4b5563; font-size: 10px; }
     .total { font-weight: 800; font-size: 13px; }
+    .station-title { border: 2px solid #111827; margin: 7px 0 8px; padding: 5px 2px; font-size: 15px; font-weight: 900; text-align: center; }
+    .station-meta .row { align-items: baseline; font-size: 12px; margin: 2px 0; }
+    .station-meta .row strong { text-align: right; font-size: 13px; }
+    .kot-items { margin-top: 0; }
+    .kot-items th { border-bottom: 1px solid #cbd5e1; font-size: 12px; font-weight: 900; }
+    .kot-items td { border-bottom: 1px solid #e2e8f0; padding: 5px 0; font-size: 12px; }
+    .kot-items th:first-child, .kot-items td:first-child { width: 18px; text-align: left; }
+    .kot-items th:nth-child(2), .kot-items td:nth-child(2) { text-align: left; }
+    .kot-items th:last-child, .kot-items td:last-child { width: 28px; text-align: right; }
+    .preparation-note { margin-top: 9px; text-align: center; font-size: 11px; font-weight: 700; }
     @media print { html, body { width: ${Number(width || 58)}mm; height: auto; } }
   </style>
 `;
+
+const stationDisplayTitle = (station) => {
+  const normalized = String(station || '').trim().toUpperCase();
+  if (normalized === 'KITCHEN' || normalized === 'FOOD') return 'FOOD / KITCHEN TICKET';
+  if (normalized === 'SMOKE' || normalized === 'HOOKAH') return 'SMOKE / HOOKAH TICKET';
+  if (normalized === 'BAR') return 'BAR TICKET';
+  return `${normalized || 'PREPARATION'} TICKET`;
+};
+
+const stationTicketTitle = (job, payload, station) => {
+  const baseTitle = stationDisplayTitle(station);
+  const ticketType = String(payload.ticketType || '').toUpperCase();
+  if (job.documentType === 'CANCELLED_ITEMS' || ticketType.includes('CANCELLATION')) return `CANCELLATION ${baseTitle}`;
+  if (ticketType.includes('ADDITIONAL')) return `ADDITIONAL ${baseTitle}`;
+  if (ticketType.includes('REPRINT')) return `REPRINT ${baseTitle}`;
+  return baseTitle;
+};
+
+const stationTableNumber = (job, payload) => (
+  payload.tableNumber || job.order?.table?.tableNumber || job.order?.tableNumber || '-'
+);
 
 export const buildStationTicketHtml = (job) => {
   const printer = job.printer || {};
   const payload = job.payload || {};
   const department = payload.department || payload.station || job.station || '';
-  const ticketType = String(payload.ticketType || '').toUpperCase();
-  const title = job.documentType === 'CANCELLED_ITEMS' || ticketType.includes('CANCELLATION')
-    ? `CANCELLATION ${department} TICKET`
-    : ticketType.includes('ADDITIONAL')
-      ? `ADDITIONAL ${department} TICKET`
-      : ticketType.includes('REPRINT')
-        ? `REPRINT ${department} TICKET`
-        : `${department} TICKET`;
+  const title = stationTicketTitle(job, payload, department);
+  const tableNumber = stationTableNumber(job, payload);
   const printedAt = new Date(payload.time || Date.now());
   const optionLabel = (option) => {
     if (typeof option === 'string') return option;
@@ -310,20 +335,23 @@ export const buildStationTicketHtml = (job) => {
   return `<!doctype html><html><head><title>${escapeHtml(title)}</title>${baseStyles(printer.paperWidthMm)}</head><body>
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
-      <h2>${escapeHtml(title)}</h2>
-      <div class="line"></div>
-      <div class="row"><span>Order</span><strong>${escapeHtml(payload.orderNumber || '-')}</strong></div>
-      <div class="row"><span>Table/Type</span><strong>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</strong></div>
-      <div class="row"><span>Time</span><span>${escapeHtml(printedAt.toLocaleString())}</span></div>
-      ${payload.waiter ? `<div class="row"><span>Staff</span><span>${escapeHtml(payload.waiter)}</span></div>` : ''}
+      <div class="station-title">${escapeHtml(title)}</div>
+      <div class="station-meta">
+        <div class="row"><span>Order</span><strong>${escapeHtml(payload.orderNumber || '-')}</strong></div>
+        <div class="row"><span>Table</span><strong>${escapeHtml(tableNumber)}</strong></div>
+        <div class="row"><span>Type</span><strong>${escapeHtml(payload.orderType || '-')}</strong></div>
+        <div class="row"><span>Time</span><strong>${escapeHtml(printedAt.toLocaleString())}</strong></div>
+        <div class="row"><span>Attended By</span><strong>${escapeHtml(payload.waiter || '-')}</strong></div>
+      </div>
       ${payload.cancellationReason ? `<div class="row"><span>Reason</span><span>${escapeHtml(payload.cancellationReason)}</span></div>` : ''}
       ${payload.cancelledBy ? `<div class="row"><span>Cancelled By</span><span>${escapeHtml(payload.cancelledBy)}</span></div>` : ''}
       <div class="line"></div>
-      <table>
-        <thead><tr><th>Item</th><th>Qty</th></tr></thead>
+      <table class="kot-items">
+        <thead><tr><th>#</th><th>Item</th><th>Qty</th></tr></thead>
         <tbody>
-          ${(payload.items || []).map((item) => `
+          ${(payload.items || []).map((item, index) => `
             <tr>
+              <td>${index + 1}</td>
               <td>
                 <strong>${escapeHtml(item.name)}</strong>
                 ${optionLine('Variant', item.variants)}
@@ -337,7 +365,7 @@ export const buildStationTicketHtml = (job) => {
         </tbody>
       </table>
       <div class="line"></div>
-      <p class="center muted">Preparation only - no prices</p>
+      <p class="preparation-note">Preparation ticket only. No price or payment details.</p>
     </section>
   </body></html>`;
 };
@@ -410,40 +438,92 @@ const textOptionLine = (label, options) => {
   return values.length ? `  ${label}: ${values.join(', ')}` : '';
 };
 
+const ESC = '\x1b';
+const GS = '\x1d';
+const rawAlignCenter = `${ESC}a\x01`;
+const rawAlignLeft = `${ESC}a\x00`;
+const rawBoldOn = `${ESC}E\x01`;
+const rawBoldOff = `${ESC}E\x00`;
+const rawDoubleSize = `${GS}!\x11`;
+const rawNormalSize = `${GS}!\x00`;
+
+const centeredText = (value, width) => {
+  const text = String(value || '');
+  const remaining = Math.max(0, width - text.length);
+  return `${' '.repeat(Math.floor(remaining / 2))}${text}`;
+};
+
+const metadataText = (label, value, width) => {
+  const left = String(label || '');
+  const right = String(value || '-');
+  const spacing = Math.max(1, width - left.length - right.length);
+  return `${left}${' '.repeat(spacing)}${rawBoldOn}${right}${rawBoldOff}`;
+};
+
+const wrapTicketText = (value, width) => {
+  const words = String(value || '-').trim().split(/\s+/).filter(Boolean);
+  const lines = [];
+  let line = '';
+  for (const word of words) {
+    if (!line) {
+      line = word.slice(0, width);
+    } else if (`${line} ${word}`.length <= width) {
+      line += ` ${word}`;
+    } else {
+      lines.push(line);
+      line = word.slice(0, width);
+    }
+  }
+  if (line) lines.push(line);
+  return lines.length ? lines : ['-'];
+};
+
 export const buildStationTicketText = (job = {}) => {
   const payload = job.payload || {};
   const department = payload.department || payload.station || job.station || '';
-  const ticketType = String(payload.ticketType || '').toUpperCase();
-  const title = job.documentType === 'CANCELLED_ITEMS' || ticketType.includes('CANCELLATION')
-    ? `CANCELLATION ${department} TICKET`
-    : ticketType.includes('ADDITIONAL')
-      ? `ADDITIONAL ${department} TICKET`
-      : ticketType.includes('REPRINT')
-        ? `REPRINT ${department} TICKET`
-        : `${department} TICKET`;
+  const title = stationTicketTitle(job, payload, department);
+  const tableNumber = stationTableNumber(job, payload);
   const printedAt = new Date(payload.time || Date.now());
+  const paperWidthMm = Number(job.printer?.paperWidthMm || 58);
+  const width = paperWidthMm >= 76 ? 48 : 32;
+  const separator = '-'.repeat(width);
+  const itemWidth = width - 7;
   const lines = [
-    payload.restaurantName || 'Restaurant RMS',
-    title,
-    '--------------------------------',
-    `Order: ${payload.orderNumber || '-'}`,
-    `Table/Type: ${payload.tableNumber || payload.orderType || '-'}`,
-    `Time: ${printedAt.toLocaleString()}`
+    `${rawAlignCenter}${rawBoldOn}${rawDoubleSize}${payload.restaurantName || 'Restaurant RMS'}${rawNormalSize}${rawBoldOff}`,
+    '',
+    `+${'-'.repeat(width - 2)}+`,
+    `${rawBoldOn}|${centeredText(title, width - 2).padEnd(width - 2)}|${rawBoldOff}`,
+    `+${'-'.repeat(width - 2)}+`,
+    `${rawAlignLeft}${metadataText('Order', payload.orderNumber || '-', width)}`,
+    metadataText('Table', tableNumber, width),
+    metadataText('Type', payload.orderType || '-', width),
+    metadataText('Time', printedAt.toLocaleString(), width),
+    metadataText('Attended By', payload.waiter || '-', width)
   ];
-  if (payload.waiter) lines.push(`Staff: ${payload.waiter}`);
   if (payload.cancellationReason) lines.push(`Reason: ${payload.cancellationReason}`);
   if (payload.cancelledBy) lines.push(`Cancelled By: ${payload.cancelledBy}`);
-  lines.push('--------------------------------');
-  for (const item of payload.items || []) {
-    lines.push(`${item.name || '-'}    Qty: ${Number(item.quantity || 0)}`);
+  lines.push(separator, `${rawBoldOn}${'#'.padEnd(3)}${'Item'.padEnd(itemWidth)}${'Qty'.padStart(4)}${rawBoldOff}`, separator);
+  (payload.items || []).forEach((item, index) => {
+    const itemLines = wrapTicketText(item.name, itemWidth);
+    itemLines.forEach((itemLine, lineIndex) => {
+      const number = lineIndex === 0 ? String(index + 1) : '';
+      const quantity = lineIndex === 0 ? String(Number(item.quantity || 0)) : '';
+      lines.push(`${number.padEnd(3)}${rawBoldOn}${itemLine.padEnd(itemWidth)}${rawBoldOff}${quantity.padStart(4)}`);
+    });
     const variant = textOptionLine('Variant', item.variants);
     const addons = textOptionLine('Add-ons', item.addons);
     if (variant) lines.push(variant);
     if (addons) lines.push(addons);
     if (item.specialInstructions) lines.push(`  Instructions: ${item.specialInstructions}`);
     if (item.notes && item.notes !== item.specialInstructions) lines.push(`  Notes: ${item.notes}`);
-  }
-  lines.push('--------------------------------', 'Preparation only - no prices');
+  });
+  lines.push(separator, '');
+  const footerLines = wrapTicketText('Preparation ticket only. No price or payment details.', width);
+  footerLines.forEach((line, index) => {
+    const prefix = index === 0 ? `${rawAlignCenter}${rawBoldOn}` : '';
+    const suffix = index === footerLines.length - 1 ? `${rawBoldOff}${rawAlignLeft}${rawNormalSize}` : '';
+    lines.push(`${prefix}${line}${suffix}`);
+  });
   return lines.join('\n');
 };
 
