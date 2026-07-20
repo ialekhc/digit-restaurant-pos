@@ -123,6 +123,7 @@ export const createQrOrder = asyncHandler(async (req, res) => {
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
+      menuType: String(menu.menuType || 'FOOD').toUpperCase(),
       name: menu.name,
       price: menu.price,
       quantity,

@@ -33,6 +33,15 @@ assert.equal(grouped.BAR.length, 1, 'Bar group should contain only bar items');
 assert.equal(grouped.SMOKE.length, 1, 'Smoke group should contain only smoke items');
 assert.equal(grouped.NONE, undefined, 'NONE station must not create a printable group');
 
+const legacyGrouped = groupItemsByStation([
+  { name: 'Legacy drink', menuType: 'DRINK', preparationStation: 'KITCHEN' },
+  { name: 'Legacy smoke', menuType: 'SMOKE', preparationStation: 'KITCHEN' },
+  { name: 'Hookah alias', preparationStation: 'HOOKAH' }
+]);
+assert.equal(legacyGrouped.KITCHEN, undefined, 'Legacy defaults must not send drinks or smoke to Kitchen');
+assert.equal(legacyGrouped.BAR.length, 1, 'Drink menu type must print only at Bar');
+assert.equal(legacyGrouped.SMOKE.length, 2, 'Smoke and Hookah designations must print only at Smoke');
+
 const stationPayload = buildStationPayload({
   order: { orderNumber: 'ORD-1', orderType: 'DINE_IN', table: { tableNumber: 'T-1' }, createdBy: { name: 'Waiter' } },
   station: 'BAR',

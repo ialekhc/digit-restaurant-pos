@@ -23,6 +23,9 @@ const stationDocumentTypes = {
 export const normalizeStation = (value, fallback = STATIONS.KITCHEN) => {
   const normalized = String(value || '').trim().toUpperCase();
   if (normalized === 'FOOD') return STATIONS.KITCHEN;
+  if (['DRINK', 'DRINKS', 'BEVERAGE', 'BEVERAGES'].includes(normalized)) return STATIONS.BAR;
+  if (['HOOKAH', 'SHISHA'].includes(normalized)) return STATIONS.SMOKE;
+  if (['NO_PRINT', 'NO PRINT'].includes(normalized)) return STATIONS.NONE;
   if (['KITCHEN', 'BAR', 'SMOKE', 'NONE'].includes(normalized)) return normalized;
   return fallback;
 };
@@ -49,7 +52,12 @@ export const printerPurposeForStation = (station) => {
 
 export const groupItemsByStation = (items = []) => {
   return items.reduce((acc, item) => {
-    const station = normalizeStation(item.preparationStation || item.station || item.kitchenSection);
+    const menuType = String(item.menuType || item.menuItem?.menuType || '').trim().toUpperCase();
+    const station = menuType === 'DRINK'
+      ? STATIONS.BAR
+      : menuType === 'SMOKE'
+        ? STATIONS.SMOKE
+        : normalizeStation(item.preparationStation || item.station || item.kitchenSection);
     if (station === STATIONS.NONE) return acc;
     if (!acc[station]) acc[station] = [];
     acc[station].push({
@@ -166,7 +174,11 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
   const jobs = [];
   const restaurant = await getRestaurantDetails(order.restaurantId);
 
-  for (const [station, stationItems] of Object.entries(grouped)) {
+  // A mixed order must always produce independent jobs. Fixed station order
+  // makes the split deterministic while each payload contains only its own
+  // designated items.
+  for (const station of [STATIONS.KITCHEN, STATIONS.BAR, STATIONS.SMOKE]) {
+    const stationItems = grouped[station] || [];
     if (!stationItems.length) continue;
     const printer = await getPrinterForPurpose({ user, restaurantId: order.restaurantId, purpose: station });
 

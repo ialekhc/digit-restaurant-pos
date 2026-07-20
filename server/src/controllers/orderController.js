@@ -252,6 +252,7 @@ export const createOrder = asyncHandler(async (req, res) => {
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
+      menuType: String(menu.menuType || 'FOOD').toUpperCase(),
       name: menu.name,
       price: menu.price,
       quantity,
@@ -504,6 +505,7 @@ export const addOrderItems = asyncHandler(async (req, res) => {
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
+      menuType: String(menu.menuType || 'FOOD').toUpperCase(),
       name: menu.name,
       price: menu.price,
       quantity,
@@ -643,6 +645,7 @@ export const cancelOrderItems = asyncHandler(async (req, res) => {
     cancelledItems.push({
       itemId: item._id,
       menuItem: item.menuItem,
+      menuType: item.menuType,
       name: item.name,
       price: Number(item.price || 0),
       quantity: cancelledQuantity,
