@@ -281,6 +281,7 @@ const baseStyles = (width = 58) => `
     .muted { color: #4b5563; font-size: 10px; }
     .total { font-weight: 800; font-size: 13px; }
     .station-title { border: 2px solid #111827; margin: 7px 0 8px; padding: 5px 2px; font-size: 15px; font-weight: 900; text-align: center; }
+    .table-banner { margin: -2px 0 8px; text-align: center; font-size: 17px; font-weight: 900; }
     .station-meta .row { align-items: baseline; font-size: 12px; margin: 2px 0; }
     .station-meta .row strong { text-align: right; font-size: 13px; }
     .kot-items { margin-top: 0; }
@@ -289,6 +290,7 @@ const baseStyles = (width = 58) => `
     .kot-items th:first-child, .kot-items td:first-child { width: 18px; text-align: left; }
     .kot-items th:nth-child(2), .kot-items td:nth-child(2) { text-align: left; }
     .kot-items th:last-child, .kot-items td:last-child { width: 28px; text-align: right; }
+    .item-note { border: 2px solid #111827; margin-top: 4px; padding: 3px; background: #111827; color: #fff; font-size: 11px; font-weight: 900; }
     .preparation-note { margin-top: 9px; text-align: center; font-size: 11px; font-weight: 700; }
     @media print { html, body { width: ${Number(width || 58)}mm; height: auto; } }
   </style>
@@ -332,13 +334,21 @@ export const buildStationTicketHtml = (job) => {
     const values = (Array.isArray(options) ? options : []).map(optionLabel).filter(Boolean);
     return values.length ? `<div class="muted"><strong>${label}:</strong> ${escapeHtml(values.join(', '))}</div>` : '';
   };
+  const highlightedNote = (item) => {
+    const notes = [item.specialInstructions, item.notes]
+      .map((value) => String(value || '').trim())
+      .filter((value, index, values) => value && values.indexOf(value) === index);
+    return notes.length
+      ? `<div class="item-note"><strong>NOTE:</strong> ${escapeHtml(notes.join(' / '))}</div>`
+      : '';
+  };
   return `<!doctype html><html><head><title>${escapeHtml(title)}</title>${baseStyles(printer.paperWidthMm)}</head><body>
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
       <div class="station-title">${escapeHtml(title)}</div>
+      <div class="table-banner">TABLE NO.: ${escapeHtml(tableNumber)}</div>
       <div class="station-meta">
         <div class="row"><span>Order</span><strong>${escapeHtml(payload.orderNumber || '-')}</strong></div>
-        <div class="row"><span>Table</span><strong>${escapeHtml(tableNumber)}</strong></div>
         <div class="row"><span>Type</span><strong>${escapeHtml(payload.orderType || '-')}</strong></div>
         <div class="row"><span>Time</span><strong>${escapeHtml(printedAt.toLocaleString())}</strong></div>
         <div class="row"><span>Attended By</span><strong>${escapeHtml(payload.waiter || '-')}</strong></div>
@@ -356,8 +366,7 @@ export const buildStationTicketHtml = (job) => {
                 <strong>${escapeHtml(item.name)}</strong>
                 ${optionLine('Variant', item.variants)}
                 ${optionLine('Add-ons', item.addons)}
-                ${item.specialInstructions ? `<div class="muted"><strong>Instructions:</strong> ${escapeHtml(item.specialInstructions)}</div>` : ''}
-                ${item.notes && item.notes !== item.specialInstructions ? `<div class="muted"><strong>Notes:</strong> ${escapeHtml(item.notes)}</div>` : ''}
+                ${highlightedNote(item)}
               </td>
               <td>${Number(item.quantity || 0)}</td>
             </tr>
@@ -446,6 +455,8 @@ const rawBoldOn = `${ESC}E\x01`;
 const rawBoldOff = `${ESC}E\x00`;
 const rawDoubleSize = `${GS}!\x11`;
 const rawNormalSize = `${GS}!\x00`;
+const rawInverseOn = `${GS}B\x01`;
+const rawInverseOff = `${GS}B\x00`;
 
 const centeredText = (value, width) => {
   const text = String(value || '');
@@ -494,8 +505,9 @@ export const buildStationTicketText = (job = {}) => {
     `+${'-'.repeat(width - 2)}+`,
     `${rawBoldOn}|${centeredText(title, width - 2).padEnd(width - 2)}|${rawBoldOff}`,
     `+${'-'.repeat(width - 2)}+`,
+    `${rawBoldOn}${rawDoubleSize}TABLE NO.: ${tableNumber}${rawNormalSize}${rawBoldOff}`,
+    '',
     `${rawAlignLeft}${metadataText('Order', payload.orderNumber || '-', width)}`,
-    metadataText('Table', tableNumber, width),
     metadataText('Type', payload.orderType || '-', width),
     metadataText('Time', printedAt.toLocaleString(), width),
     metadataText('Attended By', payload.waiter || '-', width)
@@ -514,8 +526,15 @@ export const buildStationTicketText = (job = {}) => {
     const addons = textOptionLine('Add-ons', item.addons);
     if (variant) lines.push(variant);
     if (addons) lines.push(addons);
-    if (item.specialInstructions) lines.push(`  Instructions: ${item.specialInstructions}`);
-    if (item.notes && item.notes !== item.specialInstructions) lines.push(`  Notes: ${item.notes}`);
+    const notes = [item.specialInstructions, item.notes]
+      .map((value) => String(value || '').trim())
+      .filter((value, noteIndex, values) => value && values.indexOf(value) === noteIndex);
+    if (notes.length) {
+      const noteLines = wrapTicketText(`NOTE: ${notes.join(' / ')}`, width);
+      noteLines.forEach((noteLine) => {
+        lines.push(`${rawBoldOn}${rawInverseOn}${noteLine.padEnd(width)}${rawInverseOff}${rawBoldOff}`);
+      });
+    }
   });
   lines.push(separator, '');
   const footerLines = wrapTicketText('Preparation ticket only. No price or payment details.', width);
