@@ -1,3 +1,4 @@
+import crypto from 'node:crypto';
 import { Printer } from '../models/Printer.js';
 import { PrintJob } from '../models/PrintJob.js';
 import { Payment } from '../models/Payment.js';
@@ -41,13 +42,9 @@ export const stationFromMenu = (menu = {}) => {
   return normalizeStation(menu.kitchenSection, STATIONS.KITCHEN);
 };
 
-// This installation uses two physical printers. Food is prepared in the
-// kitchen; drink and smoke tickets are handled by the reception printer.
 export const printerPurposeForStation = (station) => {
   if (String(station || '').trim().toUpperCase() === 'COUNTER') return 'COUNTER';
-  const normalized = normalizeStation(station);
-  if (normalized === STATIONS.BAR || normalized === STATIONS.SMOKE) return 'COUNTER';
-  return normalized;
+  return normalizeStation(station);
 };
 
 export const groupItemsByStation = (items = []) => {
@@ -116,10 +113,33 @@ const createPrintJobIfMissing = async ({ user, restaurantId, printer, order, pay
   }));
 };
 
-export const buildStationPayload = ({ order, station, items, reason = '', cancelledBy = '', restaurant = {} }) => {
+const ticketTypeForSource = (source = '') => {
+  if (source === 'ADDED_ITEMS') return 'ADDITIONAL KOT';
+  if (String(source).startsWith('CANCELLED_ITEMS')) return 'CANCELLATION KOT';
+  if (String(source).startsWith('MANUAL_REPRINT')) return 'REPRINT KOT';
+  return 'KOT';
+};
+
+export const kotNumberForKey = (idempotencyKey) => (
+  `KOT-${crypto.createHash('sha1').update(String(idempotencyKey)).digest('hex').slice(0, 10).toUpperCase()}`
+);
+
+export const buildStationPayload = ({
+  order,
+  station,
+  items,
+  reason = '',
+  cancelledBy = '',
+  restaurant = {},
+  source = 'INITIAL_ORDER',
+  kotNumber = ''
+}) => {
   const plainOrder = toPlain(order);
   return {
     station,
+    department: station === STATIONS.SMOKE ? 'HOOKAH' : station,
+    ticketType: ticketTypeForSource(source),
+    kotNumber,
     restaurantName: restaurant.restaurantName || plainOrder.restaurantName || '',
     orderNumber: plainOrder.orderNumber,
     orderType: plainOrder.orderType,
@@ -135,7 +155,7 @@ export const buildStationPayload = ({ order, station, items, reason = '', cancel
       notes: item.notes || '',
       variants: item.variants || [],
       addons: item.addons || [],
-      specialInstructions: item.specialInstructions || ''
+      specialInstructions: item.specialInstructions || item.notes || ''
     }))
   };
 };
@@ -150,7 +170,7 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
     if (!stationItems.length) continue;
     const printer = await getPrinterForPurpose({ user, restaurantId: order.restaurantId, purpose: station });
 
-    const documentType = source === 'CANCELLED_ITEMS' ? 'CANCELLED_ITEMS' : stationDocumentTypes[station];
+    const documentType = String(source).startsWith('CANCELLED_ITEMS') ? 'CANCELLED_ITEMS' : stationDocumentTypes[station];
     const itemKey = stationItems
       .map((item) => `${item._id || item.menuItem || item.name}:${item.quantity}:${item.notes || ''}`)
       .join('|');
@@ -163,17 +183,19 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
       order,
       documentType,
       station,
-      payload: buildStationPayload({ order, station, items: stationItems, reason, cancelledBy, restaurant }),
+      payload: buildStationPayload({
+        order,
+        station,
+        items: stationItems,
+        reason,
+        cancelledBy,
+        restaurant,
+        source,
+        kotNumber: kotNumberForKey(idempotencyKey)
+      }),
       idempotencyKey
     });
     if (job) jobs.push(job);
-  }
-
-  // The counter copy is the master order bill: it intentionally contains every
-  // item while production printers receive only their own station's items.
-  if (source === 'INITIAL_ORDER' || String(source).startsWith('MANUAL_REPRINT')) {
-    const counterJob = await createCounterOrderBillJob({ user, order, restaurant, source });
-    if (counterJob) jobs.push(counterJob);
   }
 
   return Promise.all(
@@ -184,8 +206,8 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
 export const createAddedItemPrintJobs = ({ user, order, items }) =>
   createStationPrintJobs({ user, order, items, source: 'ADDED_ITEMS' });
 
-export const createCancellationPrintJob = ({ user, order, items, reason = '', cancelledBy = '' }) =>
-  createStationPrintJobs({ user, order, items, reason, cancelledBy, source: 'CANCELLED_ITEMS' });
+export const createCancellationPrintJob = ({ user, order, items, reason = '', cancelledBy = '', eventId = Date.now() }) =>
+  createStationPrintJobs({ user, order, items, reason, cancelledBy, source: `CANCELLED_ITEMS:${eventId}` });
 
 export const buildCounterReceiptPayload = ({ payment, order, payments = [], orders = [], restaurant = {} }) => {
   const plainOrder = toPlain(order);

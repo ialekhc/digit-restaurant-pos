@@ -71,6 +71,7 @@ export const orderService = {
   list: async (params) => unwrap(await api.get('/orders', { params })),
   get: async (id) => unwrap(await api.get(`/orders/${id}`)),
   create: async (payload) => unwrap(await api.post('/orders', payload)),
+  addItems: async (id, payload) => unwrap(await api.post(`/orders/${id}/items`, payload)),
   updateItems: async (id, payload) => unwrap(await api.patch(`/orders/${id}/items`, payload)),
   updateStatus: async (id, status, extra = {}) => unwrap(await api.patch(`/orders/${id}/status`, { status, ...extra })),
   cancelItems: async (id, items, reason) => unwrap(await api.patch(`/orders/${id}/cancel-items`, { items, reason })),

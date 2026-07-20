@@ -206,16 +206,31 @@ const baseStyles = (width = 58) => `
 export const buildStationTicketHtml = (job) => {
   const printer = job.printer || {};
   const payload = job.payload || {};
-  const title = job.documentType === 'CANCELLED_ITEMS' ? 'CANCELLATION TICKET' : `${payload.station || job.station} TICKET`;
+  const title = payload.ticketType || (job.documentType === 'CANCELLED_ITEMS' ? 'CANCELLATION KOT' : 'KOT');
+  const department = payload.department || payload.station || job.station || '';
+  const printedAt = new Date(payload.time || Date.now());
+  const optionLabel = (option) => {
+    if (typeof option === 'string') return option;
+    const name = option?.name || option?.label || option?.value || '';
+    const quantity = Number(option?.quantity || option?.qty || 0);
+    return `${quantity > 1 ? `${quantity}x ` : ''}${name}`.trim();
+  };
+  const optionLine = (label, options) => {
+    const values = (Array.isArray(options) ? options : []).map(optionLabel).filter(Boolean);
+    return values.length ? `<div class="muted"><strong>${label}:</strong> ${escapeHtml(values.join(', '))}</div>` : '';
+  };
   return `<!doctype html><html><head><title>${escapeHtml(title)}</title>${baseStyles(printer.paperWidthMm)}</head><body>
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
       <h2>${escapeHtml(title)}</h2>
+      <p class="center"><strong>${escapeHtml(department)} DEPARTMENT</strong></p>
       <div class="line"></div>
+      <div class="row"><span>KOT No.</span><strong>${escapeHtml(payload.kotNumber || '-')}</strong></div>
       <div class="row"><span>Order</span><strong>${escapeHtml(payload.orderNumber || '-')}</strong></div>
-      <div class="row"><span>Table/Type</span><strong>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</strong></div>
-      <div class="row"><span>Time</span><span>${escapeHtml(new Date(payload.time || Date.now()).toLocaleString())}</span></div>
-      ${payload.waiter ? `<div class="row"><span>Staff</span><span>${escapeHtml(payload.waiter)}</span></div>` : ''}
+      <div class="row"><span>Table</span><strong>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</strong></div>
+      <div class="row"><span>Waiter</span><span>${escapeHtml(payload.waiter || '-')}</span></div>
+      <div class="row"><span>Date</span><span>${escapeHtml(printedAt.toLocaleDateString())}</span></div>
+      <div class="row"><span>Time</span><span>${escapeHtml(printedAt.toLocaleTimeString())}</span></div>
       ${payload.cancellationReason ? `<div class="row"><span>Reason</span><span>${escapeHtml(payload.cancellationReason)}</span></div>` : ''}
       ${payload.cancelledBy ? `<div class="row"><span>Cancelled By</span><span>${escapeHtml(payload.cancelledBy)}</span></div>` : ''}
       <div class="line"></div>
@@ -224,14 +239,20 @@ export const buildStationTicketHtml = (job) => {
         <tbody>
           ${(payload.items || []).map((item) => `
             <tr>
-              <td>${escapeHtml(item.name)}${item.notes ? `<div class="muted">${escapeHtml(item.notes)}</div>` : ''}</td>
+              <td>
+                <strong>${escapeHtml(item.name)}</strong>
+                ${optionLine('Variant', item.variants)}
+                ${optionLine('Add-ons', item.addons)}
+                ${item.specialInstructions ? `<div class="muted"><strong>Instructions:</strong> ${escapeHtml(item.specialInstructions)}</div>` : ''}
+                ${item.notes && item.notes !== item.specialInstructions ? `<div class="muted"><strong>Notes:</strong> ${escapeHtml(item.notes)}</div>` : ''}
+              </td>
               <td>${Number(item.quantity || 0)}</td>
             </tr>
           `).join('')}
         </tbody>
       </table>
       <div class="line"></div>
-      <p class="center muted">No prices on station tickets</p>
+      <p class="center muted">Preparation only</p>
     </section>
   </body></html>`;
 };

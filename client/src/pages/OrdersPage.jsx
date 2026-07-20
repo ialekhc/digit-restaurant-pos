@@ -11,7 +11,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
+import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
 
 const ActionIcon = ({ children }) => (
   <svg
@@ -142,9 +142,13 @@ const OrdersPage = () => {
   const printStationTickets = async (order) => {
     setActionError('');
     try {
-      await openStationTicketsPdfTab(order);
+      const jobs = await orderService.printStationTickets(order._id, {});
+      const result = await printCreatedOrderJobs(jobs);
+      if (result.printedCount !== result.totalCount) {
+        setActionError(`Reprint KOT failed. ${result.errorMessage || 'Use Retry Print in Print Station.'}`);
+      }
     } catch (error) {
-      setActionError(error?.message || 'Unable to open station-ticket PDF');
+      setActionError(error?.response?.data?.message || error?.message || 'Unable to reprint KOT');
     }
   };
 
@@ -159,10 +163,14 @@ const OrdersPage = () => {
     setCancellationBusy(true);
     setCancellationError('');
     try {
-      if (mode === 'ORDER') {
-        await orderService.cancel(cancellationOrder._id, reason);
-      } else {
-        await orderService.cancelItems(cancellationOrder._id, items, reason);
+      const cancelled = mode === 'ORDER'
+        ? await orderService.cancel(cancellationOrder._id, reason)
+        : await orderService.cancelItems(cancellationOrder._id, items, reason);
+      const printResult = await printCreatedOrderJobs(cancelled.printJobs || []);
+      if (printResult.printedCount !== printResult.totalCount) {
+        setActionError(
+          `Cancellation saved, but the cancellation KOT failed to print. ${printResult.errorMessage || 'Use Retry Print in Print Station.'}`
+        );
       }
       await load(filtersRef.current);
       setCancellationOrder(null);
@@ -261,8 +269,16 @@ const OrdersPage = () => {
           onClick={() => printStationTickets(order)}
         >
           <TicketIcon />
-          <span>Print tickets</span>
+          <span>Reprint KOT</span>
         </Button>
+        {hasPermission(PERMISSIONS.ORDER_UPDATE) ? (
+          <Link
+            to={`/orders/create?order=${order._id}&table=${order.table?._id || order.table || ''}&tableNumber=${encodeURIComponent(order.table?.tableNumber || '')}`}
+            className={`${buttonClass} rounded-lg bg-sky-50 px-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100`}
+          >
+            <span>Add items</span>
+          </Link>
+        ) : null}
         {canServe ? (
           <Button
             variant="success"

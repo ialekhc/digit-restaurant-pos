@@ -8,8 +8,7 @@ import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
+import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -37,6 +36,7 @@ const OrderCreatePage = () => {
   const [searchParams] = useSearchParams();
   const tableFromUrl = searchParams.get('table') || '';
   const tableNumberFromUrl = searchParams.get('tableNumber') || '';
+  const orderFromUrl = searchParams.get('order') || '';
   const didApplyTableContext = useRef(false);
 
   const [tables, setTables] = useState([]);
@@ -51,6 +51,7 @@ const OrderCreatePage = () => {
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
+  const [targetOrderId, setTargetOrderId] = useState(orderFromUrl);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
@@ -109,6 +110,19 @@ const OrderCreatePage = () => {
       (order) => order.table?._id === orderState.table && activeFlowStatuses.includes(order.status)
     );
   }, [orders, orderState.table]);
+
+  useEffect(() => {
+    if (!targetOrderId) return;
+    const target = orders.find((order) => order._id === targetOrderId);
+    if (!target || !activeFlowStatuses.includes(target.status)) {
+      setTargetOrderId('');
+      return;
+    }
+    const targetTableId = target.table?._id || target.table || '';
+    if (targetTableId && targetTableId !== orderState.table) {
+      setOrderState((prev) => ({ ...prev, orderType: target.orderType, table: targetTableId }));
+    }
+  }, [orderState.table, orders, targetOrderId]);
 
   const orderTypeOptions = useMemo(() => {
     if (!enabledFeatures.size) return ORDER_TYPES;
@@ -218,23 +232,22 @@ const OrderCreatePage = () => {
     }
 
     setSaving(true);
-    const autoPrint = shouldAutoPrintKitchenTicket();
     try {
-      const created = await orderService.create({
-        ...orderState,
-        table: orderState.table || undefined,
-        customer: orderState.customer || undefined,
-        items,
-        discount: Number(orderState.discount || 0)
-      });
-      let printed = false;
-      if (autoPrint) {
-        try {
-          await openStationTicketsPdfTab(created);
-          printed = true;
-        } catch (printError) {
-          setError(printError?.message || 'Order created, but the station-ticket PDF could not be opened');
-        }
+      const created = targetOrderId
+        ? await orderService.addItems(targetOrderId, { items })
+        : await orderService.create({
+          ...orderState,
+          table: orderState.table || undefined,
+          customer: orderState.customer || undefined,
+          items,
+          discount: Number(orderState.discount || 0)
+        });
+      const printResult = await printCreatedOrderJobs(created.printJobs || []);
+      const printed = printResult.totalCount > 0 && printResult.printedCount === printResult.totalCount;
+      if (!printed) {
+        setError(
+          `Order ${created.orderNumber} was saved, but KOT printing failed. ${printResult.errorMessage || 'Use Retry Print in Print Station.'}`
+        );
       }
       setItems([]);
       setSelectedMenu('');
@@ -245,7 +258,7 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created${printed ? ' and the station-ticket PDF opened in Chrome' : ''}.${
+        `Order ${created.orderNumber} has been ${targetOrderId ? 'updated with the new items' : 'created'}${printed ? ' and all KOTs printed' : ''}.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );
@@ -282,7 +295,10 @@ const OrderCreatePage = () => {
                 };
               })
             )}
-            onChange={(e) => setOrderState((p) => ({ ...p, table: e.target.value }))}
+            onChange={(e) => {
+              setTargetOrderId('');
+              setOrderState((p) => ({ ...p, table: e.target.value }));
+            }}
           />
 
           <Select
@@ -316,12 +332,20 @@ const OrderCreatePage = () => {
               Active orders on this table: <span className="font-bold">{selectedTableActiveOrders.length}</span>
             </p>
             {selectedTableActiveOrders.length ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedTableActiveOrders.map((order) => (
-                  <span key={order._id} className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-amber-200">
-                    {order.orderNumber} - {order.status}
-                  </span>
-                ))}
+              <div className="mt-3 max-w-md">
+                <Select
+                  label="Order action"
+                  value={targetOrderId}
+                  options={[
+                    { value: '', label: 'Create a separate new order' },
+                    ...selectedTableActiveOrders.map((order) => ({
+                      value: order._id,
+                      label: `Add to ${order.orderNumber} (${order.status})`
+                    }))
+                  ]}
+                  onChange={(event) => setTargetOrderId(event.target.value)}
+                  helperText="Items added to an existing order print as an ADDITIONAL KOT."
+                />
               </div>
             ) : null}
           </div>
@@ -363,7 +387,7 @@ const OrderCreatePage = () => {
             onChange={(e) => setSelectedMenu(e.target.value)}
           />
           <Input label="Quantity" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-          <Input label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Input label="Special Instructions" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <div className="flex items-end">
             <Button className="w-full py-3 text-base" onClick={addItem}>Add Item</Button>
           </div>
@@ -384,7 +408,7 @@ const OrderCreatePage = () => {
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Price</th>
                 <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2">Notes</th>
+                <th className="px-3 py-2">Special Instructions</th>
                 <th className="px-3 py-2">Action</th>
               </tr>
             </thead>
@@ -440,7 +464,7 @@ const OrderCreatePage = () => {
 
         <div className="mt-4 grid gap-2 sm:flex">
           <Button className="px-6 py-3 text-base" onClick={submitOrder} disabled={saving}>
-            {saving ? 'Creating Order...' : 'Create & Send Order'}
+            {saving ? 'Saving Order...' : targetOrderId ? 'Add Items & Print KOT' : 'Create & Print KOT'}
           </Button>
           {orderState.table ? (
             <Link

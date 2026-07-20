@@ -4,6 +4,7 @@ import {
   buildCounterOrderBillPayload,
   buildStationPayload,
   groupItemsByStation,
+  kotNumberForKey,
   normalizeStation,
   printerPurposeForStation,
   stationFromMenu
@@ -22,8 +23,8 @@ assert.equal(stationFromMenu({ menuType: 'SMOKE' }), 'SMOKE');
 assert.equal(stationFromMenu({ menuType: 'DRINK', preparationStation: 'KITCHEN' }), 'BAR');
 assert.equal(stationFromMenu({ menuType: 'SMOKE', preparationStation: 'KITCHEN' }), 'SMOKE');
 assert.equal(printerPurposeForStation('KITCHEN'), 'KITCHEN');
-assert.equal(printerPurposeForStation('BAR'), 'COUNTER');
-assert.equal(printerPurposeForStation('SMOKE'), 'COUNTER');
+assert.equal(printerPurposeForStation('BAR'), 'BAR');
+assert.equal(printerPurposeForStation('SMOKE'), 'SMOKE');
 assert.equal(printerPurposeForStation('COUNTER'), 'COUNTER');
 
 const grouped = groupItemsByStation(mixedItems);
@@ -36,10 +37,14 @@ const stationPayload = buildStationPayload({
   order: { orderNumber: 'ORD-1', orderType: 'DINE_IN', table: { tableNumber: 'T-1' }, createdBy: { name: 'Waiter' } },
   station: 'BAR',
   items: [mixedItems[1]],
-  restaurant: { restaurantName: 'Demo Cafe' }
+  restaurant: { restaurantName: 'Demo Cafe' },
+  source: 'ADDED_ITEMS',
+  kotNumber: kotNumberForKey('ADDED_ITEMS:order:BAR:item')
 });
 assert.equal(stationPayload.items.length, 1, 'Station ticket should include only its station items');
 assert.equal(stationPayload.items[0].name, 'Cold Coffee');
+assert.equal(stationPayload.ticketType, 'ADDITIONAL KOT');
+assert.match(stationPayload.kotNumber, /^KOT-[A-F0-9]{10}$/);
 assert.equal(stationPayload.subtotal, undefined, 'Station ticket must not include financial totals');
 assert.equal(stationPayload.paymentMethod, undefined, 'Station ticket must not include payment information');
 

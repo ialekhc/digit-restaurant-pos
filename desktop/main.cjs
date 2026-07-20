@@ -1,5 +1,4 @@
-const { app, BrowserWindow, ipcMain, safeStorage, shell } = require('electron');
-const { spawn } = require('node:child_process');
+const { app, BrowserWindow, ipcMain, safeStorage, shell, utilityProcess } = require('electron');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
@@ -135,10 +134,11 @@ const readDesktopConfig = async () => {
   }
 };
 
-const getServerDirectory = () => {
-  if (app.isPackaged) return path.join(process.resourcesPath, 'app.asar.unpacked', 'server');
-  return path.join(__dirname, '..', 'server');
-};
+const getServerDirectory = () => path.join(app.getAppPath(), 'server');
+
+// An ASAR path is valid for loading modules, but it is not a real OS directory
+// and therefore cannot be used as a child process working directory.
+const getServerWorkingDirectory = () => app.isPackaged ? process.resourcesPath : getServerDirectory();
 
 const getServerEntry = () => path.join(getServerDirectory(), 'server.js');
 
@@ -214,7 +214,6 @@ const startBackend = async () => {
 
   const env = {
     ...process.env,
-    ELECTRON_RUN_AS_NODE: '1',
     NODE_ENV: process.env.NODE_ENV || 'production',
     PORT: backendPort,
     HOST: '127.0.0.1',
@@ -227,27 +226,31 @@ const startBackend = async () => {
     TRUST_PROXY: 'loopback',
     UPLOAD_DIR: uploadsPath
   };
+  // utilityProcess already provides a Node runtime. Inheriting this legacy flag
+  // can make Electron bypass its utility-process bootstrap and lose ICU handles.
+  delete env.ELECTRON_RUN_AS_NODE;
 
-  backendProcess = spawn(process.execPath, [serverEntry], {
-    cwd: getServerDirectory(),
+  backendProcess = utilityProcess.fork(serverEntry, [], {
+    cwd: getServerWorkingDirectory(),
     env,
-    stdio: ['ignore', 'pipe', 'pipe']
+    stdio: 'pipe',
+    serviceName: 'Digit POS Backend'
   });
   backendStartedByDesktop = true;
 
-  backendProcess.stdout.on('data', (chunk) => {
+  backendProcess.stdout?.on('data', (chunk) => {
     const message = chunk.toString().trim();
     console.log(`[desktop-backend] ${message}`);
     writeLog('info', '[desktop-backend]', message);
   });
-  backendProcess.stderr.on('data', (chunk) => {
+  backendProcess.stderr?.on('data', (chunk) => {
     lastBackendError = chunk.toString().trim();
     console.error(`[desktop-backend] ${lastBackendError}`);
     writeLog('error', '[desktop-backend]', lastBackendError);
   });
-  backendProcess.on('exit', (code, signal) => {
-    if (code || signal) lastBackendError = `Backend stopped with ${signal || `exit code ${code}`}`;
-    writeLog(code || signal ? 'error' : 'info', 'Bundled backend exited', { code, signal });
+  backendProcess.on('exit', (code) => {
+    if (code) lastBackendError = `Backend stopped with exit code ${code}`;
+    writeLog(code ? 'error' : 'info', 'Bundled backend exited', { code });
     backendProcess = null;
   });
 };

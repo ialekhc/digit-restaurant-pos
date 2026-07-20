@@ -10,16 +10,23 @@ export const requestPrintJobProcessing = () => {
 export const loadPrinterRoutes = () => {
   try {
     const stored = JSON.parse(localStorage.getItem(PRINTER_ROUTES_KEY) || '{}');
-    return { kitchen: stored.kitchen || '', reception: stored.reception || '' };
+    return {
+      kitchen: stored.kitchen || '',
+      bar: stored.bar || stored.reception || '',
+      smoke: stored.smoke || stored.reception || '',
+      counter: stored.counter || stored.reception || ''
+    };
   } catch (_error) {
-    return { kitchen: '', reception: '' };
+    return { kitchen: '', bar: '', smoke: '', counter: '' };
   }
 };
 
 export const savePrinterRoutes = (routes) => {
   localStorage.setItem(PRINTER_ROUTES_KEY, JSON.stringify({
     kitchen: routes?.kitchen || '',
-    reception: routes?.reception || ''
+    bar: routes?.bar || '',
+    smoke: routes?.smoke || '',
+    counter: routes?.counter || ''
   }));
 };
 
@@ -32,12 +39,14 @@ export const setAutoProcessPrintJobs = (enabled) => {
 export const routeKeyForJob = (job = {}) => {
   if (job.documentType === 'TEST_PRINT') return '';
   if (job.station === 'KITCHEN') return 'kitchen';
-  if (['BAR', 'SMOKE', 'COUNTER'].includes(job.station)) return 'reception';
+  if (job.station === 'BAR') return 'bar';
+  if (job.station === 'SMOKE') return 'smoke';
+  if (job.station === 'COUNTER') return 'counter';
   return '';
 };
 
 export const systemPrinterNameForJob = (job, routes) => {
   const routeKey = routeKeyForJob(job);
-  if (routeKey) return routes?.[routeKey] || '';
-  return job.printer?.name || job.printer?.printerSystemName || '';
+  if (routeKey && routes?.[routeKey]) return routes[routeKey];
+  return job.printer?.printerSystemName || job.printer?.name || '';
 };

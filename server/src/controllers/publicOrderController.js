@@ -9,6 +9,7 @@ import { ApiError } from '../utils/ApiError.js';
 import { generateOrderNumber } from '../utils/serialGenerators.js';
 import { syncTableStatusFromOrders } from '../services/tableWorkflowService.js';
 import { ensureFeatureEnabled } from '../services/planService.js';
+import { createStationPrintJobs, stationFromMenu, stationToKitchenSection } from '../services/printService.js';
 
 const QR_ORDER_ROLES = [ROLES.WAITER, ROLES.MANAGER, ROLES.ADMIN, ROLES.RESTAURANT_OWNER];
 const includesAny = (value, patterns) => {
@@ -117,7 +118,8 @@ export const createQrOrder = asyncHandler(async (req, res) => {
     const quantity = Number(item.quantity || 1);
     if (quantity <= 0) throw new ApiError(400, 'Item quantity must be at least 1');
 
-    const kitchenSection = resolveProductionSection(menu);
+    const preparationStation = stationFromMenu(menu);
+    const kitchenSection = stationToKitchenSection(preparationStation) || resolveProductionSection(menu);
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
@@ -125,7 +127,11 @@ export const createQrOrder = asyncHandler(async (req, res) => {
       price: menu.price,
       quantity,
       notes: item.notes || '',
+      variants: Array.isArray(item.variants) ? item.variants : [],
+      addons: Array.isArray(item.addons) ? item.addons : [],
+      specialInstructions: String(item.specialInstructions || item.notes || ''),
       kitchenSection,
+      preparationStation,
       readyQuantity: instantServe ? quantity : 0,
       servedQuantity: 0
     };
@@ -138,6 +144,9 @@ export const createQrOrder = asyncHandler(async (req, res) => {
     : 'PENDING';
 
   const created = await Order.create({
+    vendorId: table.vendorId,
+    restaurantId: table.restaurantId || table.vendorId,
+    branchId: table.branchId,
     orderNumber: await generateOrderNumber(creator),
     orderType: 'DINE_IN',
     table: table._id,
@@ -155,6 +164,12 @@ export const createQrOrder = asyncHandler(async (req, res) => {
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role');
+  const printJobs = await createStationPrintJobs({ user: creator, order: populated, source: 'INITIAL_ORDER' });
 
-  res.status(201).json({ data: populated });
+  res.status(201).json({
+    data: {
+      ...(populated.toJSON ? populated.toJSON() : populated),
+      printJobs
+    }
+  });
 });

@@ -51,8 +51,6 @@ const BackgroundPrintProcessor = () => {
     if (runningRef.current || !shouldAutoProcessPrintJobs()) return;
 
     const routes = loadPrinterRoutes();
-    if (!routes.kitchen && !routes.reception) return;
-
     runningRef.current = true;
     try {
       if (!adapter.isConnected() && !(await connectPrinter(forceConnect))) return;
@@ -61,10 +59,10 @@ const BackgroundPrintProcessor = () => {
       const jobs = Array.isArray(pending) ? pending : [];
 
       for (const job of jobs) {
-        // Initial order tickets are printed synchronously by Create & Send Order.
-        // Leaving them out here prevents the background queue from racing and
-        // claiming the same ticket before the create-order screen can print it.
-        if (String(job.idempotencyKey || '').startsWith('INITIAL_ORDER:')) continue;
+        // Give the order/cancellation screen the first chance to print and show
+        // an immediate error. Older unclaimed jobs (including QR orders) are
+        // then safely picked up by the background station.
+        if (Date.now() - new Date(job.createdAt || 0).getTime() < 5000) continue;
 
         const id = job._id;
         const printerName = systemPrinterNameForJob(job, routes);
