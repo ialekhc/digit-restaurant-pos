@@ -10,8 +10,9 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
-import { downloadReceiptPdf, openReceiptPdfTab } from '../utils/receiptPdf';
+import { downloadReceiptPdf } from '../utils/receiptPdf';
 import { downloadRowsAsXlsx } from '../utils/excel';
+import { printReceiptJobs } from '../utils/directOrderPrinting';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -515,9 +516,16 @@ const BillingPage = () => {
     }
 
     try {
-      await openReceiptPdfTab(payment, user?.name || 'Cashier', receiptOptions);
+      const orderId = paymentOrderId(payment);
+      if (!orderId) throw new Error('The receipt is not linked to an order.');
+
+      const printJob = await orderService.printReceipt(orderId);
+      const result = await printReceiptJobs([printJob]);
+      if (result.printedCount !== result.totalCount || result.errorMessage) {
+        throw new Error(result.errorMessage || 'Receipt was not printed.');
+      }
     } catch (err) {
-      setError(err.message || 'Unable to open receipt PDF');
+      setError(err.response?.data?.message || err.message || 'Unable to print receipt');
     }
   };
 

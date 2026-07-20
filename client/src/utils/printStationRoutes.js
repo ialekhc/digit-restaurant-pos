@@ -3,11 +3,35 @@ export const AUTO_PROCESS_PRINT_JOBS_KEY = 'rms_print_station_auto_process_v1';
 export const PRINT_JOB_RESULT_EVENT = 'rms:print-job-result';
 export const PROCESS_PRINT_JOBS_EVENT = 'rms:process-print-jobs';
 
+// Jobs created by an interactive action are reserved immediately so the
+// background poller cannot claim them while the same screen is connecting to
+// the printer. This is intentionally in-memory: reservations only coordinate
+// workers in this desktop renderer and disappear safely on reload.
+const directPrintReservations = new Set();
+
+export const reserveDirectPrintJobs = (jobs = []) => {
+  for (const job of jobs) {
+    if (job?._id) directPrintReservations.add(String(job._id));
+  }
+};
+
+export const releaseDirectPrintJob = (jobId) => {
+  if (jobId) directPrintReservations.delete(String(jobId));
+};
+
+export const isDirectPrintJobReserved = (jobId) => (
+  Boolean(jobId) && directPrintReservations.has(String(jobId))
+);
+
 export const isCounterOrderBillJob = (job = {}) => job.documentType === 'COUNTER_ORDER_BILL';
 
 export const isStationKotJob = (job = {}) => (
   ['KITCHEN', 'BAR', 'SMOKE'].includes(String(job.station || '').toUpperCase()) &&
   job.documentType !== 'COUNTER_ORDER_BILL'
+);
+
+export const isReceiptJob = (job = {}) => (
+  ['COUNTER_RECEIPT', 'CUSTOMER_RECEIPT', 'RECEIPT_REPRINT'].includes(String(job.documentType || '').toUpperCase())
 );
 
 export const requestPrintJobProcessing = () => {

@@ -4,6 +4,7 @@ import { ORDERS_SYNCED_EVENT } from '../api/axios';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 import {
   loadPrinterRoutes,
+  isDirectPrintJobReserved,
   isCounterOrderBillJob,
   PROCESS_PRINT_JOBS_EVENT,
   PRINT_JOB_RESULT_EVENT,
@@ -66,6 +67,7 @@ const BackgroundPrintProcessor = () => {
         // Give the order/cancellation screen the first chance to print and show
         // an immediate error. Older unclaimed jobs (including QR orders) are
         // then safely picked up by the background station.
+        if (isDirectPrintJobReserved(job._id)) continue;
         if (Date.now() - new Date(job.createdAt || 0).getTime() < DIRECT_PRINT_GRACE_MS) continue;
 
         const id = job._id;

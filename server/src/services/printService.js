@@ -340,6 +340,9 @@ export const createCounterReceiptJob = async ({ user, payment, force = false }) 
   const restaurant = await getRestaurantDetails(restaurantId);
 
   const groupKey = receiptPayment.billGroupId || receiptPayment._id;
+  const reprintKey = force
+    ? `RECEIPT_REPRINT:${groupKey}:${Date.now()}:${user?._id || 'user'}`
+    : `COUNTER_RECEIPT:${groupKey}`;
   return createPrintJobIfMissing({
     user,
     restaurantId,
@@ -349,7 +352,7 @@ export const createCounterReceiptJob = async ({ user, payment, force = false }) 
     documentType: force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT',
     station: 'COUNTER',
     payload: buildCounterReceiptPayload({ payment: receiptPayment, order, payments, orders: receiptOrders, restaurant }),
-    idempotencyKey: `${force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT'}:${groupKey}`
+    idempotencyKey: reprintKey
   });
 };
 

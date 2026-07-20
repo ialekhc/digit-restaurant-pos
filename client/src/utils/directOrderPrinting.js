@@ -1,33 +1,23 @@
 import { printJobService, qzSecurityService } from '../api/services';
 import { buildPrintHtmlForJob, createPrinterAdapter } from './printingService';
-import { isStationKotJob, loadPrinterRoutes, systemPrinterNameForJob } from './printStationRoutes';
+import {
+  isReceiptJob,
+  isStationKotJob,
+  loadPrinterRoutes,
+  releaseDirectPrintJob,
+  reserveDirectPrintJobs,
+  systemPrinterNameForJob
+} from './printStationRoutes';
 
-const clientId = `create-order-${Math.random().toString(36).slice(2)}`;
+const clientId = `direct-print-${Math.random().toString(36).slice(2)}`;
 
-export const printCreatedOrderJobs = async (jobs = []) => {
-  const queuedJobs = Array.isArray(jobs) ? jobs.filter((job) => job?._id && isStationKotJob(job)) : [];
+const printJobsDirectly = async ({ jobs = [], predicate, emptyMessage }) => {
+  const queuedJobs = Array.isArray(jobs) ? jobs.filter((job) => job?._id && predicate(job)) : [];
   if (!queuedJobs.length) {
-    return { printedCount: 0, totalCount: 0, errorMessage: 'No active printers are configured for this order.' };
+    return { printedCount: 0, totalCount: 0, errorMessage: emptyMessage };
   }
 
-  const claimedJobs = [];
-  const claimErrors = [];
-  for (const job of queuedJobs) {
-    try {
-      claimedJobs.push(await printJobService.claim(job._id, { clientId }));
-    } catch (error) {
-      claimErrors.push(error.response?.data?.message || error.message || 'Unable to claim print job');
-    }
-  }
-
-  if (!claimedJobs.length) {
-    return {
-      printedCount: 0,
-      totalCount: queuedJobs.length,
-      errorMessage: [...new Set(claimErrors)].join(' ') || 'Unable to claim KOT print jobs.'
-    };
-  }
-
+  reserveDirectPrintJobs(queuedJobs);
   const adapter = createPrinterAdapter();
   try {
     if (!adapter.usesNativePrinting()) {
@@ -45,9 +35,7 @@ export const printCreatedOrderJobs = async (jobs = []) => {
     }
   } catch (error) {
     const message = error.response?.data?.message || error.message || 'Unable to connect to the system printer.';
-    await Promise.allSettled(
-      claimedJobs.map((job) => printJobService.fail(job._id, { errorMessage: message }))
-    );
+    queuedJobs.forEach((job) => releaseDirectPrintJob(job._id));
     return {
       printedCount: 0,
       totalCount: queuedJobs.length,
@@ -59,8 +47,12 @@ export const printCreatedOrderJobs = async (jobs = []) => {
   const errors = [];
   const printerRoutes = loadPrinterRoutes();
 
-  for (const claimedJob of claimedJobs) {
+  for (const queuedJob of queuedJobs) {
+    let claimedJob = null;
     try {
+      // Claim only when the adapter is ready, then print immediately. This
+      // prevents jobs getting stuck PROCESSING after a connection failure.
+      claimedJob = await printJobService.claim(queuedJob._id, { clientId });
       const printerName = systemPrinterNameForJob(claimedJob, printerRoutes).trim();
       if (!printerName) throw new Error(`No system printer is configured for ${claimedJob.station || 'this ticket'}.`);
 
@@ -78,17 +70,33 @@ export const printCreatedOrderJobs = async (jobs = []) => {
     } catch (error) {
       const message = error.response?.data?.message || error.message || 'Print failed';
       errors.push(message);
-      try {
-        await printJobService.fail(claimedJob._id, { errorMessage: message });
-      } catch (_failError) {
-        // Keep the original physical-print failure as the user-facing error.
+      if (claimedJob?._id) {
+        try {
+          await printJobService.fail(claimedJob._id, { errorMessage: message });
+        } catch (_failError) {
+          // Keep the original physical-print failure as the user-facing error.
+        }
       }
+    } finally {
+      releaseDirectPrintJob(queuedJob._id);
     }
   }
 
   return {
     printedCount,
     totalCount: queuedJobs.length,
-    errorMessage: [...new Set([...claimErrors, ...errors])].join(' ')
+    errorMessage: [...new Set(errors)].join(' ')
   };
 };
+
+export const printCreatedOrderJobs = async (jobs = []) => printJobsDirectly({
+  jobs,
+  predicate: isStationKotJob,
+  emptyMessage: 'No active printers are configured for this order.'
+});
+
+export const printReceiptJobs = async (jobs = []) => printJobsDirectly({
+  jobs,
+  predicate: isReceiptJob,
+  emptyMessage: 'No receipt print job was created.'
+});
