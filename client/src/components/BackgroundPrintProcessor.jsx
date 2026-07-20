@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef } from 'react';
 import { printJobService, qzSecurityService } from '../api/services';
+import { ORDERS_SYNCED_EVENT } from '../api/axios';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 import {
   loadPrinterRoutes,
   PROCESS_PRINT_JOBS_EVENT,
   PRINT_JOB_RESULT_EVENT,
-  shouldAutoProcessPrintJobs,
   systemPrinterNameForJob
 } from '../utils/printStationRoutes';
 
-const POLL_INTERVAL_MS = 1500;
+const POLL_INTERVAL_MS = 1000;
 const CONNECTION_RETRY_INTERVAL_MS = 15000;
+const DIRECT_PRINT_GRACE_MS = 1500;
 const clientId = `background-print-${Math.random().toString(36).slice(2)}`;
 
 const notifyResult = (detail) => {
@@ -32,12 +33,14 @@ const BackgroundPrintProcessor = () => {
     lastConnectionAttemptRef.current = now;
 
     try {
-      const security = await qzSecurityService.status();
-      if (security?.configured) {
-        adapter.configureSecurity({
-          getCertificate: () => qzSecurityService.certificate(),
-          sign: (request) => qzSecurityService.sign(request)
-        });
+      if (!adapter.usesNativePrinting()) {
+        const security = await qzSecurityService.status();
+        if (security?.configured) {
+          adapter.configureSecurity({
+            getCertificate: () => qzSecurityService.certificate(),
+            sign: (request) => qzSecurityService.sign(request)
+          });
+        }
       }
       await adapter.connect();
       return adapter.isConnected();
@@ -48,7 +51,7 @@ const BackgroundPrintProcessor = () => {
 
   const processPendingJobs = useCallback(async ({ forceConnect = false } = {}) => {
     const adapter = adapterRef.current;
-    if (runningRef.current || !shouldAutoProcessPrintJobs()) return;
+    if (runningRef.current) return;
 
     const routes = loadPrinterRoutes();
     runningRef.current = true;
@@ -62,7 +65,7 @@ const BackgroundPrintProcessor = () => {
         // Give the order/cancellation screen the first chance to print and show
         // an immediate error. Older unclaimed jobs (including QR orders) are
         // then safely picked up by the background station.
-        if (Date.now() - new Date(job.createdAt || 0).getTime() < 5000) continue;
+        if (Date.now() - new Date(job.createdAt || 0).getTime() < DIRECT_PRINT_GRACE_MS) continue;
 
         const id = job._id;
         const printerName = systemPrinterNameForJob(job, routes);
@@ -111,10 +114,14 @@ const BackgroundPrintProcessor = () => {
     processAutomatically();
     const timer = window.setInterval(processAutomatically, POLL_INTERVAL_MS);
     window.addEventListener('focus', processImmediately);
+    window.addEventListener('online', processImmediately);
+    window.addEventListener(ORDERS_SYNCED_EVENT, processImmediately);
     window.addEventListener(PROCESS_PRINT_JOBS_EVENT, processImmediately);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener('focus', processImmediately);
+      window.removeEventListener('online', processImmediately);
+      window.removeEventListener(ORDERS_SYNCED_EVENT, processImmediately);
       window.removeEventListener(PROCESS_PRINT_JOBS_EVENT, processImmediately);
     };
   }, [processPendingJobs]);

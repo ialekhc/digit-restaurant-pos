@@ -9,8 +9,6 @@ import {
   PRINT_JOB_RESULT_EVENT,
   routeKeyForJob,
   savePrinterRoutes,
-  setAutoProcessPrintJobs,
-  shouldAutoProcessPrintJobs,
   systemPrinterNameForJob
 } from '../utils/printStationRoutes';
 
@@ -37,7 +35,6 @@ const PrintStationPage = () => {
   const [systemPrinters, setSystemPrinters] = useState([]);
   const [printerName, setPrinterName] = useState('');
   const [printerRoutes, setPrinterRoutes] = useState(loadPrinterRoutes);
-  const [autoProcess, setAutoProcess] = useState(shouldAutoProcessPrintJobs);
   const [bridgeStatus, setBridgeStatus] = useState('Not connected');
   const [connecting, setConnecting] = useState(false);
   const [testingRoute, setTestingRoute] = useState('');
@@ -94,8 +91,9 @@ const PrintStationPage = () => {
     setMessage('');
     setError('');
     try {
-      const security = await qzSecurityService.status();
-      if (security?.configured) {
+      const nativePrinting = adapter.usesNativePrinting();
+      const security = nativePrinting ? { configured: true } : await qzSecurityService.status();
+      if (!nativePrinting && security?.configured) {
         adapter.configureSecurity({
           getCertificate: () => qzSecurityService.certificate(),
           sign: (request) => qzSecurityService.sign(request)
@@ -108,8 +106,10 @@ const PrintStationPage = () => {
         throw new Error('QZ Tray is not available. Start QZ Tray and try again.');
       }
 
-      setBridgeStatus(security?.configured ? 'QZ Tray connected (trusted)' : 'QZ Tray connected (approval required)');
-      if (!security?.configured) {
+      setBridgeStatus(nativePrinting
+        ? 'Desktop printer bridge connected'
+        : security?.configured ? 'QZ Tray connected (trusted)' : 'QZ Tray connected (approval required)');
+      if (!nativePrinting && !security?.configured) {
         setError('Trusted QZ signing is not configured. QZ Tray may ask once; choose Allow and Remember this decision, or configure the server signing certificate.');
       }
       await loadSystemPrinters();
@@ -221,10 +221,6 @@ const PrintStationPage = () => {
   }, [printerRoutes]);
 
   useEffect(() => {
-    setAutoProcessPrintJobs(autoProcess);
-  }, [autoProcess]);
-
-  useEffect(() => {
     if (!adapter.isConnected()) return;
     setBridgeStatus('QZ Tray connected');
     loadSystemPrinters();
@@ -324,10 +320,10 @@ const PrintStationPage = () => {
             <p className="mt-1 text-lg font-bold text-sky-950">{jobs.length}</p>
           </div>
           <Select label="Queue Filter" value={printerName} onChange={(e) => setPrinterName(e.target.value)} options={printerOptions} />
-          <label className="flex items-end gap-2 rounded-2xl border border-brand-100 bg-white/80 p-4 text-sm font-semibold text-slate-700">
-            <input type="checkbox" checked={autoProcess} onChange={(e) => setAutoProcess(e.target.checked)} />
-            Auto process jobs
-          </label>
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <p className="text-xs font-semibold uppercase text-emerald-700">Auto Printing</p>
+            <p className="mt-1 text-sm font-bold text-emerald-950">Always on</p>
+          </div>
         </div>
         <div className="mt-4 rounded-2xl border border-brand-100 bg-white/80 p-4">
           <p className="mb-3 text-sm font-bold text-slate-900">Section Printer Assignment</p>

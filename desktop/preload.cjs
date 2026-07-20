@@ -10,5 +10,7 @@ contextBridge.exposeInMainWorld('digitDesktop', {
   getStatus: () => ipcRenderer.invoke('desktop:get-status'),
   restartBackend: () => ipcRenderer.invoke('desktop:restart-backend'),
   openApp: () => ipcRenderer.invoke('desktop:open-app'),
-  openDataFolder: () => ipcRenderer.invoke('desktop:open-data-folder')
+  openDataFolder: () => ipcRenderer.invoke('desktop:open-data-folder'),
+  getPrinters: () => ipcRenderer.invoke('desktop:get-printers'),
+  printHtml: (options) => ipcRenderer.invoke('desktop:print-html', options)
 });

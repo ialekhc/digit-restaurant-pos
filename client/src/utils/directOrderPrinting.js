@@ -30,12 +30,14 @@ export const printCreatedOrderJobs = async (jobs = []) => {
 
   const adapter = createPrinterAdapter();
   try {
-    const security = await qzSecurityService.status();
-    if (security?.configured) {
-      adapter.configureSecurity({
-        getCertificate: () => qzSecurityService.certificate(),
-        sign: (request) => qzSecurityService.sign(request)
-      });
+    if (!adapter.usesNativePrinting()) {
+      const security = await qzSecurityService.status();
+      if (security?.configured) {
+        adapter.configureSecurity({
+          getCertificate: () => qzSecurityService.certificate(),
+          sign: (request) => qzSecurityService.sign(request)
+        });
+      }
     }
     if (!adapter.isConnected()) await adapter.connect();
     if (!adapter.isConnected()) {

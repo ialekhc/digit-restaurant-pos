@@ -120,15 +120,90 @@ class QzTrayAdapter {
   }
 }
 
+class DesktopPrintAdapter {
+  isAvailable() {
+    return Boolean(
+      window.digitDesktop?.isDesktop &&
+      typeof window.digitDesktop.getPrinters === 'function' &&
+      typeof window.digitDesktop.printHtml === 'function'
+    );
+  }
+
+  async connect() {
+    if (!this.isAvailable()) throw new Error('Desktop printer bridge is not available');
+    return true;
+  }
+
+  async disconnect() {}
+
+  isConnected() {
+    return this.isAvailable();
+  }
+
+  async getPrinters() {
+    await this.connect();
+    return window.digitDesktop.getPrinters();
+  }
+
+  async resolvePrinterName(printer = {}) {
+    const requestedName = String(printer.name || printer.printerSystemName || '').trim();
+    if (!requestedName) throw new Error('Printer name is required');
+
+    const discovered = await this.getPrinters();
+    const exactName = (Array.isArray(discovered) ? discovered : [discovered])
+      .map((name) => String(name || '').trim())
+      .find((name) => name.toLowerCase() === requestedName.toLowerCase());
+    if (!exactName) {
+      throw new Error(`Printer named "${requestedName}" is not connected or is not installed on this system`);
+    }
+    return exactName;
+  }
+
+  async printHtml({ html, printer, job, rawText = '' }) {
+    const printerName = await this.resolvePrinterName(printer);
+    try {
+      return await window.digitDesktop.printHtml({
+        html,
+        text: rawText || buildPrintTextForJob(job),
+        printerName,
+        copies: Number(printer?.copies || 1),
+        paperWidthMm: Number(printer?.paperWidthMm || 58)
+      });
+    } catch (error) {
+      const message = String(error?.message || error || 'Desktop print failed')
+        .replace(/^Error invoking remote method 'desktop:print-html':\s*(?:Error:\s*)?/, '');
+      throw new Error(message);
+    }
+  }
+
+  async printRaw({ raw, printer }) {
+    return this.printHtml({ html: `<pre>${escapeHtml(raw)}</pre>`, printer });
+  }
+
+  async testPrint({ printer }) {
+    return this.printHtml({
+      printer,
+      html: buildTestPrintHtml(printer),
+      rawText: buildTestPrintText(printer)
+    });
+  }
+}
+
 class RoutedPrinterAdapter {
   constructor() {
     this.browser = new BrowserPrintAdapter();
+    this.desktop = new DesktopPrintAdapter();
     this.qz = new QzTrayAdapter();
     this.qzError = '';
   }
 
   async connect() {
     await this.browser.connect();
+    if (this.desktop.isAvailable()) {
+      await this.desktop.connect();
+      this.qzError = '';
+      return true;
+    }
     try {
       await this.qz.connect();
       this.qzError = '';
@@ -143,23 +218,29 @@ class RoutedPrinterAdapter {
   }
 
   async disconnect() {
-    await Promise.allSettled([this.browser.disconnect(), this.qz.disconnect()]);
+    await Promise.allSettled([this.browser.disconnect(), this.desktop.disconnect(), this.qz.disconnect()]);
   }
 
   isConnected() {
-    return this.qz.isConnected();
+    return this.desktop.isAvailable() || this.qz.isConnected();
   }
 
   statusMessage() {
-    return this.isConnected() ? 'QZ Tray connected' : `Browser fallback only${this.qzError ? `: ${this.qzError}` : ''}`;
+    if (this.desktop.isAvailable()) return 'Desktop printer bridge connected';
+    return this.qz.isConnected() ? 'QZ Tray connected' : `Browser fallback only${this.qzError ? `: ${this.qzError}` : ''}`;
+  }
+
+  usesNativePrinting() {
+    return this.desktop.isAvailable();
   }
 
   adapterFor(printer = {}) {
-    return String(printer.connectionType || '').toUpperCase() === 'BROWSER' ? this.browser : this.qz;
+    if (String(printer.connectionType || '').toUpperCase() === 'BROWSER') return this.browser;
+    return this.desktop.isAvailable() ? this.desktop : this.qz;
   }
 
   async getPrinters() {
-    return this.qz.getPrinters();
+    return this.desktop.isAvailable() ? this.desktop.getPrinters() : this.qz.getPrinters();
   }
 
   async printHtml(options) {
@@ -312,6 +393,108 @@ export const buildTestPrintHtml = (printer = {}) => `<!doctype html><html><head>
     <p class="center">Printer route is configured.</p>
   </section>
 </body></html>`;
+
+const textOptionLabel = (option) => {
+  if (typeof option === 'string') return option;
+  const name = option?.name || option?.label || option?.value || '';
+  const quantity = Number(option?.quantity || option?.qty || 0);
+  return `${quantity > 1 ? `${quantity}x ` : ''}${name}`.trim();
+};
+
+const textOptionLine = (label, options) => {
+  const values = (Array.isArray(options) ? options : []).map(textOptionLabel).filter(Boolean);
+  return values.length ? `  ${label}: ${values.join(', ')}` : '';
+};
+
+export const buildStationTicketText = (job = {}) => {
+  const payload = job.payload || {};
+  const title = payload.ticketType || (job.documentType === 'CANCELLED_ITEMS' ? 'CANCELLATION KOT' : 'KOT');
+  const department = payload.department || payload.station || job.station || '';
+  const printedAt = new Date(payload.time || Date.now());
+  const lines = [
+    payload.restaurantName || 'Restaurant RMS',
+    title,
+    `${department} DEPARTMENT`,
+    '--------------------------------',
+    `KOT No.: ${payload.kotNumber || '-'}`,
+    `Order: ${payload.orderNumber || '-'}`,
+    `Table: ${payload.tableNumber || payload.orderType || '-'}`,
+    `Waiter: ${payload.waiter || '-'}`,
+    `Date: ${printedAt.toLocaleDateString()}`,
+    `Time: ${printedAt.toLocaleTimeString()}`
+  ];
+  if (payload.cancellationReason) lines.push(`Reason: ${payload.cancellationReason}`);
+  if (payload.cancelledBy) lines.push(`Cancelled By: ${payload.cancelledBy}`);
+  lines.push('--------------------------------');
+  for (const item of payload.items || []) {
+    lines.push(`${item.name || '-'}    Qty: ${Number(item.quantity || 0)}`);
+    const variant = textOptionLine('Variant', item.variants);
+    const addons = textOptionLine('Add-ons', item.addons);
+    if (variant) lines.push(variant);
+    if (addons) lines.push(addons);
+    if (item.specialInstructions) lines.push(`  Instructions: ${item.specialInstructions}`);
+    if (item.notes && item.notes !== item.specialInstructions) lines.push(`  Notes: ${item.notes}`);
+  }
+  lines.push('--------------------------------', 'Preparation only');
+  return lines.join('\n');
+};
+
+export const buildReceiptText = (job = {}) => {
+  const payload = job.payload || {};
+  const isOrderBill = job.documentType === 'COUNTER_ORDER_BILL';
+  const lines = [
+    payload.restaurantName || 'Restaurant RMS',
+    payload.restaurantAddress || '',
+    payload.panVatNumber ? `PAN/VAT: ${payload.panVatNumber}` : '',
+    isOrderBill ? 'FULL ORDER BILL' : 'CUSTOMER RECEIPT',
+    '--------------------------------',
+    isOrderBill ? '' : `Invoice: ${payload.invoiceNumber || '-'}`,
+    `Order: ${payload.orderNumber || '-'}`,
+    `Table/Type: ${payload.tableNumber || payload.orderType || '-'}`,
+    `Staff: ${payload.staff || payload.cashier || '-'}`,
+    '--------------------------------'
+  ].filter(Boolean);
+  for (const item of payload.items || []) {
+    lines.push(`${Number(item.quantity || 0)} x ${item.name || '-'}  ${money(item.lineTotal)}`);
+  }
+  lines.push(
+    '--------------------------------',
+    `Subtotal: ${money(payload.subtotal)}`,
+    `Discount: ${money(payload.discount)}`,
+    `Service: ${money(payload.serviceCharge)}`,
+    `Tax: ${money(payload.tax)}`,
+    `GRAND TOTAL: ${money(payload.grandTotal)}`
+  );
+  if (!isOrderBill) {
+    lines.push(
+      `Paid: ${money(payload.paidAmount)}`,
+      `Method: ${payload.paymentMethod || '-'}`,
+      `Change/Due: ${money(Number(payload.change || 0) || Number(payload.remainingBalance || 0))}`
+    );
+  }
+  lines.push('--------------------------------', isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.');
+  return lines.join('\n');
+};
+
+export const buildTestPrintText = (printer = {}) => [
+  'Restaurant RMS',
+  'TEST PRINT',
+  '--------------------------------',
+  `Printer: ${printer.name || '-'}`,
+  `Purpose: ${printer.purpose || '-'}`,
+  `Time: ${new Date().toLocaleString()}`,
+  '--------------------------------',
+  'Printer route is configured.'
+].join('\n');
+
+export const buildPrintTextForJob = (job = {}) => {
+  if (!job || !Object.keys(job).length) return '';
+  if (['COUNTER_ORDER_BILL', 'COUNTER_RECEIPT', 'CUSTOMER_RECEIPT', 'RECEIPT_REPRINT'].includes(job.documentType)) {
+    return buildReceiptText(job);
+  }
+  if (job.documentType === 'TEST_PRINT') return buildTestPrintText(job.printer || job.payload || {});
+  return buildStationTicketText(job);
+};
 
 export const buildPrintHtmlForJob = (job) => {
   if (['COUNTER_ORDER_BILL', 'COUNTER_RECEIPT', 'CUSTOMER_RECEIPT', 'RECEIPT_REPRINT'].includes(job.documentType)) return buildReceiptHtml(job);

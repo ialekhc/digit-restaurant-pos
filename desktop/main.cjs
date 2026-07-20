@@ -1,10 +1,14 @@
 const { app, BrowserWindow, ipcMain, safeStorage, shell, utilityProcess } = require('electron');
+const { execFile } = require('node:child_process');
 const crypto = require('node:crypto');
 const fs = require('node:fs');
 const fsp = require('node:fs/promises');
 const http = require('node:http');
 const https = require('node:https');
 const path = require('node:path');
+const { promisify } = require('node:util');
+
+const execFileAsync = promisify(execFile);
 
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 const legacyLocalApiBaseUrl = 'http://127.0.0.1:5500/api';
@@ -287,7 +291,8 @@ const createWindow = () => {
       webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: isDevelopment,
-      spellcheck: false
+      spellcheck: false,
+      backgroundThrottling: false
     }
   });
 
@@ -304,6 +309,214 @@ const createWindow = () => {
   });
 
   return window;
+};
+
+const assertDesktopRenderer = (event) => {
+  if (!mainWindow || event.sender !== mainWindow.webContents) {
+    throw new Error('Desktop printing is only available to the main application window');
+  }
+};
+
+const installedPrintersFor = async (webContents) => {
+  const printers = await webContents.getPrintersAsync();
+  return Array.isArray(printers) ? printers : [];
+};
+
+const resolveInstalledPrinter = async (webContents, requestedName) => {
+  const name = String(requestedName || '').trim();
+  if (!name) throw new Error('Printer name is required');
+  if (name.length > 255) throw new Error('Printer name is invalid');
+
+  const printers = await installedPrintersFor(webContents);
+  const printer = printers.find((candidate) =>
+    String(candidate.name || '').trim().toLowerCase() === name.toLowerCase()
+  );
+  if (!printer) throw new Error(`Printer named "${name}" is not installed on this computer`);
+  return printer.name;
+};
+
+const windowsRawPrintScript = `
+$source = @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class DigitRawPrinter {
+  [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+  public class DocInfo {
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDocName;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pOutputFile;
+    [MarshalAs(UnmanagedType.LPWStr)] public string pDataType;
+  }
+
+  [DllImport("winspool.drv", EntryPoint = "OpenPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+  public static extern bool OpenPrinter(string printerName, out IntPtr printer, IntPtr defaults);
+  [DllImport("winspool.drv", EntryPoint = "ClosePrinter", SetLastError = true)]
+  public static extern bool ClosePrinter(IntPtr printer);
+  [DllImport("winspool.drv", EntryPoint = "StartDocPrinterW", SetLastError = true, CharSet = CharSet.Unicode)]
+  public static extern int StartDocPrinter(IntPtr printer, int level, [In] DocInfo docInfo);
+  [DllImport("winspool.drv", EntryPoint = "EndDocPrinter", SetLastError = true)]
+  public static extern bool EndDocPrinter(IntPtr printer);
+  [DllImport("winspool.drv", EntryPoint = "StartPagePrinter", SetLastError = true)]
+  public static extern bool StartPagePrinter(IntPtr printer);
+  [DllImport("winspool.drv", EntryPoint = "EndPagePrinter", SetLastError = true)]
+  public static extern bool EndPagePrinter(IntPtr printer);
+  [DllImport("winspool.drv", EntryPoint = "WritePrinter", SetLastError = true)]
+  public static extern bool WritePrinter(IntPtr printer, byte[] bytes, int count, out int written);
+}
+'@
+
+Add-Type -TypeDefinition $source -Language CSharp
+$printer = [IntPtr]::Zero
+$documentStarted = $false
+$pageStarted = $false
+if (-not [DigitRawPrinter]::OpenPrinter($env:DIGIT_POS_PRINTER_NAME, [ref]$printer, [IntPtr]::Zero)) {
+  throw "Unable to open Windows printer queue"
+}
+try {
+  $doc = New-Object DigitRawPrinter+DocInfo
+  $doc.pDocName = "Digit POS Ticket"
+  $doc.pDataType = "RAW"
+  if ([DigitRawPrinter]::StartDocPrinter($printer, 1, $doc) -eq 0) { throw "Unable to start print document" }
+  $documentStarted = $true
+  if (-not [DigitRawPrinter]::StartPagePrinter($printer)) { throw "Unable to start print page" }
+  $pageStarted = $true
+  $bytes = [IO.File]::ReadAllBytes($env:DIGIT_POS_PRINT_FILE)
+  $written = 0
+  if (-not [DigitRawPrinter]::WritePrinter($printer, $bytes, $bytes.Length, [ref]$written)) {
+    throw "Windows spooler rejected the print data"
+  }
+  if ($written -ne $bytes.Length) { throw "Windows spooler accepted only part of the print data" }
+} finally {
+  if ($pageStarted) { [void][DigitRawPrinter]::EndPagePrinter($printer) }
+  if ($documentStarted) { [void][DigitRawPrinter]::EndDocPrinter($printer) }
+  if ($printer -ne [IntPtr]::Zero) { [void][DigitRawPrinter]::ClosePrinter($printer) }
+}
+`;
+
+const printRawTextOnWindows = async (deviceName, text) => {
+  const printFilePath = path.join(app.getPath('temp'), `digit-pos-raw-${crypto.randomUUID()}.bin`);
+  const normalized = String(text || '').replace(/\r?\n/g, '\r\n').trimEnd();
+  const printBytes = Buffer.concat([
+    Buffer.from([0x1b, 0x40]),
+    Buffer.from(`${normalized}\r\n\r\n\r\n`, 'ascii')
+  ]);
+  const encodedScript = Buffer.from(windowsRawPrintScript, 'utf16le').toString('base64');
+
+  try {
+    await fsp.writeFile(printFilePath, printBytes, { mode: 0o600 });
+    await execFileAsync('powershell.exe', [
+      '-NoLogo',
+      '-NoProfile',
+      '-NonInteractive',
+      '-ExecutionPolicy', 'Bypass',
+      '-EncodedCommand', encodedScript
+    ], {
+      env: {
+        ...process.env,
+        DIGIT_POS_PRINTER_NAME: deviceName,
+        DIGIT_POS_PRINT_FILE: printFilePath
+      },
+      windowsHide: true,
+      timeout: 20_000,
+      maxBuffer: 1_000_000
+    });
+  } finally {
+    await fsp.unlink(printFilePath).catch(() => {});
+  }
+};
+
+const printHtmlSilently = async (webContents, options = {}) => {
+  const html = String(options.html || '');
+  const text = String(options.text || '');
+  if (!html) throw new Error('Print content is required');
+  if (Buffer.byteLength(html, 'utf8') > 2_000_000) throw new Error('Print content is too large');
+  if (Buffer.byteLength(text, 'utf8') > 1_000_000) throw new Error('Text print content is too large');
+
+  const deviceName = await resolveInstalledPrinter(webContents, options.printerName);
+  const copies = Math.min(10, Math.max(1, Number(options.copies) || 1));
+  if (process.platform === 'win32' && text) {
+    try {
+      for (let copy = 0; copy < copies; copy += 1) {
+        await printRawTextOnWindows(deviceName, text);
+      }
+      return { printed: true, printerName: deviceName, printMode: 'WINDOWS_RAW' };
+    } catch (error) {
+      writeLog('warn', 'Windows RAW printing failed; falling back to Electron printing', {
+        deviceName,
+        error: error?.message || String(error)
+      });
+    }
+  }
+
+  const paperWidthMm = Math.min(210, Math.max(40, Number(options.paperWidthMm) || 58));
+  const printWindow = new BrowserWindow({
+    show: false,
+    autoHideMenuBar: true,
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+      sandbox: true,
+      webSecurity: true
+    }
+  });
+
+  printWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+
+  try {
+    await printWindow.loadURL('about:blank');
+    await printWindow.webContents.executeJavaScript(
+      `document.open(); document.write(${JSON.stringify(html)}); document.close();`,
+      true
+    );
+    const contentHeightPx = await printWindow.webContents.executeJavaScript(
+      'Math.max(document.body.scrollHeight, document.documentElement.scrollHeight)',
+      true
+    );
+    const paperHeightMicrons = Math.min(
+      1_000_000,
+      Math.max(50_000, Math.ceil(Number(contentHeightPx || 0) * 264.583) + 5_000)
+    );
+
+    const printPage = (printOptions) => new Promise((resolve, reject) => {
+      printWindow.webContents.print(printOptions, (success, failureReason) => {
+        if (success) resolve();
+        else reject(new Error(failureReason || `Unable to print to ${deviceName}`));
+      });
+    });
+
+    try {
+      await printPage({
+        silent: true,
+        printBackground: true,
+        deviceName,
+        copies,
+        margins: { marginType: 'none' },
+        pageSize: {
+          width: Math.round(paperWidthMm * 1000),
+          height: paperHeightMicrons
+        }
+      });
+    } catch (error) {
+      if (!String(error?.message || '').toLowerCase().includes('invalid printer settings')) throw error;
+
+      writeLog('warn', 'Printer rejected custom thermal page size; retrying with driver defaults', {
+        deviceName,
+        paperWidthMm,
+        paperHeightMicrons
+      });
+      await printPage({
+        silent: true,
+        printBackground: true,
+        deviceName,
+        copies,
+        usePrinterDefaultPageSize: true
+      });
+    }
+  } finally {
+    if (!printWindow.isDestroyed()) printWindow.destroy();
+  }
+
+  return { printed: true, printerName: deviceName };
 };
 
 ipcMain.handle('desktop:get-status', async () => ({
@@ -332,6 +545,17 @@ ipcMain.handle('desktop:open-app', async () => {
   if (!health.ok) return health;
   if (mainWindow) await loadApplication(mainWindow);
   return health;
+});
+
+ipcMain.handle('desktop:get-printers', async (event) => {
+  assertDesktopRenderer(event);
+  const printers = await installedPrintersFor(event.sender);
+  return printers.map((printer) => printer.name).filter(Boolean);
+});
+
+ipcMain.handle('desktop:print-html', async (event, options) => {
+  assertDesktopRenderer(event);
+  return printHtmlSilently(event.sender, options);
 });
 
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
