@@ -45,12 +45,12 @@ assert.equal(legacyGrouped.SMOKE.length, 2, 'Smoke and Hookah designations must 
 const stationPayload = buildStationPayload({
   order: { orderNumber: 'ORD-1', orderType: 'DINE_IN', table: { tableNumber: 'T-1' }, createdBy: { name: 'Waiter' } },
   station: 'BAR',
-  items: [mixedItems[1]],
+  items: mixedItems,
   restaurant: { restaurantName: 'Demo Cafe' },
   source: 'ADDED_ITEMS',
   kotNumber: kotNumberForKey('ADDED_ITEMS:order:BAR:item')
 });
-assert.equal(stationPayload.items.length, 1, 'Station ticket should include only its station items');
+assert.equal(stationPayload.items.length, 1, 'Station ticket must filter a full order down to its station items');
 assert.equal(stationPayload.items[0].name, 'Cold Coffee');
 assert.equal(stationPayload.ticketType, 'ADDITIONAL KOT');
 assert.match(stationPayload.kotNumber, /^KOT-[A-F0-9]{10}$/);

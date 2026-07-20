@@ -143,6 +143,7 @@ export const buildStationPayload = ({
   kotNumber = ''
 }) => {
   const plainOrder = toPlain(order);
+  const designatedItems = groupItemsByStation(items)[station] || [];
   return {
     station,
     department: station === STATIONS.SMOKE ? 'HOOKAH' : station,
@@ -157,7 +158,10 @@ export const buildStationPayload = ({
     waiter: plainOrder.createdBy?.name || '',
     cancelledBy,
     cancellationReason: reason,
-    items: items.map((item) => ({
+    // KOTs are preparation tickets, never full-order bills. Keep this filter
+    // here as a final boundary even when a caller accidentally passes all
+    // order items instead of the already grouped station items.
+    items: designatedItems.map((item) => ({
       name: item.name,
       quantity: Number(item.quantity || 0),
       notes: item.notes || '',
