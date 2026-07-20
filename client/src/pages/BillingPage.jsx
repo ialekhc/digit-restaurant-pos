@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { orderService, paymentService, planService, tableService } from '../api/services';
+import { orderService, paymentService, planService, printerService, tableService, vendorService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
@@ -290,6 +290,7 @@ const BillingPage = () => {
   const [tables, setTables] = useState([]);
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [receiptPayment, setReceiptPayment] = useState(null);
+  const [receiptOptions, setReceiptOptions] = useState({ paperWidthMm: 58, vendor: null });
 
   const [lookupTableNumber, setLookupTableNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -320,6 +321,23 @@ const BillingPage = () => {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const loadReceiptContext = async () => {
+      const [vendorResult, printersResult] = await Promise.allSettled([
+        vendorService.mySubscription(),
+        printerService.list()
+      ]);
+      const vendor = vendorResult.status === 'fulfilled' ? vendorResult.value?.vendor || null : null;
+      const printers = printersResult.status === 'fulfilled' && Array.isArray(printersResult.value) ? printersResult.value : [];
+      const counterPrinter = printers.find((printer) => printer.purpose === 'COUNTER' && printer.isActive !== false);
+      setReceiptOptions({
+        vendor,
+        paperWidthMm: Number(counterPrinter?.paperWidthMm || 58)
+      });
+    };
+    loadReceiptContext();
   }, []);
 
   useAutoRefresh(load);
@@ -497,7 +515,7 @@ const BillingPage = () => {
     }
 
     try {
-      await openReceiptPdfTab(payment, user?.name || 'Cashier');
+      await openReceiptPdfTab(payment, user?.name || 'Cashier', receiptOptions);
     } catch (err) {
       setError(err.message || 'Unable to open receipt PDF');
     }
@@ -553,7 +571,7 @@ const BillingPage = () => {
     try {
       const printablePayment = getPrintablePayment(payment);
       setReceiptPayment(printablePayment);
-      await downloadReceiptPdf(printablePayment, user?.name || 'Cashier');
+      await downloadReceiptPdf(printablePayment, user?.name || 'Cashier', receiptOptions);
     } catch (err) {
       setError(err.message || 'Unable to download receipt PDF');
     }

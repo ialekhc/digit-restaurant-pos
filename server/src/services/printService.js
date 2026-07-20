@@ -236,8 +236,8 @@ export const buildCounterReceiptPayload = ({ payment, order, payments = [], orde
     panVatNumber: restaurant.panVatNumber || '',
     orderNumber: receiptOrders.map((row) => row.orderNumber).filter(Boolean).join(', ') || plainOrder.orderNumber,
     orderType: plainOrder.orderType,
-    tableNumber: plainOrder.table?.tableNumber || '',
-    cashier: payment?.paidBy?.name || '',
+    tableNumber: plainOrder.table?.tableNumber || plainOrder.tableNumber || '',
+    cashier: paymentRows.find((row) => row.paidBy?.name)?.paidBy?.name || payment?.paidBy?.name || '',
     customer: plainOrder.customer || null,
     items: orderItems.map((item) => ({
       name: item.name,
@@ -254,6 +254,7 @@ export const buildCounterReceiptPayload = ({ payment, order, payments = [], orde
     grandTotal,
     paidAmount,
     paymentMethod: paymentRows.map((row) => row.paymentMethod).filter(Boolean).join(', '),
+    paymentStatus: paymentRows.every((row) => row.paymentStatus === 'PAID') ? 'PAID' : payment?.paymentStatus || 'PAID',
     change: paymentRows.reduce((sum, row) => sum + Number(row.changeAmount || 0), 0),
     remainingBalance: Math.max(0, grandTotal - paidAmount),
     paidAt: payment?.createdAt || new Date().toISOString()
@@ -310,16 +311,20 @@ const createCounterOrderBillJob = async ({ user, order, restaurant, source }) =>
 };
 
 export const createCounterReceiptJob = async ({ user, payment, force = false }) => {
-  const order = await Order.findById(payment.order).populate('table').populate('customer').populate('createdBy', 'name role');
+  const populatedPayment = payment?._id
+    ? await Payment.findById(payment._id).populate('paidBy', 'name role')
+    : null;
+  const receiptPayment = populatedPayment || payment;
+  const order = await Order.findById(receiptPayment.order).populate('table').populate('customer').populate('createdBy', 'name role');
   if (!order) throw new ApiError(404, 'Order not found for receipt');
 
-  if (!force && payment.paymentStatus !== 'PAID') return null;
+  if (!force && receiptPayment.paymentStatus !== 'PAID') return null;
 
-  let payments = [payment];
+  let payments = [receiptPayment];
   let receiptOrders = [order];
-  if (payment.billGroupId) {
-    payments = await Payment.find({ billGroupId: payment.billGroupId }).populate('paidBy', 'name role');
-    const expectedCount = Number(payment.billGroupOrderCount || 0);
+  if (receiptPayment.billGroupId) {
+    payments = await Payment.find({ billGroupId: receiptPayment.billGroupId }).populate('paidBy', 'name role');
+    const expectedCount = Number(receiptPayment.billGroupOrderCount || 0);
     if (!force && expectedCount > 0 && payments.length < expectedCount) return null;
     const orderIds = payments.map((row) => row.order).filter(Boolean);
     if (orderIds.length) {
@@ -330,19 +335,20 @@ export const createCounterReceiptJob = async ({ user, payment, force = false }) 
     }
   }
 
-  const printer = await getPrinterForPurpose({ user, restaurantId: payment.restaurantId || order.restaurantId, purpose: 'COUNTER' });
-  const restaurant = await getRestaurantDetails(payment.restaurantId || order.restaurantId);
+  const restaurantId = receiptPayment.restaurantId || order.restaurantId;
+  const printer = await getPrinterForPurpose({ user, restaurantId, purpose: 'COUNTER' });
+  const restaurant = await getRestaurantDetails(restaurantId);
 
-  const groupKey = payment.billGroupId || payment._id;
+  const groupKey = receiptPayment.billGroupId || receiptPayment._id;
   return createPrintJobIfMissing({
     user,
-    restaurantId: payment.restaurantId || order.restaurantId,
+    restaurantId,
     printer,
     order,
-    payment,
+    payment: receiptPayment,
     documentType: force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT',
     station: 'COUNTER',
-    payload: buildCounterReceiptPayload({ payment, order, payments, orders: receiptOrders, restaurant }),
+    payload: buildCounterReceiptPayload({ payment: receiptPayment, order, payments, orders: receiptOrders, restaurant }),
     idempotencyKey: `${force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT'}:${groupKey}`
   });
 };

@@ -81,5 +81,8 @@ const receiptPayload = buildCounterReceiptPayload({
 assert.equal(receiptPayload.items.length, 4, 'Counter receipt should include every ordered item');
 assert.equal(receiptPayload.grandTotal, 610);
 assert.equal(receiptPayload.paymentMethod, 'CASH');
+assert.equal(receiptPayload.paymentStatus, 'PAID');
+assert.equal(receiptPayload.restaurantName, 'Demo Cafe');
+assert.equal(receiptPayload.cashier, 'Cashier');
 
 console.log('printService selftest passed');

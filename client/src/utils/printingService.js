@@ -292,6 +292,19 @@ const baseStyles = (width = 58) => `
     .kot-items th:last-child, .kot-items td:last-child { width: 28px; text-align: right; }
     .item-note { border: 2px solid #111827; margin-top: 4px; padding: 3px; background: #111827; color: #fff; font-size: 11px; font-weight: 900; }
     .preparation-note { margin-top: 9px; text-align: center; font-size: 11px; font-weight: 700; }
+    .receipt-subtitle { text-align: center; font-size: 12px; margin-top: 1px; }
+    .receipt-meta .row, .receipt-totals .row { align-items: baseline; margin: 1px 0; }
+    .receipt-meta .row strong, .receipt-meta .row span:last-child, .receipt-totals .row span:last-child { text-align: right; }
+    .receipt-items { margin-top: 0; table-layout: fixed; }
+    .receipt-items th { border-bottom: 1px solid #94a3b8; font-weight: 900; }
+    .receipt-items td { border-bottom: 1px solid #e2e8f0; padding: 4px 0; }
+    .receipt-items th:first-child, .receipt-items td:first-child { width: 18px; text-align: left; }
+    .receipt-items th:nth-child(2), .receipt-items td:nth-child(2) { text-align: left; }
+    .receipt-items th:last-child, .receipt-items td:last-child { width: 55px; text-align: right; }
+    .receipt-item-name { font-weight: 700; overflow-wrap: anywhere; }
+    .receipt-item-meta { font-size: 10px; }
+    .receipt-grand { font-size: 14px; font-weight: 900; }
+    .receipt-footer { text-align: center; font-size: 11px; margin-top: 7px; }
     @media print { html, body { width: ${Number(width || 58)}mm; height: auto; } }
   </style>
 `;
@@ -383,41 +396,53 @@ export const buildReceiptHtml = (job) => {
   const printer = job.printer || {};
   const payload = job.payload || {};
   const isOrderBill = job.documentType === 'COUNTER_ORDER_BILL';
-  const title = isOrderBill ? 'Full Order Bill' : 'Customer Receipt';
+  const title = isOrderBill ? 'Full Order Bill' : 'Customer Bill';
+  const printedAt = new Date(payload.paidAt || payload.createdAt || Date.now());
   return `<!doctype html><html><head><title>${title}</title>${baseStyles(printer.paperWidthMm)}</head><body>
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
       ${payload.restaurantAddress ? `<p class="center muted">${escapeHtml(payload.restaurantAddress)}</p>` : ''}
+      ${payload.restaurantPhone ? `<p class="center muted">Phone: ${escapeHtml(payload.restaurantPhone)}</p>` : ''}
       ${payload.panVatNumber ? `<p class="center muted">PAN/VAT: ${escapeHtml(payload.panVatNumber)}</p>` : ''}
-      <h2>${title}</h2>
+      <p class="receipt-subtitle">${title}</p>
       <div class="line"></div>
-      ${isOrderBill ? '' : `<div class="row"><span>Invoice</span><strong>${escapeHtml(payload.invoiceNumber || '-')}</strong></div>`}
-      <div class="row"><span>Order</span><span>${escapeHtml(payload.orderNumber || '-')}</span></div>
-      <div class="row"><span>Table/Type</span><span>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</span></div>
-      <div class="row"><span>Date</span><span>${escapeHtml(new Date(payload.paidAt || payload.createdAt || Date.now()).toLocaleString())}</span></div>
-      <div class="row"><span>${isOrderBill ? 'Staff' : 'Cashier'}</span><span>${escapeHtml(payload.staff || payload.cashier || '-')}</span></div>
+      <div class="receipt-meta">
+        ${isOrderBill ? '' : `<div class="row"><span>Bill No</span><strong>${escapeHtml(payload.invoiceNumber || '-')}</strong></div>`}
+        <div class="row"><span>Date</span><span>${escapeHtml(printedAt.toLocaleString())}</span></div>
+        <div class="row"><span>Order No</span><span>${escapeHtml(payload.orderNumber || '-')}</span></div>
+        <div class="row"><span>Table</span><span>${escapeHtml(payload.tableNumber || '-')}</span></div>
+        <div class="row"><span>Order Type</span><span>${escapeHtml(payload.orderType || '-')}</span></div>
+      </div>
       <div class="line"></div>
-      <table>
-        <thead><tr><th>Item</th><th>Qty</th><th>Total</th></tr></thead>
+      <table class="receipt-items">
+        <thead><tr><th>#</th><th>Item</th><th>Amount</th></tr></thead>
         <tbody>
-          ${(payload.items || []).map((item) => `
-            <tr><td>${escapeHtml(item.name)}<div class="muted">${money(item.unitPrice)}</div></td><td>${Number(item.quantity || 0)}</td><td>${money(item.lineTotal)}</td></tr>
+          ${(payload.items || []).map((item, index) => `
+            <tr>
+              <td>${index + 1}</td>
+              <td><div class="receipt-item-name">${escapeHtml(item.name)}</div><div class="receipt-item-meta">${Number(item.quantity || 0)} x ${money(item.unitPrice)}</div></td>
+              <td>${Number(item.lineTotal || 0).toFixed(2)}</td>
+            </tr>
           `).join('')}
         </tbody>
       </table>
       <div class="line"></div>
-      <div class="row"><span>Subtotal</span><span>${money(payload.subtotal)}</span></div>
-      <div class="row"><span>Discount</span><span>${money(payload.discount)}</span></div>
-      <div class="row"><span>Service</span><span>${money(payload.serviceCharge)}</span></div>
-      <div class="row"><span>Tax</span><span>${money(payload.tax)}</span></div>
-      <div class="row total"><span>Grand Total</span><span>${money(payload.grandTotal)}</span></div>
-      ${isOrderBill ? '' : `
-        <div class="row"><span>Paid</span><span>${money(payload.paidAmount)}</span></div>
-        <div class="row"><span>Method</span><span>${escapeHtml(payload.paymentMethod || '-')}</span></div>
-        <div class="row"><span>Change/Due</span><span>${money(Number(payload.change || 0) || Number(payload.remainingBalance || 0))}</span></div>
-      `}
+      <div class="receipt-totals">
+        <div class="row"><span>Subtotal</span><span>${money(payload.subtotal)}</span></div>
+        <div class="row"><span>Discount</span><span>${money(payload.discount)}</span></div>
+        ${Number(payload.serviceCharge || 0) ? `<div class="row"><span>Service</span><span>${money(payload.serviceCharge)}</span></div>` : ''}
+        ${Number(payload.tax || 0) ? `<div class="row"><span>Tax</span><span>${money(payload.tax)}</span></div>` : ''}
+        <div class="row receipt-grand"><span>Grand Total</span><span>${money(payload.grandTotal)}</span></div>
+        ${isOrderBill ? '' : `
+          <div class="row"><span>Amount Paid</span><span>${money(payload.paidAmount)}</span></div>
+          <div class="row"><span>Change</span><span>${money(payload.change)}</span></div>
+          <div class="row"><span>Payment Method</span><span>${escapeHtml(payload.paymentMethod || '-')}</span></div>
+          <div class="row"><span>Payment Status</span><span>${escapeHtml(payload.paymentStatus || 'PAID')}</span></div>
+          <div class="row"><span>Cashier</span><strong>${escapeHtml(payload.cashier || '-')}</strong></div>
+        `}
+      </div>
       <div class="line"></div>
-      <p class="center">${isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.'}</p>
+      <p class="receipt-footer">${isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.'}</p>
     </section>
   </body></html>`;
 };
@@ -489,6 +514,36 @@ const wrapTicketText = (value, width) => {
   return lines.length ? lines : ['-'];
 };
 
+const rawHeading = (value, width) => {
+  const heading = String(value || 'Restaurant RMS');
+  const sizeOn = heading.length <= Math.floor(width / 2) ? rawDoubleSize : rawNormalSize;
+  const characterWidth = sizeOn === rawDoubleSize ? Math.floor(width / 2) : width;
+  return wrapTicketText(heading, characterWidth)
+    .map((line) => `${rawAlignCenter}${rawBoldOn}${sizeOn}${line}${rawNormalSize}${rawBoldOff}`)
+    .join('\n');
+};
+
+const boxedTicketTitle = (value, width) => {
+  const innerWidth = width - 2;
+  const titleLines = wrapTicketText(value, innerWidth);
+  return [
+    `+${'-'.repeat(innerWidth)}+`,
+    ...titleLines.map((line, index) => `${index === 0 ? rawBoldOn : ''}|${centeredText(line, innerWidth).padEnd(innerWidth)}|${index === titleLines.length - 1 ? rawBoldOff : ''}`),
+    `+${'-'.repeat(innerWidth)}+`
+  ];
+};
+
+const compactMetadataLines = (label, value, width, bold = false) => {
+  const left = String(label || '');
+  const right = String(value || '-');
+  if (left.length + right.length + 1 <= width) {
+    const formatted = `${left}${' '.repeat(width - left.length - right.length)}${right}`;
+    return [bold ? `${rawBoldOn}${formatted}${rawBoldOff}` : formatted];
+  }
+  const values = wrapTicketText(right, width);
+  return [left, ...values.map((line) => `${' '.repeat(Math.max(0, width - line.length))}${bold ? rawBoldOn : ''}${line}${bold ? rawBoldOff : ''}`)];
+};
+
 export const buildStationTicketText = (job = {}) => {
   const payload = job.payload || {};
   const department = payload.department || payload.station || job.station || '';
@@ -500,11 +555,9 @@ export const buildStationTicketText = (job = {}) => {
   const separator = '-'.repeat(width);
   const itemWidth = width - 7;
   const lines = [
-    `${rawAlignCenter}${rawBoldOn}${rawDoubleSize}${payload.restaurantName || 'Restaurant RMS'}${rawNormalSize}${rawBoldOff}`,
+    rawHeading(payload.restaurantName || 'Restaurant RMS', width),
     '',
-    `+${'-'.repeat(width - 2)}+`,
-    `${rawBoldOn}|${centeredText(title, width - 2).padEnd(width - 2)}|${rawBoldOff}`,
-    `+${'-'.repeat(width - 2)}+`,
+    ...boxedTicketTitle(title, width),
     `${rawBoldOn}${rawDoubleSize}TABLE NO.: ${tableNumber}${rawNormalSize}${rawBoldOff}`,
     '',
     `${rawAlignLeft}${metadataText('Order', payload.orderNumber || '-', width)}`,
@@ -549,37 +602,54 @@ export const buildStationTicketText = (job = {}) => {
 export const buildReceiptText = (job = {}) => {
   const payload = job.payload || {};
   const isOrderBill = job.documentType === 'COUNTER_ORDER_BILL';
-  const lines = [
-    payload.restaurantName || 'Restaurant RMS',
-    payload.restaurantAddress || '',
-    payload.panVatNumber ? `PAN/VAT: ${payload.panVatNumber}` : '',
-    isOrderBill ? 'FULL ORDER BILL' : 'CUSTOMER RECEIPT',
-    '--------------------------------',
-    isOrderBill ? '' : `Invoice: ${payload.invoiceNumber || '-'}`,
-    `Order: ${payload.orderNumber || '-'}`,
-    `Table/Type: ${payload.tableNumber || payload.orderType || '-'}`,
-    `Staff: ${payload.staff || payload.cashier || '-'}`,
-    '--------------------------------'
-  ].filter(Boolean);
-  for (const item of payload.items || []) {
-    lines.push(`${Number(item.quantity || 0)} x ${item.name || '-'}  ${money(item.lineTotal)}`);
-  }
+  const width = Number(job.printer?.paperWidthMm || 58) >= 76 ? 48 : 32;
+  const separator = '-'.repeat(width);
+  const amountWidth = width >= 48 ? 12 : 9;
+  const itemWidth = width - 3 - amountWidth;
+  const printedAt = new Date(payload.paidAt || payload.createdAt || Date.now());
+  const lines = [rawHeading(payload.restaurantName || 'Restaurant RMS', width)];
+  if (payload.restaurantAddress) lines.push(...wrapTicketText(payload.restaurantAddress, width));
+  if (payload.restaurantPhone) lines.push(...wrapTicketText(`Phone: ${payload.restaurantPhone}`, width));
+  if (payload.panVatNumber) lines.push(...wrapTicketText(`PAN/VAT: ${payload.panVatNumber}`, width));
+  lines.push(`${rawBoldOn}${isOrderBill ? 'FULL ORDER BILL' : 'CUSTOMER BILL'}${rawBoldOff}`, rawAlignLeft, separator);
+  if (!isOrderBill) lines.push(...compactMetadataLines('Bill No', payload.invoiceNumber || '-', width, true));
   lines.push(
-    '--------------------------------',
-    `Subtotal: ${money(payload.subtotal)}`,
-    `Discount: ${money(payload.discount)}`,
-    `Service: ${money(payload.serviceCharge)}`,
-    `Tax: ${money(payload.tax)}`,
-    `GRAND TOTAL: ${money(payload.grandTotal)}`
+    ...compactMetadataLines('Date', printedAt.toLocaleString(), width),
+    ...compactMetadataLines('Order No', payload.orderNumber || '-', width),
+    ...compactMetadataLines('Table', payload.tableNumber || '-', width),
+    ...compactMetadataLines('Order Type', payload.orderType || '-', width),
+    separator,
+    `${rawBoldOn}${'#'.padEnd(3)}${'Item'.padEnd(itemWidth)}${'Amount'.padStart(amountWidth)}${rawBoldOff}`,
+    separator
   );
+  (payload.items || []).forEach((item, index) => {
+    const itemLines = wrapTicketText(item.name || '-', itemWidth);
+    itemLines.forEach((line, lineIndex) => {
+      const number = lineIndex === 0 ? String(index + 1) : '';
+      const amount = lineIndex === 0 ? Number(item.lineTotal || 0).toFixed(2) : '';
+      lines.push(`${number.padEnd(3)}${line.padEnd(itemWidth)}${amount.padStart(amountWidth)}`);
+    });
+    lines.push(`${' '.repeat(3)}${Number(item.quantity || 0)} x ${money(item.unitPrice)}`);
+  });
+  lines.push(separator);
+  const addAmountRow = (label, value, bold = false) => {
+    lines.push(...compactMetadataLines(label, money(value), width, bold));
+  };
+  addAmountRow('Subtotal', payload.subtotal);
+  addAmountRow('Discount', payload.discount);
+  if (Number(payload.serviceCharge || 0)) addAmountRow('Service', payload.serviceCharge);
+  if (Number(payload.tax || 0)) addAmountRow('Tax', payload.tax);
+  addAmountRow('Grand Total', payload.grandTotal, true);
   if (!isOrderBill) {
+    addAmountRow('Amount Paid', payload.paidAmount);
+    addAmountRow('Change', payload.change);
     lines.push(
-      `Paid: ${money(payload.paidAmount)}`,
-      `Method: ${payload.paymentMethod || '-'}`,
-      `Change/Due: ${money(Number(payload.change || 0) || Number(payload.remainingBalance || 0))}`
+      ...compactMetadataLines('Payment Method', payload.paymentMethod || '-', width),
+      ...compactMetadataLines('Payment Status', payload.paymentStatus || 'PAID', width),
+      ...compactMetadataLines('Cashier', payload.cashier || '-', width, true)
     );
   }
-  lines.push('--------------------------------', isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.');
+  lines.push(separator, `${rawAlignCenter}${isOrderBill ? 'Complete order copy' : 'Thank you for dining with us.'}${rawAlignLeft}${rawNormalSize}${rawBoldOff}`);
   return lines.join('\n');
 };
 
