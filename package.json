@@ -83,12 +83,16 @@
       "category": "public.app-category.business"
     },
     "nsis": {
+      "artifactName": "${productName}-${version}-${os}-${arch}-Setup.${ext}",
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-${os}-${arch}-Portable.${ext}"
     }
   },
   "dependencies": {
