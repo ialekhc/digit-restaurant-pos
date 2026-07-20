@@ -6,6 +6,7 @@ import Select from '../components/ui/Select';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 import {
   loadPrinterRoutes,
+  isCounterOrderBillJob,
   PRINT_JOB_RESULT_EVENT,
   routeKeyForJob,
   savePrinterRoutes,
@@ -164,7 +165,7 @@ const PrintStationPage = () => {
       const pendingJobs = [
         ...(Array.isArray(pending) ? pending : []),
         ...(Array.isArray(failed) ? failed : [])
-      ];
+      ].filter((job) => !isCounterOrderBillJob(job));
       const selectedName = printerName.trim().toLowerCase();
       setJobs(selectedName
         ? pendingJobs.filter((job) => systemPrinterNameForJob(job, printerRoutes).trim().toLowerCase() === selectedName)

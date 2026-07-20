@@ -4,6 +4,7 @@ import { ORDERS_SYNCED_EVENT } from '../api/axios';
 import { buildPrintHtmlForJob, createPrinterAdapter } from '../utils/printingService';
 import {
   loadPrinterRoutes,
+  isCounterOrderBillJob,
   PROCESS_PRINT_JOBS_EVENT,
   PRINT_JOB_RESULT_EVENT,
   systemPrinterNameForJob
@@ -68,21 +69,24 @@ const BackgroundPrintProcessor = () => {
         if (Date.now() - new Date(job.createdAt || 0).getTime() < DIRECT_PRINT_GRACE_MS) continue;
 
         const id = job._id;
-        const printerName = systemPrinterNameForJob(job, routes);
-        if (!id || !printerName || processingRef.current.has(id)) continue;
+        const suppressCounterOrderBill = isCounterOrderBillJob(job);
+        const printerName = suppressCounterOrderBill ? '' : systemPrinterNameForJob(job, routes);
+        if (!id || (!suppressCounterOrderBill && !printerName) || processingRef.current.has(id)) continue;
 
         processingRef.current.add(id);
         let claimed = false;
         try {
           const printJob = await printJobService.claim(id, { clientId });
           claimed = true;
-          const html = buildPrintHtmlForJob(printJob);
-          const physicalPrinter = {
-            ...(printJob.printer || {}),
-            name: printerName,
-            connectionType: 'QZ_TRAY'
-          };
-          await adapter.printHtml({ html, printer: physicalPrinter, job: printJob });
+          if (!suppressCounterOrderBill) {
+            const html = buildPrintHtmlForJob(printJob);
+            const physicalPrinter = {
+              ...(printJob.printer || {}),
+              name: printerName,
+              connectionType: 'QZ_TRAY'
+            };
+            await adapter.printHtml({ html, printer: physicalPrinter, job: printJob });
+          }
           const completed = await printJobService.complete(id);
           notifyResult({ job: completed, status: 'PRINTED' });
         } catch (error) {

@@ -4,7 +4,7 @@
   "description": "Digit Restaurant POS web, Windows, and macOS desktop application",
   "author": "Digit POS",
   "private": true,
-  "version": "1.0.7",
+  "version": "1.0.8",
   "main": "desktop/main.cjs",
   "workspaces": [
     "client",

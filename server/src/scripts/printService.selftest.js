@@ -4,7 +4,6 @@ import {
   buildCounterOrderBillPayload,
   buildStationPayload,
   groupItemsByStation,
-  kotNumberForKey,
   normalizeStation,
   printerPurposeForStation,
   stationFromMenu
@@ -47,13 +46,12 @@ const stationPayload = buildStationPayload({
   station: 'BAR',
   items: mixedItems,
   restaurant: { restaurantName: 'Demo Cafe' },
-  source: 'ADDED_ITEMS',
-  kotNumber: kotNumberForKey('ADDED_ITEMS:order:BAR:item')
+  source: 'ADDED_ITEMS'
 });
 assert.equal(stationPayload.items.length, 1, 'Station ticket must filter a full order down to its station items');
 assert.equal(stationPayload.items[0].name, 'Cold Coffee');
 assert.equal(stationPayload.ticketType, 'ADDITIONAL KOT');
-assert.match(stationPayload.kotNumber, /^KOT-[A-F0-9]{10}$/);
+assert.equal(stationPayload.kotNumber, undefined, 'Station tickets must not include a KOT number');
 assert.equal(stationPayload.subtotal, undefined, 'Station ticket must not include financial totals');
 assert.equal(stationPayload.paymentMethod, undefined, 'Station ticket must not include payment information');
 

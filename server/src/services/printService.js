@@ -1,4 +1,3 @@
-import crypto from 'node:crypto';
 import { Printer } from '../models/Printer.js';
 import { PrintJob } from '../models/PrintJob.js';
 import { Payment } from '../models/Payment.js';
@@ -128,10 +127,6 @@ const ticketTypeForSource = (source = '') => {
   return 'KOT';
 };
 
-export const kotNumberForKey = (idempotencyKey) => (
-  `KOT-${crypto.createHash('sha1').update(String(idempotencyKey)).digest('hex').slice(0, 10).toUpperCase()}`
-);
-
 export const buildStationPayload = ({
   order,
   station,
@@ -139,8 +134,7 @@ export const buildStationPayload = ({
   reason = '',
   cancelledBy = '',
   restaurant = {},
-  source = 'INITIAL_ORDER',
-  kotNumber = ''
+  source = 'INITIAL_ORDER'
 }) => {
   const plainOrder = toPlain(order);
   const designatedItems = groupItemsByStation(items)[station] || [];
@@ -148,7 +142,6 @@ export const buildStationPayload = ({
     station,
     department: station === STATIONS.SMOKE ? 'HOOKAH' : station,
     ticketType: ticketTypeForSource(source),
-    kotNumber,
     restaurantName: restaurant.restaurantName || plainOrder.restaurantName || '',
     orderNumber: plainOrder.orderNumber,
     orderType: plainOrder.orderType,
@@ -206,8 +199,7 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
         reason,
         cancelledBy,
         restaurant,
-        source,
-        kotNumber: kotNumberForKey(idempotencyKey)
+        source
       }),
       idempotencyKey
     });

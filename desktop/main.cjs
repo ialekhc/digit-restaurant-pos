@@ -398,7 +398,11 @@ const printRawTextOnWindows = async (deviceName, text) => {
   const normalized = String(text || '').replace(/\r?\n/g, '\r\n').trimEnd();
   const printBytes = Buffer.concat([
     Buffer.from([0x1b, 0x40]),
-    Buffer.from(`${normalized}\r\n\r\n\r\n`, 'ascii')
+    Buffer.from(`${normalized}\r\n\r\n\r\n`, 'ascii'),
+    // ESC/POS GS V: partial-cut after every independent station ticket.
+    // Printers without an automatic cutter ignore this safely and retain the
+    // feed space above for a clean manual tear.
+    Buffer.from([0x1d, 0x56, 0x42, 0x00])
   ]);
   const encodedScript = Buffer.from(windowsRawPrintScript, 'utf16le').toString('base64');
 

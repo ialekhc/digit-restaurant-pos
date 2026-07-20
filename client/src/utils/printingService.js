@@ -287,8 +287,15 @@ const baseStyles = (width = 58) => `
 export const buildStationTicketHtml = (job) => {
   const printer = job.printer || {};
   const payload = job.payload || {};
-  const title = payload.ticketType || (job.documentType === 'CANCELLED_ITEMS' ? 'CANCELLATION KOT' : 'KOT');
   const department = payload.department || payload.station || job.station || '';
+  const ticketType = String(payload.ticketType || '').toUpperCase();
+  const title = job.documentType === 'CANCELLED_ITEMS' || ticketType.includes('CANCELLATION')
+    ? `CANCELLATION ${department} TICKET`
+    : ticketType.includes('ADDITIONAL')
+      ? `ADDITIONAL ${department} TICKET`
+      : ticketType.includes('REPRINT')
+        ? `REPRINT ${department} TICKET`
+        : `${department} TICKET`;
   const printedAt = new Date(payload.time || Date.now());
   const optionLabel = (option) => {
     if (typeof option === 'string') return option;
@@ -304,14 +311,11 @@ export const buildStationTicketHtml = (job) => {
     <section class="ticket">
       <h1>${escapeHtml(payload.restaurantName || 'Restaurant RMS')}</h1>
       <h2>${escapeHtml(title)}</h2>
-      <p class="center"><strong>${escapeHtml(department)} DEPARTMENT</strong></p>
       <div class="line"></div>
-      <div class="row"><span>KOT No.</span><strong>${escapeHtml(payload.kotNumber || '-')}</strong></div>
       <div class="row"><span>Order</span><strong>${escapeHtml(payload.orderNumber || '-')}</strong></div>
-      <div class="row"><span>Table</span><strong>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</strong></div>
-      <div class="row"><span>Waiter</span><span>${escapeHtml(payload.waiter || '-')}</span></div>
-      <div class="row"><span>Date</span><span>${escapeHtml(printedAt.toLocaleDateString())}</span></div>
-      <div class="row"><span>Time</span><span>${escapeHtml(printedAt.toLocaleTimeString())}</span></div>
+      <div class="row"><span>Table/Type</span><strong>${escapeHtml(payload.tableNumber || payload.orderType || '-')}</strong></div>
+      <div class="row"><span>Time</span><span>${escapeHtml(printedAt.toLocaleString())}</span></div>
+      ${payload.waiter ? `<div class="row"><span>Staff</span><span>${escapeHtml(payload.waiter)}</span></div>` : ''}
       ${payload.cancellationReason ? `<div class="row"><span>Reason</span><span>${escapeHtml(payload.cancellationReason)}</span></div>` : ''}
       ${payload.cancelledBy ? `<div class="row"><span>Cancelled By</span><span>${escapeHtml(payload.cancelledBy)}</span></div>` : ''}
       <div class="line"></div>
@@ -333,7 +337,7 @@ export const buildStationTicketHtml = (job) => {
         </tbody>
       </table>
       <div class="line"></div>
-      <p class="center muted">Preparation only</p>
+      <p class="center muted">Preparation only - no prices</p>
     </section>
   </body></html>`;
 };
@@ -408,21 +412,25 @@ const textOptionLine = (label, options) => {
 
 export const buildStationTicketText = (job = {}) => {
   const payload = job.payload || {};
-  const title = payload.ticketType || (job.documentType === 'CANCELLED_ITEMS' ? 'CANCELLATION KOT' : 'KOT');
   const department = payload.department || payload.station || job.station || '';
+  const ticketType = String(payload.ticketType || '').toUpperCase();
+  const title = job.documentType === 'CANCELLED_ITEMS' || ticketType.includes('CANCELLATION')
+    ? `CANCELLATION ${department} TICKET`
+    : ticketType.includes('ADDITIONAL')
+      ? `ADDITIONAL ${department} TICKET`
+      : ticketType.includes('REPRINT')
+        ? `REPRINT ${department} TICKET`
+        : `${department} TICKET`;
   const printedAt = new Date(payload.time || Date.now());
   const lines = [
     payload.restaurantName || 'Restaurant RMS',
     title,
-    `${department} DEPARTMENT`,
     '--------------------------------',
-    `KOT No.: ${payload.kotNumber || '-'}`,
     `Order: ${payload.orderNumber || '-'}`,
-    `Table: ${payload.tableNumber || payload.orderType || '-'}`,
-    `Waiter: ${payload.waiter || '-'}`,
-    `Date: ${printedAt.toLocaleDateString()}`,
-    `Time: ${printedAt.toLocaleTimeString()}`
+    `Table/Type: ${payload.tableNumber || payload.orderType || '-'}`,
+    `Time: ${printedAt.toLocaleString()}`
   ];
+  if (payload.waiter) lines.push(`Staff: ${payload.waiter}`);
   if (payload.cancellationReason) lines.push(`Reason: ${payload.cancellationReason}`);
   if (payload.cancelledBy) lines.push(`Cancelled By: ${payload.cancelledBy}`);
   lines.push('--------------------------------');
@@ -435,7 +443,7 @@ export const buildStationTicketText = (job = {}) => {
     if (item.specialInstructions) lines.push(`  Instructions: ${item.specialInstructions}`);
     if (item.notes && item.notes !== item.specialInstructions) lines.push(`  Notes: ${item.notes}`);
   }
-  lines.push('--------------------------------', 'Preparation only');
+  lines.push('--------------------------------', 'Preparation only - no prices');
   return lines.join('\n');
 };
 

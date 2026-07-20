@@ -1,11 +1,11 @@
 import { printJobService, qzSecurityService } from '../api/services';
 import { buildPrintHtmlForJob, createPrinterAdapter } from './printingService';
-import { loadPrinterRoutes, systemPrinterNameForJob } from './printStationRoutes';
+import { isStationKotJob, loadPrinterRoutes, systemPrinterNameForJob } from './printStationRoutes';
 
 const clientId = `create-order-${Math.random().toString(36).slice(2)}`;
 
 export const printCreatedOrderJobs = async (jobs = []) => {
-  const queuedJobs = Array.isArray(jobs) ? jobs.filter((job) => job?._id) : [];
+  const queuedJobs = Array.isArray(jobs) ? jobs.filter((job) => job?._id && isStationKotJob(job)) : [];
   if (!queuedJobs.length) {
     return { printedCount: 0, totalCount: 0, errorMessage: 'No active printers are configured for this order.' };
   }
