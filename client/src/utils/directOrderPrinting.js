@@ -1,11 +1,8 @@
 import { printJobService, qzSecurityService } from '../api/services';
 import { buildPrintHtmlForJob, createPrinterAdapter } from './printingService';
+import { loadPrinterRoutes, systemPrinterNameForJob } from './printStationRoutes';
 
 const clientId = `create-order-${Math.random().toString(36).slice(2)}`;
-
-const configuredPrinterName = (job = {}) => (
-  job.printer?.printerSystemName || job.printer?.name || ''
-).trim();
 
 export const printCreatedOrderJobs = async (jobs = []) => {
   const queuedJobs = Array.isArray(jobs) ? jobs.filter((job) => job?._id) : [];
@@ -58,10 +55,11 @@ export const printCreatedOrderJobs = async (jobs = []) => {
 
   let printedCount = 0;
   const errors = [];
+  const printerRoutes = loadPrinterRoutes();
 
   for (const claimedJob of claimedJobs) {
     try {
-      const printerName = configuredPrinterName(claimedJob);
+      const printerName = systemPrinterNameForJob(claimedJob, printerRoutes).trim();
       if (!printerName) throw new Error(`No system printer is configured for ${claimedJob.station || 'this ticket'}.`);
 
       await adapter.printHtml({
