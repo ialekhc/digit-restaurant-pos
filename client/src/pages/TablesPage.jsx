@@ -48,9 +48,29 @@ const statusFilterLabels = {
   Unavailable: 'Unavailable'
 };
 
+const tableSortOptions = [
+  { label: 'Status, then Table Number', value: 'status-asc' },
+  { label: 'Table Number: Low to High', value: 'number-asc' },
+  { label: 'Table Number: High to Low', value: 'number-desc' },
+  { label: 'Capacity: Low to High', value: 'capacity-asc' },
+  { label: 'Capacity: High to Low', value: 'capacity-desc' },
+  { label: 'Active Orders: High to Low', value: 'orders-desc' }
+];
+
 const tableNumberValue = (tableNumber) => {
   const numeric = String(tableNumber || '').match(/\d+/);
   return numeric ? Number(numeric[0]) : Number.MAX_SAFE_INTEGER;
+};
+
+const compareTableNumbers = (left, right) => {
+  const numericDifference = tableNumberValue(left) - tableNumberValue(right);
+  if (numericDifference !== 0) return numericDifference;
+  return String(left || '').localeCompare(String(right || ''), undefined, { numeric: true, sensitivity: 'base' });
+};
+
+const getTableAlphabet = (tableNumber) => {
+  const match = String(tableNumber || '').trim().match(/^[a-z]/i);
+  return match ? match[0].toUpperCase() : '';
 };
 
 const transferItemKey = (orderId, itemId) => `${orderId}:${itemId}`;
@@ -116,6 +136,8 @@ const TablesPage = () => {
   const [qrVersion, setQrVersion] = useState('0');
   const [qrLoading, setQrLoading] = useState(false);
   const [statusFilter, setStatusFilter] = useState('ALL');
+  const [tableSearchQuery, setTableSearchQuery] = useState('');
+  const [tableSortBy, setTableSortBy] = useState('status-asc');
   const canManageTables = hasAnyPermission([PERMISSIONS.TABLE_MANAGE]);
   const canPlaceOrders = hasAnyPermission([PERMISSIONS.ORDER_CREATE]);
   const canTransferTables = hasAnyPermission([PERMISSIONS.ORDER_TRANSFER]);
@@ -139,14 +161,9 @@ const TablesPage = () => {
     return [...tables].sort((a, b) => {
       const statusSort = (statusPriority[a.status] || 99) - (statusPriority[b.status] || 99);
       if (statusSort !== 0) return statusSort;
-      return tableNumberValue(a.tableNumber) - tableNumberValue(b.tableNumber);
+      return compareTableNumbers(a.tableNumber, b.tableNumber);
     });
   }, [tables]);
-
-  const visibleTables = useMemo(() => {
-    if (statusFilter === 'ALL') return sortedTables;
-    return sortedTables.filter((table) => table.status === statusFilter);
-  }, [sortedTables, statusFilter]);
 
   const statusCounts = useMemo(() => {
     return TABLE_STATUSES.reduce((acc, status) => {
@@ -167,6 +184,69 @@ const TablesPage = () => {
       return acc;
     }, {});
   }, [activeOrders]);
+
+  const tableAlphabetOptions = useMemo(() => {
+    const alphabets = [...new Set(tables.map((table) => getTableAlphabet(table.tableNumber)).filter(Boolean))]
+      .sort((left, right) => left.localeCompare(right));
+
+    return [
+      { label: 'Show All Table Alphabets', value: 'prefix:ALL' },
+      ...alphabets.map((alphabet) => ({
+        label: `Show ${alphabet} Tables`,
+        value: `prefix:${alphabet}`
+      }))
+    ];
+  }, [tables]);
+
+  useEffect(() => {
+    if (!tableSortBy.startsWith('prefix:')) return;
+    if (!tableAlphabetOptions.some((option) => option.value === tableSortBy)) {
+      setTableSortBy('prefix:ALL');
+    }
+  }, [tableAlphabetOptions, tableSortBy]);
+
+  const visibleTables = useMemo(() => {
+    const query = tableSearchQuery.trim().toLocaleLowerCase();
+    const selectedAlphabet = tableSortBy.startsWith('prefix:') ? tableSortBy.slice('prefix:'.length) : 'ALL';
+    const filteredTables = tables.filter((table) => {
+      if (statusFilter !== 'ALL' && table.status !== statusFilter) return false;
+      if (selectedAlphabet !== 'ALL' && getTableAlphabet(table.tableNumber) !== selectedAlphabet) return false;
+      if (!query) return true;
+
+      const activeOrderCount = activeOrderCountByTable[table._id] || 0;
+      return [
+        table.tableNumber,
+        table.status,
+        statusFilterLabels[table.status],
+        table.seatingCapacity,
+        activeOrderCount,
+        `${table.seatingCapacity} guests`,
+        `${activeOrderCount} active orders`
+      ].some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+    });
+
+    return filteredTables.sort((left, right) => {
+      switch (tableSortBy) {
+        case 'number-asc':
+          return compareTableNumbers(left.tableNumber, right.tableNumber);
+        case 'number-desc':
+          return compareTableNumbers(right.tableNumber, left.tableNumber);
+        case 'capacity-asc':
+          return Number(left.seatingCapacity || 0) - Number(right.seatingCapacity || 0)
+            || compareTableNumbers(left.tableNumber, right.tableNumber);
+        case 'capacity-desc':
+          return Number(right.seatingCapacity || 0) - Number(left.seatingCapacity || 0)
+            || compareTableNumbers(left.tableNumber, right.tableNumber);
+        case 'orders-desc':
+          return (activeOrderCountByTable[right._id] || 0) - (activeOrderCountByTable[left._id] || 0)
+            || compareTableNumbers(left.tableNumber, right.tableNumber);
+        case 'status-asc':
+        default:
+          return (statusPriority[left.status] || 99) - (statusPriority[right.status] || 99)
+            || compareTableNumbers(left.tableNumber, right.tableNumber);
+      }
+    });
+  }, [activeOrderCountByTable, statusFilter, tableSearchQuery, tableSortBy, tables]);
 
   const transferTargets = useMemo(() => {
     return sortedTables.filter((table) => table._id !== transferFromTableId && table.status === 'AVAILABLE');
@@ -429,6 +509,25 @@ const TablesPage = () => {
             );
           })}
         </div>
+
+        <div className="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(240px,340px)]">
+          <Input
+            label="Search Tables"
+            type="search"
+            placeholder="Search by table number, status, capacity, or active orders"
+            value={tableSearchQuery}
+            onChange={(e) => setTableSearchQuery(e.target.value)}
+          />
+          <Select
+            label="Sort / Filter Tables"
+            options={tableAlphabetOptions.concat(tableSortOptions)}
+            value={tableSortBy}
+            onChange={(e) => setTableSortBy(e.target.value)}
+          />
+        </div>
+        <p className="mb-4 text-xs text-slate-500" aria-live="polite">
+          Showing {visibleTables.length} of {tables.length} tables
+        </p>
 
         {canTransferTables ? (
           <div className="mb-4 rounded-2xl border border-brand-200 bg-brand-50 p-4">
@@ -718,7 +817,9 @@ const TablesPage = () => {
         </div>
         {!visibleTables.length ? (
           <div className="rounded-2xl border border-dashed border-slate-300 bg-white/70 p-6 text-center text-sm font-semibold text-slate-500">
-            No {statusFilterLabels[statusFilter].toLowerCase()} tables found.
+            {tableSearchQuery.trim()
+              ? `No ${statusFilterLabels[statusFilter].toLowerCase()} tables match “${tableSearchQuery.trim()}”.`
+              : `No ${statusFilterLabels[statusFilter].toLowerCase()} tables found.`}
           </div>
         ) : null}
 

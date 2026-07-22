@@ -31,6 +31,13 @@ const menuTypeLabels = {
   DRINK: 'Drink',
   SMOKE: 'Smoke'
 };
+const orderItemSortOptions = [
+  { label: 'Name: A to Z', value: 'name-asc' },
+  { label: 'Name: Z to A', value: 'name-desc' },
+  { label: 'Category: A to Z', value: 'category-asc' },
+  { label: 'Price: Low to High', value: 'price-asc' },
+  { label: 'Price: High to Low', value: 'price-desc' }
+];
 
 const OrderCreatePage = () => {
   const [searchParams] = useSearchParams();
@@ -48,6 +55,8 @@ const OrderCreatePage = () => {
   const [activeMenuType, setActiveMenuType] = useState('FOOD');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMenu, setSelectedMenu] = useState('');
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [menuSortBy, setMenuSortBy] = useState('name-asc');
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
@@ -167,16 +176,42 @@ const OrderCreatePage = () => {
   }, [activeMenuItems]);
 
   const visibleMenuItems = useMemo(() => {
-    if (!selectedCategory) return [];
-    return activeMenuItems
-      .filter((item) => getCategoryId(item) === selectedCategory)
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [activeMenuItems, selectedCategory]);
+    const query = menuSearchQuery.trim().toLocaleLowerCase();
+    const filteredItems = activeMenuItems.filter((item) => {
+      if (selectedCategory && getCategoryId(item) !== selectedCategory) return false;
+      if (!query) return true;
+
+      return [item.name, getCategoryName(item), item.description, item.price]
+        .some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+    });
+
+    const compareText = (left, right) => String(left || '').localeCompare(String(right || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+
+    return filteredItems.sort((left, right) => {
+      switch (menuSortBy) {
+        case 'name-desc':
+          return compareText(right.name, left.name);
+        case 'category-asc':
+          return compareText(getCategoryName(left), getCategoryName(right)) || compareText(left.name, right.name);
+        case 'price-asc':
+          return Number(left.price || 0) - Number(right.price || 0) || compareText(left.name, right.name);
+        case 'price-desc':
+          return Number(right.price || 0) - Number(left.price || 0) || compareText(left.name, right.name);
+        case 'name-asc':
+        default:
+          return compareText(left.name, right.name);
+      }
+    });
+  }, [activeMenuItems, menuSearchQuery, menuSortBy, selectedCategory]);
 
   const changeMenuType = (menuType) => {
     setActiveMenuType(menuType);
     setSelectedCategory('');
     setSelectedMenu('');
+    setMenuSearchQuery('');
   };
 
   useEffect(() => {
@@ -214,6 +249,7 @@ const OrderCreatePage = () => {
     });
 
     setSelectedMenu('');
+    setMenuSearchQuery('');
     setQuantity(1);
     setNotes('');
   };
@@ -352,7 +388,7 @@ const OrderCreatePage = () => {
         ) : null}
       </Panel>
 
-      <Panel title="Add Items" subtitle="Choose a menu, then a category, and finally an item">
+      <Panel title="Add Items" subtitle="Choose a menu, then search or filter its items">
         <div className="mb-4 flex flex-wrap gap-2">
           {orderMenuTabs.map((tab) => (
             <Button
@@ -364,11 +400,26 @@ const OrderCreatePage = () => {
             </Button>
           ))}
         </div>
+        <div className="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)]">
+          <Input
+            label={`Search ${menuTypeLabels[activeMenuType] || 'Menu'} Items`}
+            type="search"
+            placeholder="Search by item name, category, description, or price"
+            value={menuSearchQuery}
+            onChange={(e) => setMenuSearchQuery(e.target.value)}
+          />
+          <Select
+            label="Sort Items"
+            value={menuSortBy}
+            options={orderItemSortOptions}
+            onChange={(e) => setMenuSortBy(e.target.value)}
+          />
+        </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <Select
             label={`${menuTypeLabels[activeMenuType] || 'Menu'} Category`}
             value={selectedCategory}
-            options={[{ label: 'Select category', value: '' }].concat(categoryOptions)}
+            options={[{ label: 'All categories', value: '' }].concat(categoryOptions)}
             onChange={(e) => {
               setSelectedCategory(e.target.value);
               setSelectedMenu('');
@@ -377,7 +428,7 @@ const OrderCreatePage = () => {
           <Select
             label={`${menuTypeLabels[activeMenuType] || 'Menu'} Item`}
             value={selectedMenu}
-            disabled={!selectedCategory}
+            disabled={!visibleMenuItems.length}
             options={[{ label: 'Select menu item', value: '' }].concat(
               visibleMenuItems.map((m) => ({
                 label: `${m.name}${m.category?.name ? ` (${m.category.name})` : ''} - ${currency(m.price)}`,
@@ -392,12 +443,19 @@ const OrderCreatePage = () => {
             <Button className="w-full py-3 text-base" onClick={addItem}>Add Item</Button>
           </div>
         </div>
+        {activeMenuItems.length ? (
+          <p className="mt-3 text-xs text-slate-500" aria-live="polite">
+            Showing {visibleMenuItems.length} of {activeMenuItems.length} {menuTypeLabels[activeMenuType].toLowerCase()} items
+          </p>
+        ) : null}
         {!activeMenuItems.length ? (
           <p className="mt-3 text-sm text-slate-500">
             No {(menuTypeLabels[activeMenuType] || 'menu').toLowerCase()} items are available right now.
           </p>
-        ) : selectedCategory && !visibleMenuItems.length ? (
-          <p className="mt-3 text-sm text-slate-500">No items are available in the selected category.</p>
+        ) : !visibleMenuItems.length ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No items match the selected category and search.
+          </p>
         ) : null}
 
         <div className="mt-4 hidden overflow-x-auto md:block">
