@@ -21,3 +21,6 @@ docker-compose.override.prod.yml
 docker-compose.yml
 deploy.sh
 .github/workflows/deploy.yml
+
+# Electron build outputs
+release/
