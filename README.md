@@ -2,6 +2,8 @@
 
 A complete restaurant management web application built with PostgreSQL, Express, React (Vite), and Node.js.
 
+See [Production readiness](docs/PRODUCTION_READINESS.md) for secure deployment, signed desktop releases, backups, and the launch checklist.
+
 ## Features
 
 - JWT authentication with role-based access control

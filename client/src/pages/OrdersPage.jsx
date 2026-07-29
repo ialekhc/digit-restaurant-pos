@@ -11,7 +11,43 @@ import { useAuth } from '../hooks/useAuth';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { ORDER_STATUSES, ORDER_TYPES, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
+import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
+
+const ActionIcon = ({ children }) => (
+  <svg
+    aria-hidden="true"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.8"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    className="h-4 w-4 shrink-0"
+  >
+    {children}
+  </svg>
+);
+
+const TicketIcon = () => (
+  <ActionIcon>
+    <path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z" />
+    <path d="M9 8h6M9 12h6" />
+  </ActionIcon>
+);
+
+const ServeIcon = () => (
+  <ActionIcon>
+    <path d="M4 15h16M6 15a6 6 0 0 1 12 0M12 7V5" />
+    <path d="M3 19h18" />
+  </ActionIcon>
+);
+
+const CancelIcon = () => (
+  <ActionIcon>
+    <circle cx="12" cy="12" r="8.5" />
+    <path d="m9 9 6 6m0-6-6 6" />
+  </ActionIcon>
+);
 
 const OrdersPage = () => {
   const { user } = useAuth();
@@ -106,9 +142,13 @@ const OrdersPage = () => {
   const printStationTickets = async (order) => {
     setActionError('');
     try {
-      await openStationTicketsPdfTab(order);
+      const jobs = await orderService.printStationTickets(order._id, {});
+      const result = await printCreatedOrderJobs(jobs);
+      if (result.printedCount !== result.totalCount) {
+        setActionError(`Reprint KOT failed. ${result.errorMessage || 'Use Retry Print in Print Station.'}`);
+      }
     } catch (error) {
-      setActionError(error?.message || 'Unable to open station-ticket PDF');
+      setActionError(error?.response?.data?.message || error?.message || 'Unable to reprint KOT');
     }
   };
 
@@ -123,10 +163,14 @@ const OrdersPage = () => {
     setCancellationBusy(true);
     setCancellationError('');
     try {
-      if (mode === 'ORDER') {
-        await orderService.cancel(cancellationOrder._id, reason);
-      } else {
-        await orderService.cancelItems(cancellationOrder._id, items, reason);
+      const cancelled = mode === 'ORDER'
+        ? await orderService.cancel(cancellationOrder._id, reason)
+        : await orderService.cancelItems(cancellationOrder._id, items, reason);
+      const printResult = await printCreatedOrderJobs(cancelled.printJobs || []);
+      if (printResult.printedCount !== printResult.totalCount) {
+        setActionError(
+          `Cancellation saved, but the cancellation KOT failed to print. ${printResult.errorMessage || 'Use Retry Print in Print Station.'}`
+        );
       }
       await load(filtersRef.current);
       setCancellationOrder(null);
@@ -203,44 +247,69 @@ const OrdersPage = () => {
     };
   }, [orders]);
 
-  const renderOrderActions = (order, compact = false) => (
-    <div className={compact ? 'mt-4 grid grid-cols-2 gap-2' : 'flex flex-col gap-2 xl:flex-row xl:flex-wrap'}>
-      <Button
-        variant="secondary"
-        size="sm"
-        className={compact ? 'min-h-11' : 'whitespace-nowrap'}
-        onClick={() => printStationTickets(order)}
+  const renderOrderActions = (order, compact = false) => {
+    const { canServe, canCancel } = getAllowedActions(order);
+    const buttonClass = compact
+      ? 'flex min-h-11 items-center justify-center gap-2 rounded-xl'
+      : 'flex min-h-9 w-full items-center justify-start gap-2 rounded-lg px-3';
+
+    return (
+      <div
+        className={
+          compact
+            ? 'mt-4 grid grid-cols-2 gap-2'
+            : 'grid min-w-[136px] gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50/80 p-1.5 shadow-sm'
+        }
+        aria-label={`Actions for ${order.orderNumber}`}
       >
-        Print Tickets
-      </Button>
-      {getAllowedActions(order).canServe ? (
         <Button
-          variant="success"
+          variant="neutral"
           size="sm"
-          className={compact ? 'min-h-11' : 'whitespace-nowrap'}
-          onClick={() => runOrderAction(async () => {
-            const itemIndex = order.items.findIndex(
-              (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
-            );
-            if (itemIndex < 0) return;
-            await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
-          })}
+          className={`${buttonClass} ${compact && !canServe ? 'col-span-2' : ''}`}
+          onClick={() => printStationTickets(order)}
         >
-          {order.orderType === 'TAKEAWAY' ? 'Pack' : 'Serve'}
+          <TicketIcon />
+          <span>Reprint KOT</span>
         </Button>
-      ) : null}
-      {getAllowedActions(order).canCancel ? (
-        <Button
-          variant="danger"
-          size="sm"
-          className={compact ? 'col-span-2 min-h-11' : 'whitespace-nowrap'}
-          onClick={() => openCancellation(order)}
-        >
-          Cancel
-        </Button>
-      ) : null}
-    </div>
-  );
+        {hasPermission(PERMISSIONS.ORDER_UPDATE) ? (
+          <Link
+            to={`/orders/create?order=${order._id}&table=${order.table?._id || order.table || ''}&tableNumber=${encodeURIComponent(order.table?.tableNumber || '')}`}
+            className={`${buttonClass} rounded-lg bg-sky-50 px-3 text-sm font-semibold text-sky-700 transition hover:bg-sky-100`}
+          >
+            <span>Add items</span>
+          </Link>
+        ) : null}
+        {canServe ? (
+          <Button
+            variant="success"
+            size="sm"
+            className={buttonClass}
+            onClick={() => runOrderAction(async () => {
+              const itemIndex = order.items.findIndex(
+                (item) => Number(item.servedQuantity || 0) < Number(item.readyQuantity || 0)
+              );
+              if (itemIndex < 0) return;
+              await orderService.updateStatus(order._id, 'SERVED', { itemIndex, quantity: 1 });
+            })}
+          >
+            <ServeIcon />
+            <span>{order.orderType === 'TAKEAWAY' ? 'Pack order' : 'Serve item'}</span>
+          </Button>
+        ) : null}
+        {canCancel ? (
+          <Button
+            variant="dangerOutline"
+            size="sm"
+            className={`${buttonClass} ${compact ? 'col-span-2' : ''}`}
+            onClick={() => openCancellation(order)}
+          >
+            <CancelIcon />
+            <span>Cancel order</span>
+          </Button>
+        ) : null}
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-5">
@@ -361,11 +430,11 @@ const OrdersPage = () => {
               <col className="w-[13%]" />
               <col className="w-[8%]" />
               <col className="w-[13%]" />
-              <col className="w-[30%]" />
+              <col className="w-[26%]" />
               <col className="w-[10%]" />
               <col className="w-[10%]" />
               <col className="w-[11%]" />
-              <col className="w-[5%]" />
+              <col className="w-[9%]" />
             </colgroup>
             <thead className="bg-gradient-to-r from-brand-50 via-white to-secondary-50 text-left text-xs uppercase tracking-wide text-slate-500">
               <tr>

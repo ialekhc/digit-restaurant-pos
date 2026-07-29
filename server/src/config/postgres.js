@@ -1,10 +1,6 @@
-import { Pool } from 'pg';
-import { EnvExt } from '../EnvironmentExt.js';
+import { pool } from '../database/query.js';
 
-export const pool = new Pool({
-  connectionString: process.env.DATABASE_URL || EnvExt.DATABASE_URL,
-  ssl: (process.env.DATABASE_SSL || EnvExt.DATABASE_SSL) === 'true' ? { rejectUnauthorized: false } : undefined
-});
+export { pool };
 
 export const connectPostgres = async () => {
   if (!process.env.DATABASE_URL && !EnvExt.DATABASE_URL) {

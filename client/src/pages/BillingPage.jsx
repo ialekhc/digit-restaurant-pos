@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { orderService, paymentService, planService, tableService } from '../api/services';
+import { orderService, paymentService, planService, printerService, tableService, vendorService } from '../api/services';
 import Panel from '../components/ui/Panel';
 import Select from '../components/ui/Select';
 import Input from '../components/ui/Input';
@@ -10,7 +10,9 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { FEATURE_KEYS, PAYMENT_METHODS, PERMISSIONS } from '../utils/constants';
 import { currency, formatDateTime } from '../utils/format';
 import { getReceiptSettings } from '../utils/receiptSettings';
-import { downloadReceiptPdf, openReceiptPdfTab } from '../utils/receiptPdf';
+import { downloadReceiptPdf } from '../utils/receiptPdf';
+import { downloadRowsAsXlsx } from '../utils/excel';
+import { printReceiptJobs } from '../utils/directOrderPrinting';
 
 const escapeHtml = (value = '') => {
   return String(value)
@@ -289,6 +291,7 @@ const BillingPage = () => {
   const [tables, setTables] = useState([]);
   const [enabledFeatures, setEnabledFeatures] = useState(new Set());
   const [receiptPayment, setReceiptPayment] = useState(null);
+  const [receiptOptions, setReceiptOptions] = useState({ paperWidthMm: 58, vendor: null });
 
   const [lookupTableNumber, setLookupTableNumber] = useState('');
   const [paymentMethod, setPaymentMethod] = useState('CASH');
@@ -319,6 +322,23 @@ const BillingPage = () => {
 
   useEffect(() => {
     load();
+  }, []);
+
+  useEffect(() => {
+    const loadReceiptContext = async () => {
+      const [vendorResult, printersResult] = await Promise.allSettled([
+        vendorService.mySubscription(),
+        printerService.list()
+      ]);
+      const vendor = vendorResult.status === 'fulfilled' ? vendorResult.value?.vendor || null : null;
+      const printers = printersResult.status === 'fulfilled' && Array.isArray(printersResult.value) ? printersResult.value : [];
+      const counterPrinter = printers.find((printer) => printer.purpose === 'COUNTER' && printer.isActive !== false);
+      setReceiptOptions({
+        vendor,
+        paperWidthMm: Number(counterPrinter?.paperWidthMm || 58)
+      });
+    };
+    loadReceiptContext();
   }, []);
 
   useAutoRefresh(load);
@@ -496,9 +516,16 @@ const BillingPage = () => {
     }
 
     try {
-      await openReceiptPdfTab(payment, user?.name || 'Cashier');
+      const orderId = paymentOrderId(payment);
+      if (!orderId) throw new Error('The receipt is not linked to an order.');
+
+      const printJob = await orderService.printReceipt(orderId);
+      const result = await printReceiptJobs([printJob]);
+      if (result.printedCount !== result.totalCount || result.errorMessage) {
+        throw new Error(result.errorMessage || 'Receipt was not printed.');
+      }
     } catch (err) {
-      setError(err.message || 'Unable to open receipt PDF');
+      setError(err.response?.data?.message || err.message || 'Unable to print receipt');
     }
   };
 
@@ -552,7 +579,7 @@ const BillingPage = () => {
     try {
       const printablePayment = getPrintablePayment(payment);
       setReceiptPayment(printablePayment);
-      await downloadReceiptPdf(printablePayment, user?.name || 'Cashier');
+      await downloadReceiptPdf(printablePayment, user?.name || 'Cashier', receiptOptions);
     } catch (err) {
       setError(err.message || 'Unable to download receipt PDF');
     }
@@ -719,8 +746,6 @@ const BillingPage = () => {
 
     setExporting(true);
     try {
-      const XLSX = await import('xlsx');
-
       const rows = filteredPayments.map((payment, index) => {
         const order = payment.order || {};
         const items = Array.isArray(order.items) ? order.items : [];
@@ -747,33 +772,13 @@ const BillingPage = () => {
         };
       });
 
-      const worksheet = XLSX.utils.json_to_sheet(rows);
-      worksheet['!cols'] = [
-        { wch: 6 },
-        { wch: 16 },
-        { wch: 22 },
-        { wch: 14 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 12 },
-        { wch: 10 },
-        { wch: 40 },
-        { wch: 14 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 14 },
-        { wch: 16 },
-        { wch: 14 },
-        { wch: 20 },
-        { wch: 16 }
-      ];
-
-      const workbook = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Bills');
-
       const stamp = new Date().toISOString().slice(0, 19).replace(/[T:]/g, '-');
-      XLSX.writeFile(workbook, `bills-history-${stamp}.xlsx`);
+      await downloadRowsAsXlsx({
+        rows,
+        sheetName: 'Bills',
+        filename: `bills-history-${stamp}.xlsx`,
+        widths: [6, 16, 22, 14, 12, 12, 12, 10, 40, 14, 14, 16, 14, 14, 16, 14, 20, 16]
+      });
     } catch (err) {
       setError('Unable to export Excel right now. Please try again.');
     } finally {

@@ -22,6 +22,9 @@ const stationDocumentTypes = {
 export const normalizeStation = (value, fallback = STATIONS.KITCHEN) => {
   const normalized = String(value || '').trim().toUpperCase();
   if (normalized === 'FOOD') return STATIONS.KITCHEN;
+  if (['DRINK', 'DRINKS', 'BEVERAGE', 'BEVERAGES'].includes(normalized)) return STATIONS.BAR;
+  if (['HOOKAH', 'SHISHA'].includes(normalized)) return STATIONS.SMOKE;
+  if (['NO_PRINT', 'NO PRINT'].includes(normalized)) return STATIONS.NONE;
   if (['KITCHEN', 'BAR', 'SMOKE', 'NONE'].includes(normalized)) return normalized;
   return fallback;
 };
@@ -41,18 +44,19 @@ export const stationFromMenu = (menu = {}) => {
   return normalizeStation(menu.kitchenSection, STATIONS.KITCHEN);
 };
 
-// This installation uses two physical printers. Food is prepared in the
-// kitchen; drink and smoke tickets are handled by the reception printer.
 export const printerPurposeForStation = (station) => {
   if (String(station || '').trim().toUpperCase() === 'COUNTER') return 'COUNTER';
-  const normalized = normalizeStation(station);
-  if (normalized === STATIONS.BAR || normalized === STATIONS.SMOKE) return 'COUNTER';
-  return normalized;
+  return normalizeStation(station);
 };
 
 export const groupItemsByStation = (items = []) => {
   return items.reduce((acc, item) => {
-    const station = normalizeStation(item.preparationStation || item.station || item.kitchenSection);
+    const menuType = String(item.menuType || item.menuItem?.menuType || '').trim().toUpperCase();
+    const station = menuType === 'DRINK'
+      ? STATIONS.BAR
+      : menuType === 'SMOKE'
+        ? STATIONS.SMOKE
+        : normalizeStation(item.preparationStation || item.station || item.kitchenSection);
     if (station === STATIONS.NONE) return acc;
     if (!acc[station]) acc[station] = [];
     acc[station].push({
@@ -116,26 +120,47 @@ const createPrintJobIfMissing = async ({ user, restaurantId, printer, order, pay
   }));
 };
 
-export const buildStationPayload = ({ order, station, items, reason = '', cancelledBy = '', restaurant = {} }) => {
+const ticketTypeForSource = (source = '') => {
+  if (source === 'ADDED_ITEMS') return 'ADDITIONAL KOT';
+  if (String(source).startsWith('CANCELLED_ITEMS')) return 'CANCELLATION KOT';
+  if (String(source).startsWith('MANUAL_REPRINT')) return 'REPRINT KOT';
+  return 'KOT';
+};
+
+export const buildStationPayload = ({
+  order,
+  station,
+  items,
+  reason = '',
+  cancelledBy = '',
+  restaurant = {},
+  source = 'INITIAL_ORDER'
+}) => {
   const plainOrder = toPlain(order);
+  const designatedItems = groupItemsByStation(items)[station] || [];
   return {
     station,
+    department: station === STATIONS.SMOKE ? 'HOOKAH' : station,
+    ticketType: ticketTypeForSource(source),
     restaurantName: restaurant.restaurantName || plainOrder.restaurantName || '',
     orderNumber: plainOrder.orderNumber,
     orderType: plainOrder.orderType,
-    tableNumber: plainOrder.table?.tableNumber || '',
+    tableNumber: plainOrder.table?.tableNumber || plainOrder.tableNumber || '',
     time: new Date().toISOString(),
     createdAt: plainOrder.createdAt,
     waiter: plainOrder.createdBy?.name || '',
     cancelledBy,
     cancellationReason: reason,
-    items: items.map((item) => ({
+    // KOTs are preparation tickets, never full-order bills. Keep this filter
+    // here as a final boundary even when a caller accidentally passes all
+    // order items instead of the already grouped station items.
+    items: designatedItems.map((item) => ({
       name: item.name,
       quantity: Number(item.quantity || 0),
       notes: item.notes || '',
       variants: item.variants || [],
       addons: item.addons || [],
-      specialInstructions: item.specialInstructions || ''
+      specialInstructions: item.specialInstructions || item.notes || ''
     }))
   };
 };
@@ -146,11 +171,15 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
   const jobs = [];
   const restaurant = await getRestaurantDetails(order.restaurantId);
 
-  for (const [station, stationItems] of Object.entries(grouped)) {
+  // A mixed order must always produce independent jobs. Fixed station order
+  // makes the split deterministic while each payload contains only its own
+  // designated items.
+  for (const station of [STATIONS.KITCHEN, STATIONS.BAR, STATIONS.SMOKE]) {
+    const stationItems = grouped[station] || [];
     if (!stationItems.length) continue;
     const printer = await getPrinterForPurpose({ user, restaurantId: order.restaurantId, purpose: station });
 
-    const documentType = source === 'CANCELLED_ITEMS' ? 'CANCELLED_ITEMS' : stationDocumentTypes[station];
+    const documentType = String(source).startsWith('CANCELLED_ITEMS') ? 'CANCELLED_ITEMS' : stationDocumentTypes[station];
     const itemKey = stationItems
       .map((item) => `${item._id || item.menuItem || item.name}:${item.quantity}:${item.notes || ''}`)
       .join('|');
@@ -163,17 +192,18 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
       order,
       documentType,
       station,
-      payload: buildStationPayload({ order, station, items: stationItems, reason, cancelledBy, restaurant }),
+      payload: buildStationPayload({
+        order,
+        station,
+        items: stationItems,
+        reason,
+        cancelledBy,
+        restaurant,
+        source
+      }),
       idempotencyKey
     });
     if (job) jobs.push(job);
-  }
-
-  // The counter copy is the master order bill: it intentionally contains every
-  // item while production printers receive only their own station's items.
-  if (source === 'INITIAL_ORDER' || String(source).startsWith('MANUAL_REPRINT')) {
-    const counterJob = await createCounterOrderBillJob({ user, order, restaurant, source });
-    if (counterJob) jobs.push(counterJob);
   }
 
   return Promise.all(
@@ -184,8 +214,8 @@ export const createStationPrintJobs = async ({ user, order, items = null, reason
 export const createAddedItemPrintJobs = ({ user, order, items }) =>
   createStationPrintJobs({ user, order, items, source: 'ADDED_ITEMS' });
 
-export const createCancellationPrintJob = ({ user, order, items, reason = '', cancelledBy = '' }) =>
-  createStationPrintJobs({ user, order, items, reason, cancelledBy, source: 'CANCELLED_ITEMS' });
+export const createCancellationPrintJob = ({ user, order, items, reason = '', cancelledBy = '', eventId = Date.now() }) =>
+  createStationPrintJobs({ user, order, items, reason, cancelledBy, source: `CANCELLED_ITEMS:${eventId}` });
 
 export const buildCounterReceiptPayload = ({ payment, order, payments = [], orders = [], restaurant = {} }) => {
   const plainOrder = toPlain(order);
@@ -206,8 +236,8 @@ export const buildCounterReceiptPayload = ({ payment, order, payments = [], orde
     panVatNumber: restaurant.panVatNumber || '',
     orderNumber: receiptOrders.map((row) => row.orderNumber).filter(Boolean).join(', ') || plainOrder.orderNumber,
     orderType: plainOrder.orderType,
-    tableNumber: plainOrder.table?.tableNumber || '',
-    cashier: payment?.paidBy?.name || '',
+    tableNumber: plainOrder.table?.tableNumber || plainOrder.tableNumber || '',
+    cashier: paymentRows.find((row) => row.paidBy?.name)?.paidBy?.name || payment?.paidBy?.name || '',
     customer: plainOrder.customer || null,
     items: orderItems.map((item) => ({
       name: item.name,
@@ -224,6 +254,7 @@ export const buildCounterReceiptPayload = ({ payment, order, payments = [], orde
     grandTotal,
     paidAmount,
     paymentMethod: paymentRows.map((row) => row.paymentMethod).filter(Boolean).join(', '),
+    paymentStatus: paymentRows.every((row) => row.paymentStatus === 'PAID') ? 'PAID' : payment?.paymentStatus || 'PAID',
     change: paymentRows.reduce((sum, row) => sum + Number(row.changeAmount || 0), 0),
     remainingBalance: Math.max(0, grandTotal - paidAmount),
     paidAt: payment?.createdAt || new Date().toISOString()
@@ -280,16 +311,20 @@ const createCounterOrderBillJob = async ({ user, order, restaurant, source }) =>
 };
 
 export const createCounterReceiptJob = async ({ user, payment, force = false }) => {
-  const order = await Order.findById(payment.order).populate('table').populate('customer').populate('createdBy', 'name role');
+  const populatedPayment = payment?._id
+    ? await Payment.findById(payment._id).populate('paidBy', 'name role')
+    : null;
+  const receiptPayment = populatedPayment || payment;
+  const order = await Order.findById(receiptPayment.order).populate('table').populate('customer').populate('createdBy', 'name role');
   if (!order) throw new ApiError(404, 'Order not found for receipt');
 
-  if (!force && payment.paymentStatus !== 'PAID') return null;
+  if (!force && receiptPayment.paymentStatus !== 'PAID') return null;
 
-  let payments = [payment];
+  let payments = [receiptPayment];
   let receiptOrders = [order];
-  if (payment.billGroupId) {
-    payments = await Payment.find({ billGroupId: payment.billGroupId }).populate('paidBy', 'name role');
-    const expectedCount = Number(payment.billGroupOrderCount || 0);
+  if (receiptPayment.billGroupId) {
+    payments = await Payment.find({ billGroupId: receiptPayment.billGroupId }).populate('paidBy', 'name role');
+    const expectedCount = Number(receiptPayment.billGroupOrderCount || 0);
     if (!force && expectedCount > 0 && payments.length < expectedCount) return null;
     const orderIds = payments.map((row) => row.order).filter(Boolean);
     if (orderIds.length) {
@@ -300,20 +335,24 @@ export const createCounterReceiptJob = async ({ user, payment, force = false }) 
     }
   }
 
-  const printer = await getPrinterForPurpose({ user, restaurantId: payment.restaurantId || order.restaurantId, purpose: 'COUNTER' });
-  const restaurant = await getRestaurantDetails(payment.restaurantId || order.restaurantId);
+  const restaurantId = receiptPayment.restaurantId || order.restaurantId;
+  const printer = await getPrinterForPurpose({ user, restaurantId, purpose: 'COUNTER' });
+  const restaurant = await getRestaurantDetails(restaurantId);
 
-  const groupKey = payment.billGroupId || payment._id;
+  const groupKey = receiptPayment.billGroupId || receiptPayment._id;
+  const reprintKey = force
+    ? `RECEIPT_REPRINT:${groupKey}:${Date.now()}:${user?._id || 'user'}`
+    : `COUNTER_RECEIPT:${groupKey}`;
   return createPrintJobIfMissing({
     user,
-    restaurantId: payment.restaurantId || order.restaurantId,
+    restaurantId,
     printer,
     order,
-    payment,
+    payment: receiptPayment,
     documentType: force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT',
     station: 'COUNTER',
-    payload: buildCounterReceiptPayload({ payment, order, payments, orders: receiptOrders, restaurant }),
-    idempotencyKey: `${force ? 'RECEIPT_REPRINT' : 'COUNTER_RECEIPT'}:${groupKey}`
+    payload: buildCounterReceiptPayload({ payment: receiptPayment, order, payments, orders: receiptOrders, restaurant }),
+    idempotencyKey: reprintKey
   });
 };
 

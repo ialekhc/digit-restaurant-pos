@@ -252,10 +252,14 @@ export const createOrder = asyncHandler(async (req, res) => {
     const instantServe = isInstantServeSmokeItem(menu);
     return {
       menuItem: menu._id,
+      menuType: String(menu.menuType || 'FOOD').toUpperCase(),
       name: menu.name,
       price: menu.price,
       quantity,
       notes: item.notes || '',
+      variants: Array.isArray(item.variants) ? item.variants : [],
+      addons: Array.isArray(item.addons) ? item.addons : [],
+      specialInstructions: String(item.specialInstructions || item.notes || ''),
       kitchenSection,
       preparationStation,
       readyQuantity: instantServe ? quantity : 0,
@@ -463,6 +467,82 @@ export const updateOrderItems = asyncHandler(async (req, res) => {
   res.json({ data });
 });
 
+export const addOrderItems = asyncHandler(async (req, res) => {
+  const { items = [] } = req.body;
+  if (!Array.isArray(items) || !items.length) {
+    throw new ApiError(400, 'At least one new item is required');
+  }
+
+  const order = await findScopedOrderById(req, req.params.id);
+  if (!order) throw new ApiError(404, 'Order not found');
+  if (['COMPLETED', 'CANCELLED'].includes(order.status)) {
+    throw new ApiError(400, `Cannot add items to ${order.status} order`);
+  }
+  if (await Payment.findOne({ order: order._id })) {
+    throw new ApiError(409, 'Cannot add items after payment has been created');
+  }
+
+  const menuIds = items.map((item) => item.menuItem);
+  const menuItems = await MenuItem.find(
+    await buildTenantScopedQuery(req.user, { _id: { $in: menuIds } }, {
+      userFields: ['createdBy'],
+      includeCustomerTenant: true
+    })
+  ).populate('category', 'name');
+  const menuMap = new Map(menuItems.map((menu) => [String(menu._id), menu]));
+
+  const addedItems = items.map((item) => {
+    const menu = menuMap.get(String(item.menuItem));
+    if (!menu) throw new ApiError(404, `Menu item not found: ${item.menuItem}`);
+    if (!menu.isAvailable) throw new ApiError(400, `${menu.name} is not available right now`);
+
+    const quantity = Number(item.quantity || 1);
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      throw new ApiError(400, 'Item quantity must be greater than 0');
+    }
+
+    const preparationStation = stationFromMenu(menu);
+    const instantServe = isInstantServeSmokeItem(menu);
+    return {
+      menuItem: menu._id,
+      menuType: String(menu.menuType || 'FOOD').toUpperCase(),
+      name: menu.name,
+      price: menu.price,
+      quantity,
+      notes: String(item.notes || ''),
+      variants: Array.isArray(item.variants) ? item.variants : [],
+      addons: Array.isArray(item.addons) ? item.addons : [],
+      specialInstructions: String(item.specialInstructions || item.notes || ''),
+      kitchenSection: stationToKitchenSection(preparationStation) || resolveProductionSection(menu),
+      preparationStation,
+      readyQuantity: instantServe ? quantity : 0,
+      servedQuantity: 0
+    };
+  });
+
+  const existingItemCount = order.items.length;
+  order.items = [...order.items, ...addedItems];
+  if (order.status === 'READY' || order.status === 'SERVED') order.status = 'PREPARING';
+  recalculateOrderTotals(order);
+  await order.save();
+  await syncTableStatusFromOrders(order.table);
+
+  const populated = await Order.findById(order._id)
+    .populate('table')
+    .populate('customer')
+    .populate('createdBy', 'name role');
+  const savedAddedItems = populated.items.slice(existingItemCount);
+  const printJobs = await createAddedItemPrintJobs({ user: req.user, order: populated, items: savedAddedItems });
+
+  res.json({
+    data: {
+      ...(populated.toJSON ? populated.toJSON() : populated),
+      addedItemIds: savedAddedItems.map((item) => item._id),
+      printJobs
+    }
+  });
+});
+
 export const cancelOrder = asyncHandler(async (req, res) => {
   const { reason = '' } = req.body;
 
@@ -502,8 +582,15 @@ export const cancelOrder = asyncHandler(async (req, res) => {
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role');
+  const printJobs = await createCancellationPrintJob({
+    user: req.user,
+    order: data,
+    items: data.items,
+    reason: order.cancelledReason,
+    cancelledBy: req.user?.name || req.user?.email || ''
+  });
 
-  res.json({ data });
+  res.json({ data: { ...(data.toJSON ? data.toJSON() : data), printJobs } });
 });
 
 export const cancelOrderItems = asyncHandler(async (req, res) => {
@@ -558,12 +645,16 @@ export const cancelOrderItems = asyncHandler(async (req, res) => {
     cancelledItems.push({
       itemId: item._id,
       menuItem: item.menuItem,
+      menuType: item.menuType,
       name: item.name,
       price: Number(item.price || 0),
       quantity: cancelledQuantity,
       preparationStation: item.preparationStation,
       kitchenSection: item.kitchenSection,
-      notes: item.notes || ''
+      notes: item.notes || '',
+      variants: item.variants || [],
+      addons: item.addons || [],
+      specialInstructions: item.specialInstructions || item.notes || ''
     });
 
     const quantity = currentQuantity - cancelledQuantity;
@@ -603,8 +694,21 @@ export const cancelOrderItems = asyncHandler(async (req, res) => {
     .populate('table')
     .populate('customer')
     .populate('createdBy', 'name role');
+  const printJobs = await createCancellationPrintJob({
+    user: req.user,
+    order: data,
+    items: cancelledItems,
+    reason: String(reason || '').trim(),
+    cancelledBy: req.user?.name || req.user?.email || ''
+  });
 
-  res.json({ data, cancelledItems });
+  res.json({
+    data: {
+      ...(data.toJSON ? data.toJSON() : data),
+      cancelledItems,
+      printJobs
+    }
+  });
 });
 
 export const deleteOrder = asyncHandler(async (req, res) => {
@@ -625,7 +729,11 @@ export const printStationTickets = asyncHandler(async (req, res) => {
   const order = await findPopulatedScopedOrderById(req, req.params.orderId);
   if (!order) throw new ApiError(404, 'Order not found');
 
-  const data = await createStationPrintJobs({ user: req.user, order, source: req.body?.source || 'INITIAL_ORDER' });
+  const data = await createStationPrintJobs({
+    user: req.user,
+    order,
+    source: `MANUAL_REPRINT:${Date.now()}:${req.user?._id || 'user'}`
+  });
   res.status(201).json({ data });
 });
 

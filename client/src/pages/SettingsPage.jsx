@@ -8,10 +8,6 @@ import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
 import {
-  setAutoPrintKitchenTicket,
-  shouldAutoPrintKitchenTicket
-} from '../utils/kitchenPrinting';
-import {
   buildReceiptSettingsFromVendor,
   getReceiptSettings,
   saveReceiptSettings
@@ -31,6 +27,8 @@ const schema = z
 
 const printerPurposes = [
   { value: 'KITCHEN', label: 'Kitchen printer' },
+  { value: 'BAR', label: 'Bar printer' },
+  { value: 'SMOKE', label: 'Hookah printer' },
   { value: 'COUNTER', label: 'Reception printer' }
 ];
 
@@ -49,7 +47,6 @@ const defaultPrinterForm = {
 const SettingsPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
-  const [autoPrintKitchen, setAutoPrintKitchen] = useState(() => shouldAutoPrintKitchenTicket());
   const [receiptForm, setReceiptForm] = useState(() => getReceiptSettings());
   const [printers, setPrinters] = useState([]);
   const [printerForm, setPrinterForm] = useState(defaultPrinterForm);
@@ -205,36 +202,7 @@ const SettingsPage = () => {
         </p>
       </Panel>
 
-      <Panel title="Browser PDF Printing" subtitle="Open station tickets as a PDF in Chrome">
-        <div className="max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-4">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="font-semibold text-slate-900">Open ticket PDF after creating an order</p>
-              <p className="mt-1 text-sm text-slate-600">
-                Chrome opens a PDF containing separate Food/Kitchen, Bar, and Smoke ticket pages.
-              </p>
-            </div>
-            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full bg-white px-3 py-2 text-sm font-semibold text-slate-700 ring-1 ring-amber-200">
-              <input
-                type="checkbox"
-                className="h-4 w-4"
-                checked={autoPrintKitchen}
-                onChange={(event) => {
-                  const enabled = event.target.checked;
-                  setAutoPrintKitchen(enabled);
-                  setAutoPrintKitchenTicket(enabled);
-                }}
-              />
-              {autoPrintKitchen ? 'Enabled' : 'Disabled'}
-            </label>
-          </div>
-          <p className="mt-3 text-xs text-slate-500">
-            Use Chrome's Print button in the PDF viewer to choose a printer or save the tickets as a PDF. Allow pop-ups for this site.
-          </p>
-        </div>
-      </Panel>
-
-      <Panel title="Printer Settings" subtitle="Food routes to Kitchen; Bar, Smoke, full order bills, and receipts route to Reception">
+      <Panel title="Printer Settings" subtitle="Assign a separate system printer to Kitchen, Bar, Hookah, and Reception">
         <div className="grid gap-4 xl:grid-cols-[1fr_1.2fr]">
           <div className="rounded-2xl border border-brand-100 bg-white/80 p-4">
             <div className="grid gap-3 sm:grid-cols-2">
