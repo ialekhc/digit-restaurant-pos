@@ -7,6 +7,15 @@ BRANCH="main"
 
 cd "$PROJECT_DIR"
 
+COMPOSE=(docker compose)
+if [ -f "$PROJECT_DIR/.env.postgres" ]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$PROJECT_DIR/.env.postgres"
+  set +a
+  COMPOSE+=(--env-file "$PROJECT_DIR/.env.postgres")
+fi
+
 echo "==> Checking repository"
 git fetch origin "$BRANCH"
 
@@ -16,7 +25,7 @@ mkdir -p "$PROJECT_DIR/backups"
 BACKUP_FILE="$PROJECT_DIR/backups/restaurant_pos_$(date +%Y%m%d_%H%M%S).sql"
 
 docker exec digit-pos-postgres \
-  pg_dump -U postgres -d restaurant_pos \
+  pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-restaurant_pos}" \
   > "$BACKUP_FILE"
 
 if [ ! -s "$BACKUP_FILE" ]; then
@@ -28,13 +37,13 @@ echo "==> Updating application code"
 git reset --hard "origin/$BRANCH"
 
 echo "==> Building application containers only"
-docker compose build backend frontend
+"${COMPOSE[@]}" build backend frontend
 
 echo "==> Running database migrations"
-docker compose run --rm backend npm run db:migrate
+"${COMPOSE[@]}" run --rm backend npm run db:migrate
 
 echo "==> Replacing application containers only"
-docker compose up -d --no-deps backend frontend
+"${COMPOSE[@]}" up -d --no-deps backend frontend
 
 echo "==> Waiting for services"
 sleep 10
