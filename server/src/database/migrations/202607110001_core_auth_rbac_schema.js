@@ -11,6 +11,7 @@ END $$;`;
 export const up = async (client) => {
   await client.query('CREATE EXTENSION IF NOT EXISTS "pgcrypto"');
   await client.query('CREATE EXTENSION IF NOT EXISTS "citext"');
+  await client.query(enumSql('restaurant_status', ['PENDING', 'ACTIVE', 'SUSPENDED', 'CLOSED']));
   await client.query(enumSql('user_status', ['ACTIVE', 'INACTIVE', 'SUSPENDED', 'INVITED']));
 
   await client.query(`
@@ -22,6 +23,31 @@ export const up = async (client) => {
     END;
     $$ LANGUAGE plpgsql;
   `);
+
+  await client.query(`
+    CREATE TABLE IF NOT EXISTS restaurants (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      owner_user_id UUID,
+      name VARCHAR(180) NOT NULL,
+      legal_name VARCHAR(220),
+      slug VARCHAR(160) NOT NULL UNIQUE,
+      email CITEXT,
+      phone VARCHAR(40),
+      pan_vat_number VARCHAR(80),
+      tax_registration_number VARCHAR(80),
+      logo_url TEXT,
+      cover_image_url TEXT,
+      currency_code CHAR(3) NOT NULL DEFAULT 'NPR',
+      timezone VARCHAR(80) NOT NULL DEFAULT 'Asia/Kathmandu',
+      status restaurant_status NOT NULL DEFAULT 'PENDING',
+      settings JSONB NOT NULL DEFAULT '{}'::jsonb,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      deleted_at TIMESTAMPTZ
+    );
+  `);
+  await client.query('CREATE INDEX IF NOT EXISTS idx_restaurants_status ON restaurants(status) WHERE deleted_at IS NULL');
+  await client.query('CREATE INDEX IF NOT EXISTS idx_restaurants_owner ON restaurants(owner_user_id) WHERE deleted_at IS NULL');
 
   await client.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -131,7 +157,7 @@ export const up = async (client) => {
   await client.query('CREATE INDEX IF NOT EXISTS idx_user_restaurant_roles_restaurant ON user_restaurant_roles(restaurant_id)');
   await client.query('CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user_active ON refresh_tokens(user_id, expires_at) WHERE revoked_at IS NULL');
 
-  for (const table of ['users', 'roles', 'user_restaurant_roles']) {
+  for (const table of ['restaurants', 'users', 'roles', 'user_restaurant_roles']) {
     await client.query(`DROP TRIGGER IF EXISTS trg_${table}_updated_at ON ${table}`);
     await client.query(`CREATE TRIGGER trg_${table}_updated_at BEFORE UPDATE ON ${table} FOR EACH ROW EXECUTE FUNCTION set_updated_at()`);
   }
