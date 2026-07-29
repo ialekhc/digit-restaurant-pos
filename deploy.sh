@@ -30,6 +30,9 @@ git reset --hard "origin/$BRANCH"
 echo "==> Building application containers only"
 docker compose build backend frontend
 
+echo "==> Running database migrations"
+docker compose run --rm backend npm run db:migrate
+
 echo "==> Replacing application containers only"
 docker compose up -d --no-deps backend frontend
 
