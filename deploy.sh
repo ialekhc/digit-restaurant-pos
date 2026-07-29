@@ -17,7 +17,7 @@ if [ -f "$PROJECT_DIR/.env.postgres" ]; then
 fi
 
 echo "==> Checking repository"
-git fetch origin "$BRANCH"
+git fetch origin "+${BRANCH}:refs/remotes/origin/${BRANCH}"
 
 echo "==> Backing up PostgreSQL"
 mkdir -p "$PROJECT_DIR/backups"
