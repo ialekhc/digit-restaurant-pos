@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url';
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) {
   console.error('Missing DATABASE_URL environment variable.');
-  console.error('Example: DATABASE_URL="postgresql://postgres:postgres@localhost:5432/restaurant_pos" npm run db:use');
+  console.error('Example: DATABASE_URL="postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos" npm run db:use');
   process.exit(1);
 }
 

@@ -126,14 +126,14 @@ At the project root:
 docker compose up -d postgres
 ```
 
-This uses `docker-compose.yml` and exposes PostgreSQL on `127.0.0.1:5432`.
+This uses `docker-compose.yml` and exposes PostgreSQL on `127.0.0.1:55432` by default.
 
 ### Option B: Local PostgreSQL
 
 Create a local database named `restaurant_pos`, then set:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 ```
 
@@ -161,7 +161,7 @@ cp .env.example .env
 
 ```env
 PORT=5500
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 JWT_SECRET=supersecretkey
 JWT_EXPIRES_IN=7d
@@ -234,8 +234,8 @@ If the backend prints `PostgreSQL is not reachable`, check:
 
 - Docker Desktop is running.
 - `docker compose up -d postgres` completed successfully.
-- `server/.env` has `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos`.
-- Port `5432` is not already used by another local PostgreSQL instance.
+- `server/.env` has `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos`.
+- Port `55432` is available, or set `POSTGRES_HOST_PORT` before running Docker Compose.
 
 For hosted PostgreSQL, set:
 
@@ -470,9 +470,9 @@ The project now includes a normalized PostgreSQL schema while retaining the lega
 ### Environment Variables
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
-CORE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
-VENDOR_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
+CORE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
+VENDOR_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 USE_LEGACY_DOCUMENT_STORAGE=false
 ```
