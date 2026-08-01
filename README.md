@@ -239,6 +239,15 @@ The Windows build writes distributable files to `release/`:
 - `Digit Restaurant POS-<version>-win-x64-Setup.exe`
 - `Digit Restaurant POS-<version>-win-x64-Portable.exe`
 
+Current Windows distribution files for this repository version (`2.0.0`):
+
+- `release/Digit Restaurant POS-2.0.0-win-x64-Setup.exe`
+- `release/Digit Restaurant POS-2.0.0-win-x64-Portable.exe`
+
+GitHub Release download location:
+
+- [Latest Windows desktop installer](https://github.com/ialekhc/digit-restaurant-pos/releases/latest)
+
 Use the `Setup.exe` file for normal restaurant installation. Use the portable file only for demos, testing, or support.
 
 ### Signed Production Release
