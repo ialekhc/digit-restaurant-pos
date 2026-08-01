@@ -214,6 +214,72 @@ Frontend runs at:
 
 - `http://localhost:5400`
 
+## Windows Desktop App Distribution
+
+Digit RMS includes a stable Electron desktop build for Windows. The Windows app uses the same hosted production API as the web app, so restaurant data stays synchronized between browser users and desktop users.
+
+Default desktop API:
+
+```text
+https://rms.digitnp.com/api
+```
+
+### Build Windows Installers
+
+Build from a Windows machine or a Windows GitHub Actions runner:
+
+```powershell
+npm ci
+npm run verify
+npm run package:windows
+```
+
+The Windows build writes distributable files to `release/`:
+
+- `Digit Restaurant POS-<version>-win-x64-Setup.exe`
+- `Digit Restaurant POS-<version>-win-x64-Portable.exe`
+
+Use the `Setup.exe` file for normal restaurant installation. Use the portable file only for demos, testing, or support.
+
+### Signed Production Release
+
+For a production-ready GitHub Release, sign the Windows installer:
+
+```powershell
+$env:CSC_LINK='C:\secure\digit-pos-signing.pfx'
+$env:CSC_KEY_PASSWORD='use-a-secret-store'
+npm run release:windows
+```
+
+Do not commit signing certificates or passwords. Store release artifacts in GitHub Releases so vendors can download the latest stable installer from the repository release page.
+
+### Distribution Checklist
+
+- Run `npm run verify` before packaging.
+- Confirm `https://rms.digitnp.com/api/health` is reachable before distributing.
+- Upload only tested `release/*.exe` files to GitHub Releases.
+- Prefer signed `Setup.exe` builds for real vendors.
+- Keep the web backend deployed before installing the desktop app.
+- Configure Windows printers from the app Settings page after installation.
+
+### Vendor Installation Notes
+
+1. Download the latest `Setup.exe` from GitHub Releases.
+2. Install and open `Digit Restaurant POS`.
+3. Log in with the vendor or staff account created in the web system.
+4. Configure Counter, Kitchen, Bar, and Smoke printers if needed.
+5. Orders, bills, menu, users, and reports sync through the hosted API.
+
+If a vendor needs to use a different backend, open the desktop app data folder from the connection-status screen and edit `desktop-config.json`:
+
+```json
+{
+  "apiBaseUrl": "https://your-backend.example.com/api"
+}
+```
+
+Remote desktop APIs must use HTTPS.
+
 ## Port Conflict Fix (`EADDRINUSE`)
 
 If you get:
