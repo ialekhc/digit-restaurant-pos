@@ -48,7 +48,7 @@ sync_postgres_password() {
     -e DB_NAME="$POSTGRES_DB" \
     digit-pos-postgres \
     sh -lc 'psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -v db_user="$DB_USER" -v db_pass="$DB_PASS" <<SQL
-ALTER USER :"db_user" WITH PASSWORD :'db_pass';
+SELECT format('\''ALTER USER %I WITH PASSWORD %L'\'', :'\''db_user'\'', :'\''db_pass'\'') \gexec
 SQL'
 }
 
