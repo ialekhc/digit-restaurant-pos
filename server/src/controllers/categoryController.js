@@ -21,6 +21,12 @@ const buildCategoryMenuTypeFilter = (menuType) => {
     };
   }
 
+  if (menuType === 'COMBO_PLATTER') {
+    return {
+      $or: [{ menuType: 'COMBO_PLATTER' }]
+    };
+  }
+
   return {
     $or: [
       { menuType: 'FOOD' },
