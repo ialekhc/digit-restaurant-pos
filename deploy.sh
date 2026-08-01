@@ -16,8 +16,54 @@ if [ -f "$PROJECT_DIR/.env.postgres" ]; then
   COMPOSE+=(--env-file "$PROJECT_DIR/.env.postgres")
 fi
 
+POSTGRES_USER="${POSTGRES_USER:-postgres}"
+POSTGRES_PASSWORD="${POSTGRES_PASSWORD:-postgres}"
+POSTGRES_DB="${POSTGRES_DB:-restaurant_pos}"
+
+require_postgres_env() {
+  if [ -z "$POSTGRES_USER" ] || [ -z "$POSTGRES_PASSWORD" ] || [ -z "$POSTGRES_DB" ]; then
+    echo "POSTGRES_USER, POSTGRES_PASSWORD, and POSTGRES_DB are required for production deploy."
+    exit 1
+  fi
+}
+
+wait_for_postgres() {
+  echo "==> Waiting for PostgreSQL"
+  for attempt in {1..30}; do
+    if docker exec digit-pos-postgres pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" >/dev/null 2>&1; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "PostgreSQL did not become healthy in time."
+  exit 1
+}
+
+sync_postgres_password() {
+  echo "==> Synchronizing PostgreSQL credentials"
+  docker exec -i \
+    -e DB_USER="$POSTGRES_USER" \
+    -e DB_PASS="$POSTGRES_PASSWORD" \
+    -e DB_NAME="$POSTGRES_DB" \
+    digit-pos-postgres \
+    sh -lc 'psql -U "$DB_USER" -d "$DB_NAME" -v ON_ERROR_STOP=1 -v db_user="$DB_USER" -v db_pass="$DB_PASS" <<SQL
+ALTER USER :"db_user" WITH PASSWORD :'db_pass';
+SQL'
+}
+
+require_postgres_env
+
 echo "==> Checking repository"
 git fetch origin "+${BRANCH}:refs/remotes/origin/${BRANCH}"
+
+echo "==> Updating application code"
+git reset --hard "origin/$BRANCH"
+
+echo "==> Ensuring PostgreSQL is running"
+"${COMPOSE[@]}" up -d postgres
+wait_for_postgres
+sync_postgres_password
 
 echo "==> Backing up PostgreSQL"
 mkdir -p "$PROJECT_DIR/backups"
@@ -25,7 +71,7 @@ mkdir -p "$PROJECT_DIR/backups"
 BACKUP_FILE="$PROJECT_DIR/backups/restaurant_pos_$(date +%Y%m%d_%H%M%S).sql"
 
 docker exec digit-pos-postgres \
-  pg_dump -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-restaurant_pos}" \
+  pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" \
   > "$BACKUP_FILE"
 
 if [ ! -s "$BACKUP_FILE" ]; then
@@ -33,14 +79,14 @@ if [ ! -s "$BACKUP_FILE" ]; then
   exit 1
 fi
 
-echo "==> Updating application code"
-git reset --hard "origin/$BRANCH"
-
 echo "==> Building application containers only"
 "${COMPOSE[@]}" build backend frontend
 
 echo "==> Running database migrations"
 "${COMPOSE[@]}" run --rm backend npm run db:migrate
+
+echo "==> Running production database sync"
+"${COMPOSE[@]}" run --rm backend npm run production:db:sync
 
 echo "==> Replacing application containers only"
 "${COMPOSE[@]}" up -d --no-deps backend frontend

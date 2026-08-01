@@ -35,6 +35,7 @@
     "db:migrate": "npm run db:migrate --workspace @pos/vendor-service && npm run db:migrate --workspace server",
     "db:migrate:core": "npm run db:migrate --workspace server",
     "db:migrate:vendor": "npm run db:migrate --workspace @pos/vendor-service",
+    "production:db:sync": "npm run production:db:sync --workspace server",
     "db:rollback": "npm run db:rollback --workspace server && npm run db:rollback --workspace @pos/vendor-service",
     "db:seed": "npm run db:seed --workspace @pos/vendor-service && npm run db:seed --workspace server",
     "db:status": "npm run db:status --workspace @pos/vendor-service && npm run db:status --workspace server",

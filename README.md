@@ -498,6 +498,41 @@ npm run db:seed --workspace @pos/vendor-service
 npm run db:seed --workspace server
 ```
 
+### Production Database Update
+
+Production deploys must not run the destructive development seed. Use the deploy script or the non-destructive production sync command instead.
+
+`./deploy.sh` now performs the production database update on every deploy:
+
+- starts PostgreSQL if needed;
+- synchronizes the existing PostgreSQL user password with `.env.postgres`;
+- creates a timestamped database backup;
+- runs vendor and core migrations;
+- runs a non-destructive production auth/vendor sync;
+- replaces the backend and frontend containers only after database maintenance succeeds.
+
+Manual production sync command:
+
+```bash
+npm run production:db:sync
+```
+
+Production sync only repairs required auth/vendor records and tenant links in the existing `app_documents` store. It does not delete orders, bills, vendors, menu items, staff, or inventory.
+
+Optional production sync variables:
+
+```env
+PRODUCTION_SUPER_ADMIN_EMAIL=superadmin@restaurant.local
+PRODUCTION_SUPER_ADMIN_PASSWORD=SuperAdmin@12345
+PRODUCTION_OWNER_EMAIL=owner@jiggs.com
+PRODUCTION_OWNER_PASSWORD=Owner@12345
+PRODUCTION_OWNER_NAME=Jiggs Cafe Owner
+PRODUCTION_VENDOR_NAME=Jiggs Cafe
+PRODUCTION_SYNC_RESET_DEFAULT_PASSWORDS=true
+```
+
+Set `PRODUCTION_SYNC_RESET_DEFAULT_PASSWORDS=false` if passwords changed from the UI should not be reset during deploy.
+
 ### JSONB Migration Commands
 
 Dry run:

@@ -15,6 +15,7 @@
     "db:status": "node src/database/migrationRunner.js status",
     "db:seed": "node src/database/seedRunner.js",
     "db:migrate:documents": "node src/database/migrateDocuments.js",
+    "production:db:sync": "node src/scripts/productionDbSync.js",
     "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js",
     "data:backfill-demo-tenant": "node src/scripts/backfillDemoTenantScope.js",
     "print:selftest": "node src/scripts/printService.selftest.js"
