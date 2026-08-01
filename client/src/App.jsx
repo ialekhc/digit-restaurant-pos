@@ -13,6 +13,7 @@ const MenuCategoriesPage = lazy(() => import('./pages/MenuCategoriesPage'));
 const MenuItemsPage = lazy(() => import('./pages/MenuItemsPage'));
 const DrinkItemsPage = lazy(() => import('./pages/DrinkItemsPage'));
 const SmokeItemsPage = lazy(() => import('./pages/SmokeItemsPage'));
+const ComboPlatterItemsPage = lazy(() => import('./pages/ComboPlatterItemsPage'));
 const TablesPage = lazy(() => import('./pages/TablesPage'));
 const OrdersPage = lazy(() => import('./pages/OrdersPage'));
 const OrderCreatePage = lazy(() => import('./pages/OrderCreatePage'));
@@ -83,6 +84,7 @@ const App = () => {
             <Route path="/menu/items" element={<MenuItemsPage />} />
             <Route path="/drink/items" element={<DrinkItemsPage />} />
             <Route path="/smoke/items" element={<SmokeItemsPage />} />
+            <Route path="/combo-platter/items" element={<ComboPlatterItemsPage />} />
           </Route>
 
           <Route element={<ProtectedRoute permission={PERMISSIONS.TABLE_VIEW} />}>

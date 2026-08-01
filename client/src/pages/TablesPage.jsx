@@ -76,6 +76,7 @@ const getTableAlphabet = (tableNumber) => {
 const transferItemKey = (orderId, itemId) => `${orderId}:${itemId}`;
 
 const transferItemType = (item) => {
+  if (item.menuType === 'COMBO_PLATTER') return 'COMBO PLATTER';
   if (item.kitchenSection === 'BAR' || item.preparationStation === 'BAR') return 'DRINK';
   if (item.kitchenSection === 'SMOKE' || item.preparationStation === 'SMOKE') return 'SMOKE';
   return 'FOOD';

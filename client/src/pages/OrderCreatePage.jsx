@@ -21,7 +21,8 @@ const activeFlowStatuses = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
 const orderMenuTabs = [
   { label: 'Food Menu', value: 'FOOD' },
   { label: 'Drink Menu', value: 'DRINK' },
-  { label: 'Smoke Menu', value: 'SMOKE' }
+  { label: 'Smoke Menu', value: 'SMOKE' },
+  { label: 'Combo Platter Menu', value: 'COMBO_PLATTER' }
 ];
 const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
 const getCategoryId = (item) => item.category?._id || item.category || '';
@@ -29,7 +30,8 @@ const getCategoryName = (item) => item.category?.name || 'Uncategorized';
 const menuTypeLabels = {
   FOOD: 'Food',
   DRINK: 'Drink',
-  SMOKE: 'Smoke'
+  SMOKE: 'Smoke',
+  COMBO_PLATTER: 'Combo Platter'
 };
 const orderItemSortOptions = [
   { label: 'Name: A to Z', value: 'name-asc' },

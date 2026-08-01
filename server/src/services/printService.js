@@ -52,17 +52,25 @@ export const printerPurposeForStation = (station) => {
 export const groupItemsByStation = (items = []) => {
   return items.reduce((acc, item) => {
     const menuType = String(item.menuType || item.menuItem?.menuType || '').trim().toUpperCase();
-    const station = menuType === 'DRINK'
-      ? STATIONS.BAR
-      : menuType === 'SMOKE'
-        ? STATIONS.SMOKE
-        : normalizeStation(item.preparationStation || item.station || item.kitchenSection);
-    if (station === STATIONS.NONE) return acc;
-    if (!acc[station]) acc[station] = [];
-    acc[station].push({
-      ...item,
-      preparationStation: station
+    const stations = menuType === 'COMBO_PLATTER'
+      ? [STATIONS.KITCHEN, STATIONS.BAR]
+      : [
+          menuType === 'DRINK'
+            ? STATIONS.BAR
+            : menuType === 'SMOKE'
+              ? STATIONS.SMOKE
+              : normalizeStation(item.preparationStation || item.station || item.kitchenSection)
+        ];
+
+    stations.forEach((station) => {
+      if (station === STATIONS.NONE) return;
+      if (!acc[station]) acc[station] = [];
+      acc[station].push({
+        ...item,
+        preparationStation: station
+      });
     });
+
     return acc;
   }, {});
 };

@@ -10,13 +10,15 @@ import { useAutoRefresh } from '../hooks/useAutoRefresh';
 const menuTabs = [
   { label: 'Food Menu', value: 'FOOD' },
   { label: 'Drink Menu', value: 'DRINK' },
-  { label: 'Smoke Menu', value: 'SMOKE' }
+  { label: 'Smoke Menu', value: 'SMOKE' },
+  { label: 'Combo Platter Menu', value: 'COMBO_PLATTER' }
 ];
 const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
 const menuTypeLabels = {
   FOOD: 'Food',
   DRINK: 'Drink',
-  SMOKE: 'Smoke'
+  SMOKE: 'Smoke',
+  COMBO_PLATTER: 'Combo Platter'
 };
 
 const CustomerQrOrderPage = () => {

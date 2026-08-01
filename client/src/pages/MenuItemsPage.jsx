@@ -36,7 +36,8 @@ const menuTypeConfig = {
     listSubtitle: 'Manage food items',
     importTitle: 'Food Menu Import (Excel)',
     importSubtitle: 'Bulk upload food items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Food Menu'
+    badgeText: 'Food Menu',
+    itemLabel: 'Food'
   },
   DRINK: {
     pageTitle: 'Drink Items',
@@ -45,7 +46,8 @@ const menuTypeConfig = {
     listSubtitle: 'Manage drink items',
     importTitle: 'Drink Menu Import (Excel)',
     importSubtitle: 'Bulk upload drink items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Drink Menu'
+    badgeText: 'Drink Menu',
+    itemLabel: 'Drink'
   },
   SMOKE: {
     pageTitle: 'Smoke Items',
@@ -54,14 +56,26 @@ const menuTypeConfig = {
     listSubtitle: 'Manage smoke items',
     importTitle: 'Smoke Menu Import (Excel)',
     importSubtitle: 'Bulk upload smoke items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Smoke Menu'
+    badgeText: 'Smoke Menu',
+    itemLabel: 'Smoke'
+  },
+  COMBO_PLATTER: {
+    pageTitle: 'Combo Platter Items',
+    createTitle: 'Create Combo Platter Item',
+    editTitle: 'Edit Combo Platter Item',
+    listSubtitle: 'Manage combo platter items',
+    importTitle: 'Combo Platter Menu Import (Excel)',
+    importSubtitle: 'Bulk upload combo platter items using your sample format: Category, Item, Price (Rs.)',
+    badgeText: 'Combo Platter Menu',
+    itemLabel: 'Combo Platter'
   }
 };
 
 const importSheetNames = {
   FOOD: ['food menu', 'food'],
   DRINK: ['drink menu', 'drinks menu', 'drink', 'drinks'],
-  SMOKE: ['smoke menu', 'smoke']
+  SMOKE: ['smoke menu', 'smoke'],
+  COMBO_PLATTER: ['combo platter menu', 'combo platter', 'combos']
 };
 
 const normalizeSheetName = (value) => String(value || '').trim().toLowerCase();
@@ -252,7 +266,9 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         ? { Category: 'MOCKTAILS', Item: 'Mint Lemonade', 'Price (Rs.)': 180, 'Preparation Station': 'BAR' }
         : menuType === 'SMOKE'
           ? { Category: 'CIGARETTES', Item: 'Classic Gold', 'Price (Rs.)': 40, 'Preparation Station': 'SMOKE' }
-          : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
+          : menuType === 'COMBO_PLATTER'
+            ? { Category: 'SHARING PLATTERS', Item: 'Mixed Grill Platter', 'Price (Rs.)': 1200, 'Preparation Station': 'KITCHEN' }
+            : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
     ];
     try {
       await downloadRowsAsXlsx({
@@ -333,7 +349,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
               Download Template
             </Button>
             <Button type="submit" variant="success" disabled={importing}>
-              {importing ? 'Importing...' : `Import ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Menu`}
+              {importing ? 'Importing...' : `Import ${config.itemLabel} Menu`}
             </Button>
           </div>
         </form>
@@ -418,7 +434,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           </div>
           <div className="md:col-span-2 lg:col-span-3 flex gap-2">
             <Button type="submit" disabled={!canManageMenu}>
-              {editingId ? 'Update Item' : `Create ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Item`}
+              {editingId ? 'Update Item' : `Create ${config.itemLabel} Item`}
             </Button>
             {editingId ? (
               <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(emptyForm); }}>

@@ -1,6 +1,6 @@
 import { createPostgresModel } from './base/PostgresModel.js';
 
-export const MENU_TYPES = ['FOOD', 'DRINK', 'SMOKE'];
+export const MENU_TYPES = ['FOOD', 'DRINK', 'SMOKE', 'COMBO_PLATTER'];
 
 export const MenuItem = createPostgresModel('MenuItem', {
   collection: 'menu_items',

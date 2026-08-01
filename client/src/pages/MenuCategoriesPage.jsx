@@ -11,7 +11,8 @@ import Button from '../components/ui/Button';
 const categoryTabs = [
   { label: 'Food Categories', value: 'FOOD' },
   { label: 'Drink Categories', value: 'DRINK' },
-  { label: 'Smoke Categories', value: 'SMOKE' }
+  { label: 'Smoke Categories', value: 'SMOKE' },
+  { label: 'Combo Platter Categories', value: 'COMBO_PLATTER' }
 ];
 const drinkPresetCategories = [
   { name: 'Hot Beverages', description: 'Tea, coffee, hot chocolate and warm drink items' },
@@ -88,7 +89,7 @@ const MenuCategoriesPage = () => {
 
   return (
     <div className="space-y-5">
-      <Panel title="Category Type" subtitle="Manage categories separately for food, drinks, and smoke items">
+      <Panel title="Category Type" subtitle="Manage categories separately for food, drinks, smoke, and combo platter items">
         <div className="flex flex-wrap gap-2">
           {categoryTabs.map((tab) => (
             <Button

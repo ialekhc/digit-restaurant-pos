@@ -27,6 +27,7 @@ const navItems = [
   { path: '/menu/items', label: 'Menu Items', icon: 'menu', group: 'Restaurant Setup', anyPermissions: [PERMISSIONS.MENU_VIEW], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
   { path: '/drink/items', label: 'Drink Items', icon: 'drink', group: 'Restaurant Setup', anyPermissions: [PERMISSIONS.MENU_VIEW], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
   { path: '/smoke/items', label: 'Smoke Items', icon: 'smoke', group: 'Restaurant Setup', anyPermissions: [PERMISSIONS.MENU_VIEW], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
+  { path: '/combo-platter/items', label: 'Combo Platter Items', icon: 'menu', group: 'Restaurant Setup', anyPermissions: [PERMISSIONS.MENU_VIEW], featureKey: FEATURE_KEYS.MENU_MANAGEMENT },
   { path: '/inventory', label: 'Inventory', icon: 'inventory', group: 'Resources', anyPermissions: [PERMISSIONS.INVENTORY_VIEW], featureKey: FEATURE_KEYS.INVENTORY_MANAGEMENT },
   { path: '/suppliers', label: 'Suppliers', icon: 'suppliers', group: 'Resources', anyPermissions: [PERMISSIONS.SUPPLIER_VIEW], featureKey: FEATURE_KEYS.SUPPLIER_MANAGEMENT },
   { path: '/customers', label: 'Customers', icon: 'customers', group: 'Resources', anyPermissions: [PERMISSIONS.CUSTOMER_VIEW], featureKey: FEATURE_KEYS.CUSTOMER_MANAGEMENT },
