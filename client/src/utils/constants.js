@@ -170,6 +170,7 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.ORDER_VIEW,
     PERMISSIONS.ORDER_CREATE,
     PERMISSIONS.ORDER_UPDATE,
+    PERMISSIONS.ORDER_CANCEL,
     PERMISSIONS.ORDER_TRANSFER,
     PERMISSIONS.KITCHEN_VIEW_ORDERS,
     PERMISSIONS.KITCHEN_UPDATE_STATUS,
@@ -270,7 +271,7 @@ export const ORDER_STATUSES = ['PENDING', 'PREPARING', 'READY', 'SERVED', 'COMPL
 export const ORDER_TYPES = ['DINE_IN', 'TAKEAWAY'];
 export const TABLE_STATUSES = ['AVAILABLE', 'OCCUPIED', 'RESERVED', 'Unavailable'];
 export const PAYMENT_METHODS = ['CASH', 'CARD', 'QR', 'ONLINE', 'SPLIT'];
-export const MENU_TYPES = ['FOOD', 'DRINK', 'SMOKE'];
+export const MENU_TYPES = ['FOOD', 'DRINK', 'SMOKE', 'COMBO_PLATTER'];
 
 export const PAGE_TITLES = {
   '/super-admin': 'Super Admin',
@@ -286,6 +287,7 @@ export const PAGE_TITLES = {
   '/menu/items': 'Menu Items',
   '/drink/items': 'Drink Items',
   '/smoke/items': 'Smoke Items',
+  '/combo-platter/items': 'Combo Platter Items',
   '/tables': 'Tables',
   '/orders': 'Orders',
   '/orders/create': 'Create Order',

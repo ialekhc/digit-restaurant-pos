@@ -4,8 +4,13 @@ services:
     container_name: digit-pos-postgres
     restart: unless-stopped
 
-    env_file:
-      - ./.env.postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-restaurant_pos}
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
@@ -15,6 +20,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 20
+
+    security_opt:
+      - no-new-privileges:true
 
   backend:
     build:
@@ -30,9 +38,25 @@ services:
     env_file:
       - ./server/.env
 
+    environment:
+      PORT: "5500"
+      HOST: "0.0.0.0"
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-restaurant_pos}
+      CORE_DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@postgres:5432/${POSTGRES_DB:-restaurant_pos}
+      DATABASE_SSL: "false"
+      UPLOAD_DIR: /app/data/uploads
+
+    volumes:
+      - uploads_data:/app/data/uploads
+
     depends_on:
       postgres:
         condition: service_healthy
+
+    init: true
+
+    security_opt:
+      - no-new-privileges:true
 
   frontend:
     build:
@@ -46,7 +70,18 @@ services:
       - "127.0.0.1:3005:80"
 
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+    security_opt:
+      - no-new-privileges:true
 
 volumes:
   postgres_data:
+  uploads_data:

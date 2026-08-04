@@ -9,6 +9,7 @@ import { currency } from '../utils/format';
 import { usePermissions } from '../hooks/usePermissions';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
 import { PERMISSIONS } from '../utils/constants';
+import { downloadRowsAsXlsx, readRowsFromXlsx } from '../utils/excel';
 
 const initial = {
   name: '',
@@ -35,7 +36,8 @@ const menuTypeConfig = {
     listSubtitle: 'Manage food items',
     importTitle: 'Food Menu Import (Excel)',
     importSubtitle: 'Bulk upload food items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Food Menu'
+    badgeText: 'Food Menu',
+    itemLabel: 'Food'
   },
   DRINK: {
     pageTitle: 'Drink Items',
@@ -44,7 +46,8 @@ const menuTypeConfig = {
     listSubtitle: 'Manage drink items',
     importTitle: 'Drink Menu Import (Excel)',
     importSubtitle: 'Bulk upload drink items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Drink Menu'
+    badgeText: 'Drink Menu',
+    itemLabel: 'Drink'
   },
   SMOKE: {
     pageTitle: 'Smoke Items',
@@ -53,21 +56,43 @@ const menuTypeConfig = {
     listSubtitle: 'Manage smoke items',
     importTitle: 'Smoke Menu Import (Excel)',
     importSubtitle: 'Bulk upload smoke items using your sample format: Category, Item, Price (Rs.)',
-    badgeText: 'Smoke Menu'
+    badgeText: 'Smoke Menu',
+    itemLabel: 'Smoke'
+  },
+  COMBO_PLATTER: {
+    pageTitle: 'Combo Platter Items',
+    createTitle: 'Create Combo Platter Item',
+    editTitle: 'Edit Combo Platter Item',
+    listSubtitle: 'Manage combo platter items',
+    importTitle: 'Combo Platter Menu Import (Excel)',
+    importSubtitle: 'Bulk upload combo platter items using your sample format: Category, Item, Price (Rs.)',
+    badgeText: 'Combo Platter Menu',
+    itemLabel: 'Combo Platter'
   }
 };
 
 const importSheetNames = {
   FOOD: ['food menu', 'food'],
   DRINK: ['drink menu', 'drinks menu', 'drink', 'drinks'],
-  SMOKE: ['smoke menu', 'smoke']
+  SMOKE: ['smoke menu', 'smoke'],
+  COMBO_PLATTER: ['combo platter menu', 'combo platter', 'combo menu', 'combo', 'combos']
 };
 
-const normalizeSheetName = (value) => String(value || '').trim().toLowerCase();
+const menuSortOptions = [
+  { label: 'Name: A to Z', value: 'name-asc' },
+  { label: 'Name: Z to A', value: 'name-desc' },
+  { label: 'Category: A to Z', value: 'category-asc' },
+  { label: 'Price: Low to High', value: 'price-asc' },
+  { label: 'Price: High to Low', value: 'price-desc' },
+  { label: 'Prep Time: Low to High', value: 'prep-asc' },
+  { label: 'Availability', value: 'availability' }
+];
 
-const findImportSheetName = (sheetNames, menuType) => {
-  const expectedNames = importSheetNames[menuType] || importSheetNames.FOOD;
-  return sheetNames.find((sheetName) => expectedNames.includes(normalizeSheetName(sheetName))) || '';
+const getItemStation = (item) => {
+  if (item.preparationStation) return item.preparationStation;
+  if (item.kitchenSection === 'BAR') return 'BAR';
+  if (item.kitchenSection === 'SMOKE') return 'SMOKE';
+  return 'KITCHEN';
 };
 
 const MenuItemsPage = ({ menuType = 'FOOD' }) => {
@@ -82,10 +107,55 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState('');
   const [importSummary, setImportSummary] = useState(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortBy, setSortBy] = useState('name-asc');
 
   const canManageMenu = hasAnyPermission([PERMISSIONS.MENU_CREATE, PERMISSIONS.MENU_UPDATE]);
   const config = menuTypeConfig[menuType] || menuTypeConfig.FOOD;
   const emptyForm = useMemo(() => ({ ...initial, preparationStation: defaultStationForMenuType(menuType) }), [menuType]);
+  const visibleItems = useMemo(() => {
+    const query = searchQuery.trim().toLocaleLowerCase();
+    const filteredItems = query
+      ? items.filter((item) => {
+          const searchableValues = [
+            item.name,
+            item.category?.name,
+            item.description,
+            item.price,
+            item.preparationTime,
+            getItemStation(item),
+            item.isAvailable ? 'available' : 'unavailable'
+          ];
+
+          return searchableValues.some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+        })
+      : [...items];
+
+    const compareText = (left, right) => String(left || '').localeCompare(String(right || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+
+    return filteredItems.sort((left, right) => {
+      switch (sortBy) {
+        case 'name-desc':
+          return compareText(right.name, left.name);
+        case 'category-asc':
+          return compareText(left.category?.name, right.category?.name) || compareText(left.name, right.name);
+        case 'price-asc':
+          return Number(left.price || 0) - Number(right.price || 0) || compareText(left.name, right.name);
+        case 'price-desc':
+          return Number(right.price || 0) - Number(left.price || 0) || compareText(left.name, right.name);
+        case 'prep-asc':
+          return Number(left.preparationTime || 0) - Number(right.preparationTime || 0) || compareText(left.name, right.name);
+        case 'availability':
+          return Number(right.isAvailable) - Number(left.isAvailable) || compareText(left.name, right.name);
+        case 'name-asc':
+        default:
+          return compareText(left.name, right.name);
+      }
+    });
+  }, [items, searchQuery, sortBy]);
 
   const load = async (showLoading = true) => {
     if (showLoading) setLoading(true);
@@ -103,6 +173,8 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
 
   useEffect(() => {
     setForm({ ...initial, preparationStation: defaultStationForMenuType(menuType) });
+    setSearchQuery('');
+    setSortBy('name-asc');
     load();
   }, [menuType]);
 
@@ -187,14 +259,17 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         ? { Category: 'MOCKTAILS', Item: 'Mint Lemonade', 'Price (Rs.)': 180, 'Preparation Station': 'BAR' }
         : menuType === 'SMOKE'
           ? { Category: 'CIGARETTES', Item: 'Classic Gold', 'Price (Rs.)': 40, 'Preparation Station': 'SMOKE' }
-          : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
+          : menuType === 'COMBO_PLATTER'
+            ? { Category: 'SHARING PLATTERS', Item: 'Mixed Grill Platter', 'Price (Rs.)': 1200, 'Preparation Station': 'KITCHEN' }
+            : { Category: 'CHOWMEIN', Item: 'Chicken Chowmein', 'Price (Rs.)': 220, 'Preparation Station': 'KITCHEN' }
     ];
     try {
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.utils.book_new();
-      const worksheet = XLSX.utils.json_to_sheet(templateRows);
-      XLSX.utils.book_append_sheet(workbook, worksheet, config.badgeText);
-      XLSX.writeFile(workbook, 'vendor-menu-import-template.xlsx');
+      await downloadRowsAsXlsx({
+        rows: templateRows,
+        sheetName: config.badgeText,
+        filename: 'vendor-menu-import-template.xlsx',
+        widths: [20, 28, 14, 22]
+      });
     } catch (error) {
       setImportError('Unable to generate template file');
     }
@@ -217,11 +292,9 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
 
     try {
       setImporting(true);
-      const XLSX = await import('xlsx');
       const buffer = await importFile.arrayBuffer();
-      const workbook = XLSX.read(buffer, { type: 'array' });
-      const matchingSheetName = findImportSheetName(workbook.SheetNames, menuType);
-      const sheetName = matchingSheetName || (workbook.SheetNames.length === 1 ? workbook.SheetNames[0] : '');
+      const preferredSheetNames = importSheetNames[menuType];
+      const { sheetName, rows: importedRows } = await readRowsFromXlsx(buffer, preferredSheetNames);
 
       if (!sheetName) {
         setImportError(
@@ -230,20 +303,24 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         return;
       }
 
-      const worksheet = workbook.Sheets[sheetName];
-      const rawRows = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-      const rows = normalizeImportRows(rawRows);
+      const rows = normalizeImportRows(importedRows);
 
       if (!rows.length) {
         setImportError('No valid rows found. Expected columns: Category, Item, Price (Rs.)');
         return;
       }
 
-      const summary = await menuService.importExcel({ rows, upsert: true });
+      if (!window.confirm(`Replace the existing ${config.itemLabel.toLowerCase()} menu with ${rows.length} imported rows?`)) {
+        return;
+      }
+
+      const summary = await menuService.importExcel({ rows, upsert: true, replace: true, menuType });
       setImportSummary(summary);
       setImportFile(null);
       await load();
     } catch (err) {
+      const responseData = err.response?.data?.data;
+      if (responseData) setImportSummary(responseData);
       setImportError(err.response?.data?.message || 'Unable to import menu file');
     } finally {
       setImporting(false);
@@ -260,23 +337,23 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           <Input
             label="Excel File"
             type="file"
-            accept=".xlsx,.xls,.csv"
+            accept=".xlsx"
             onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            helperText="Use columns: Category, Item, Price (Rs.)"
+            helperText="Use an .xlsx file with columns: Category, Item, Price (Rs.). A successful import replaces the existing menu."
           />
           <div className="md:col-span-2 lg:col-span-2 flex items-end gap-2">
             <Button type="button" variant="secondary" onClick={downloadTemplate}>
               Download Template
             </Button>
             <Button type="submit" variant="success" disabled={importing}>
-              {importing ? 'Importing...' : `Import ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Menu`}
+              {importing ? 'Replacing...' : `Replace ${config.itemLabel} Menu`}
             </Button>
           </div>
         </form>
         {importError ? <p className="mt-2 text-sm text-rose-600">{importError}</p> : null}
         {importSummary ? (
           <div className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
               <p className="text-sm text-slate-700">
                 Total Rows: <span className="font-semibold">{importSummary.totalRows}</span>
               </p>
@@ -291,6 +368,9 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
               </p>
               <p className="text-sm text-slate-700">
                 New Categories: <span className="font-semibold text-violet-700">{importSummary.categoriesCreated}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Removed Old Items: <span className="font-semibold text-rose-700">{importSummary.deleted || 0}</span>
               </p>
             </div>
             {Array.isArray(importSummary.errors) && importSummary.errors.length ? (
@@ -325,14 +405,18 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           <Input label="Preparation Time (mins)" type="number" value={form.preparationTime} onChange={(e) => setForm((p) => ({ ...p, preparationTime: e.target.value }))} />
           <Select
             label="Preparation Station"
-            options={[
-              { label: 'Kitchen printer', value: 'KITCHEN' },
-              { label: 'Bar printer', value: 'BAR' },
-              { label: 'Smoke printer', value: 'SMOKE' },
-              { label: 'No preparation print', value: 'NONE' }
-            ]}
+            options={menuType === 'COMBO_PLATTER'
+              ? [{ label: 'Kitchen + Bar printers', value: 'KITCHEN' }]
+              : [
+                  { label: 'Kitchen printer', value: 'KITCHEN' },
+                  { label: 'Bar printer', value: 'BAR' },
+                  { label: 'Smoke printer', value: 'SMOKE' },
+                  { label: 'No preparation print', value: 'NONE' }
+                ]}
             value={form.preparationStation}
             onChange={(e) => setForm((p) => ({ ...p, preparationStation: e.target.value }))}
+            disabled={menuType === 'COMBO_PLATTER'}
+            helperText={menuType === 'COMBO_PLATTER' ? 'Combo platter KOTs always print on both stations.' : ''}
           />
           <Select
             label="Availability"
@@ -354,7 +438,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           </div>
           <div className="md:col-span-2 lg:col-span-3 flex gap-2">
             <Button type="submit" disabled={!canManageMenu}>
-              {editingId ? 'Update Item' : `Create ${menuType === 'DRINK' ? 'Drink' : menuType === 'SMOKE' ? 'Smoke' : 'Food'} Item`}
+              {editingId ? 'Update Item' : `Create ${config.itemLabel} Item`}
             </Button>
             {editingId ? (
               <Button type="button" variant="secondary" onClick={() => { setEditingId(''); setForm(emptyForm); }}>
@@ -367,6 +451,24 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
       </Panel>
 
       <Panel title={config.pageTitle} subtitle={config.listSubtitle}>
+        <div className="mb-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] md:items-end">
+          <Input
+            label={`Search ${config.pageTitle}`}
+            type="search"
+            placeholder="Search by name, category, price, station, or status"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+          />
+          <Select
+            label="Sort Items"
+            options={menuSortOptions}
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+          />
+        </div>
+        <p className="mb-3 text-xs text-slate-500" aria-live="polite">
+          Showing {visibleItems.length} of {items.length} items
+        </p>
         <div className="overflow-x-auto">
           <table className="table-ui">
             <thead className="bg-slate-100 text-left text-slate-600">
@@ -382,7 +484,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <tr key={item._id} className="border-b border-slate-100">
                   <td className="px-3 py-2">
                     {item.image ? (
@@ -399,7 +501,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                   <td className="px-3 py-2">{item.category?.name}</td>
                   <td className="px-3 py-2">{currency(item.price)}</td>
                   <td className="px-3 py-2">{item.preparationTime} min</td>
-                  <td className="px-3 py-2">{item.preparationStation || (item.kitchenSection === 'BAR' ? 'BAR' : item.kitchenSection === 'SMOKE' ? 'SMOKE' : 'KITCHEN')}</td>
+                  <td className="px-3 py-2">{getItemStation(item)}</td>
                   <td className="px-3 py-2">{item.isAvailable ? 'Available' : 'Unavailable'}</td>
                   <td className="px-3 py-2">
                     {canManageMenu ? (
@@ -414,7 +516,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                               description: item.description || '',
                               price: String(item.price),
                               preparationTime: String(item.preparationTime || 0),
-                              preparationStation: item.preparationStation || (item.kitchenSection === 'BAR' ? 'BAR' : item.kitchenSection === 'SMOKE' ? 'SMOKE' : 'KITCHEN'),
+                              preparationStation: getItemStation(item),
                               isAvailable: String(item.isAvailable),
                               image: null
                             });
@@ -439,6 +541,15 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
                   </td>
                 </tr>
               ))}
+              {!loading && visibleItems.length === 0 ? (
+                <tr>
+                  <td colSpan="8" className="px-3 py-8 text-center text-sm text-slate-500">
+                    {searchQuery.trim()
+                      ? `No ${config.pageTitle.toLowerCase()} match “${searchQuery.trim()}”.`
+                      : `No ${config.pageTitle.toLowerCase()} found.`}
+                  </td>
+                </tr>
+              ) : null}
             </tbody>
           </table>
           {loading ? <p className="p-4 text-sm text-slate-500">Loading...</p> : null}

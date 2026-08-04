@@ -5,6 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
+    "test": "node --test src/config/envValidation.test.js src/middleware/security.test.js src/services/permissionService.test.js && node src/scripts/printService.selftest.js",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node src/scripts/seed.js",
@@ -15,17 +16,20 @@
     "db:seed": "node src/database/seedRunner.js",
     "db:migrate:documents": "node src/database/migrateDocuments.js",
     "users:backfill-vendor-scopes": "node src/scripts/backfillVendorUserScopes.js",
-    "data:backfill-demo-tenant": "node src/scripts/backfillDemoTenantScope.js"
-    ,"print:selftest": "node src/scripts/printService.selftest.js"
+    "data:backfill-demo-tenant": "node src/scripts/backfillDemoTenantScope.js",
+    "print:selftest": "node src/scripts/printService.selftest.js"
   },
   "dependencies": {
-    "bcrypt": "^5.1.1",
+    "bcrypt": "^6.0.0",
+    "compression": "^1.8.1",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^8.6.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.2",
-    "morgan": "^1.10.0",
-    "multer": "^1.4.5-lts.1",
+    "morgan": "^1.11.0",
+    "multer": "^2.2.0",
     "pg": "^8.22.0"
   },
   "devDependencies": {

@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Digit RMS Desktop Status</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --brand: #1d4ed8;
+        --brand-soft: #dbeafe;
+        --secondary: #db2777;
+        --ink: #172033;
+        --muted: #64748b;
+        --surface: #ffffff;
+        --border: #dbe3ef;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        min-height: 100vh;
+        margin: 0;
+        display: grid;
+        place-items: center;
+        background:
+          radial-gradient(circle at 15% 20%, rgba(29, 78, 216, 0.16), transparent 32rem),
+          radial-gradient(circle at 85% 10%, rgba(219, 39, 119, 0.13), transparent 28rem),
+          linear-gradient(135deg, #f8fbff 0%, #fff7fb 48%, #eff6ff 100%);
+        color: var(--ink);
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      main {
+        width: min(720px, calc(100vw - 32px));
+        border: 1px solid var(--border);
+        border-radius: 28px;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 24px 80px rgba(15, 23, 42, 0.14);
+        padding: 32px;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+
+      .mark {
+        display: grid;
+        width: 52px;
+        height: 52px;
+        place-items: center;
+        border-radius: 18px;
+        background: linear-gradient(135deg, var(--brand), var(--secondary));
+        color: white;
+        font-size: 24px;
+        font-weight: 900;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: 28px;
+        line-height: 1.1;
+      }
+
+      p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .status {
+        margin-top: 24px;
+        border: 1px solid var(--border);
+        border-radius: 20px;
+        background: #f8fafc;
+        padding: 18px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 10px 0;
+        border-bottom: 1px solid #e2e8f0;
+      }
+
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .label {
+        color: var(--muted);
+        font-weight: 700;
+      }
+
+      .value {
+        max-width: 65%;
+        overflow-wrap: anywhere;
+        text-align: right;
+        font-weight: 800;
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 24px;
+      }
+
+      button {
+        min-height: 44px;
+        border: 0;
+        border-radius: 999px;
+        padding: 0 18px;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: var(--brand);
+        color: white;
+      }
+
+      .secondary {
+        border: 1px solid var(--border);
+        background: white;
+        color: var(--ink);
+      }
+
+      code {
+        border-radius: 10px;
+        background: var(--brand-soft);
+        padding: 2px 7px;
+        color: #1e3a8a;
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <div class="brand">
+        <div class="mark">D</div>
+        <div>
+          <h1>Digit RMS Desktop</h1>
+          <p>The desktop app is running, but the backend API is not ready yet.</p>
+        </div>
+      </div>
+
+      <p>
+        Start PostgreSQL locally or run <code>docker compose up -d postgres</code>, then retry. If you use a hosted backend, set
+        <code>DIGIT_DESKTOP_API_BASE_URL</code> before opening the app.
+      </p>
+
+      <section class="status" aria-live="polite">
+        <div class="row">
+          <span class="label">API URL</span>
+          <span class="value" id="api-url">Checking...</span>
+        </div>
+        <div class="row">
+          <span class="label">Health</span>
+          <span class="value" id="health">Checking...</span>
+        </div>
+        <div class="row">
+          <span class="label">Backend</span>
+          <span class="value" id="backend">Checking...</span>
+        </div>
+        <div class="row">
+          <span class="label">Last Error</span>
+          <span class="value" id="error">None</span>
+        </div>
+      </section>
+
+      <div class="actions">
+        <button class="primary" id="retry">Retry Connection</button>
+        <button class="secondary" id="restart">Restart Local Backend</button>
+        <button class="secondary" id="folder">Open App Data Folder</button>
+      </div>
+    </main>
+
+    <script>
+      const apiUrl = document.getElementById('api-url');
+      const health = document.getElementById('health');
+      const backend = document.getElementById('backend');
+      const error = document.getElementById('error');
+
+      const render = async () => {
+        const status = await window.digitDesktop.getStatus();
+        apiUrl.textContent = status.apiBaseUrl;
+        health.textContent = status.health.ok ? 'Connected' : status.health.error || `HTTP ${status.health.statusCode}`;
+        backend.textContent = status.backendRunning
+          ? 'Started by desktop app'
+          : status.backendStartedByDesktop
+            ? 'Stopped'
+            : 'External or not started';
+        error.textContent = status.lastBackendError || status.health.error || 'None';
+
+        if (status.health.ok) {
+          await window.digitDesktop.openApp();
+        }
+      };
+
+      document.getElementById('retry').addEventListener('click', render);
+      document.getElementById('restart').addEventListener('click', async () => {
+        health.textContent = 'Restarting...';
+        await window.digitDesktop.restartBackend();
+        await render();
+      });
+      document.getElementById('folder').addEventListener('click', () => window.digitDesktop.openDataFolder());
+
+      render();
+      setInterval(render, 5000);
+    </script>
+  </body>
+</html>

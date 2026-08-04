@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom';
 import { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import Topbar from '../components/Topbar';
+import BackgroundPrintProcessor from '../components/BackgroundPrintProcessor';
 import { useAuth } from '../hooks/useAuth';
 
 const DashboardLayout = () => {
@@ -10,6 +11,7 @@ const DashboardLayout = () => {
 
   return (
     <div className="min-h-screen bg-transparent">
+      <BackgroundPrintProcessor />
       <Sidebar user={user} userRole={user?.role} open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="lg:pl-72">

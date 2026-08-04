@@ -51,9 +51,9 @@ const styles = StyleSheet.create({
     paddingVertical: 2.6
   },
   itemMainRow: { flexDirection: 'row', alignItems: 'flex-start', width: '100%' },
-  colIndex: { width: 10, paddingRight: 2 },
-  colItem: { width: 96, paddingRight: 3 },
-  colAmount: { width: 38, textAlign: 'right' },
+  colIndex: { width: '7%', paddingRight: 2 },
+  colItem: { width: '68%', paddingRight: 3 },
+  colAmount: { width: '25%', textAlign: 'right' },
   itemName: { fontSize: 6.9, lineHeight: 1.18 },
   itemMeta: { fontSize: 6, color: '#000000', marginTop: 1 },
   itemAmount: { fontSize: 6.9 },
@@ -62,10 +62,21 @@ const styles = StyleSheet.create({
   footer: { textAlign: 'center', fontSize: 6.8, color: '#000000', marginTop: 5 }
 });
 
-const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
+const ReceiptPdfDocument = ({ payment, cashierName = '', receiptOptions = {} }) => {
   const order = payment?.order || {};
   const items = Array.isArray(order.items) ? order.items : [];
   const settings = getReceiptSettings();
+  const vendor = receiptOptions.vendor || {};
+  const restaurantName = safe(vendor.vendorName || receiptOptions.restaurantName || settings.businessName, 'Restaurant RMS');
+  const restaurantAddress = safe(vendor.address || receiptOptions.address || settings.address, '');
+  const restaurantPhone = safe(vendor.phone || receiptOptions.phone || settings.phone, '');
+  const restaurantEmail = safe(vendor.email || receiptOptions.email || settings.email, '');
+  const paperWidthMm = Number(receiptOptions.paperWidthMm || 58) >= 76 ? 80 : 58;
+  const pageWidthPt = paperWidthMm * (72 / 25.4);
+  const itemLineWidth = paperWidthMm >= 76 ? 42 : 26;
+  const itemLineCount = items.reduce((sum, item) => sum + Math.max(1, Math.ceil(cleanItemName(item.name).length / itemLineWidth)), 0);
+  const contactLineCount = [restaurantAddress, restaurantPhone, restaurantEmail].filter(Boolean).length;
+  const pageHeightMm = Math.min(1000, Math.max(115, 103 + itemLineCount * 8 + contactLineCount * 4));
   const subtotal = Number(
     order.subtotal ?? items.reduce((sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0), 0)
   );
@@ -77,12 +88,12 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
 
   return (
     <Document title={`Receipt ${safe(payment?.billNumber, '')}`}>
-      <Page size={[164.4, 420]} style={styles.page} wrap>
-        <Text style={styles.title}>{safe(settings.businessName, 'Restaurant RMS')}</Text>
+      <Page size={[pageWidthPt, pageHeightMm * (72 / 25.4)]} style={styles.page} wrap>
+        <Text style={styles.title}>{restaurantName}</Text>
         <Text style={styles.subtitle}>Customer Bill</Text>
-        {settings.address ? <Text style={styles.muted}>{settings.address}</Text> : null}
-        {settings.phone ? <Text style={styles.muted}>Phone: {settings.phone}</Text> : null}
-        {settings.email ? <Text style={styles.muted}>Email: {settings.email}</Text> : null}
+        {restaurantAddress ? <Text style={styles.muted}>{restaurantAddress}</Text> : null}
+        {restaurantPhone ? <Text style={styles.muted}>Phone: {restaurantPhone}</Text> : null}
+        {restaurantEmail ? <Text style={styles.muted}>Email: {restaurantEmail}</Text> : null}
 
         <View style={styles.divider} />
 
@@ -137,12 +148,12 @@ const ReceiptPdfDocument = ({ payment, cashierName = '' }) => {
   );
 };
 
-export const createReceiptPdfBlob = async (payment, cashierName = '') => {
+export const createReceiptPdfBlob = async (payment, cashierName = '', receiptOptions = {}) => {
   if (!payment) throw new Error('No receipt available to download');
-  return pdf(<ReceiptPdfDocument payment={payment} cashierName={cashierName} />).toBlob();
+  return pdf(<ReceiptPdfDocument payment={payment} cashierName={cashierName} receiptOptions={receiptOptions} />).toBlob();
 };
 
-export const openReceiptPdfTab = async (payment, cashierName = '') => {
+export const openReceiptPdfTab = async (payment, cashierName = '', receiptOptions = {}) => {
   if (!payment) throw new Error('No receipt available to print');
 
   const tab = window.open('', '_blank');
@@ -152,7 +163,7 @@ export const openReceiptPdfTab = async (payment, cashierName = '') => {
   tab.document.close();
 
   try {
-    const blob = await createReceiptPdfBlob(payment, cashierName);
+    const blob = await createReceiptPdfBlob(payment, cashierName, receiptOptions);
     const url = URL.createObjectURL(blob);
     tab.location.href = url;
     window.setTimeout(() => URL.revokeObjectURL(url), 60000);
@@ -163,9 +174,9 @@ export const openReceiptPdfTab = async (payment, cashierName = '') => {
   }
 };
 
-export const downloadReceiptPdf = async (payment, cashierName = '') => {
+export const downloadReceiptPdf = async (payment, cashierName = '', receiptOptions = {}) => {
   if (!payment) throw new Error('No receipt available to download');
-  const blob = await createReceiptPdfBlob(payment, cashierName);
+  const blob = await createReceiptPdfBlob(payment, cashierName, receiptOptions);
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement('a');
   const bill = safe(payment.billNumber, 'receipt').replace(/[^a-z0-9_-]+/gi, '-').toLowerCase();

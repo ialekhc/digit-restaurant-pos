@@ -9,6 +9,7 @@ server/src/uploads/*
 !server/src/uploads/.gitkeep
 client/.vercel
 nginx.conf
+!client/nginx.conf
 # Production deployment files
 backups/
 client/.env.production
@@ -21,3 +22,5 @@ docker-compose.yml
 deploy.sh
 .github/workflows/deploy.yml
 
+# Electron build outputs
+release/

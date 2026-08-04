@@ -18,11 +18,22 @@ const normalizeStation = (item = {}) => {
   return 'KITCHEN';
 };
 
+const isComboPlatterItem = (item = {}) => {
+  const menuType = String(item.menuType || item.menuItem?.menuType || '')
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  return ['COMBO_PLATTER', 'COMBO', 'COMBOS'].includes(menuType);
+};
+
 export const groupOrderItemsByStation = (items = []) => {
   const grouped = items.reduce((acc, item) => {
-    const station = normalizeStation(item);
-    if (!acc[station]) acc[station] = [];
-    acc[station].push(item);
+    const stations = isComboPlatterItem(item) ? ['KITCHEN', 'BAR'] : [normalizeStation(item)];
+    stations.forEach((station) => {
+      if (!acc[station]) acc[station] = [];
+      acc[station].push(item);
+    });
     return acc;
   }, {});
 

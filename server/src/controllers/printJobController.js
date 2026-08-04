@@ -2,7 +2,7 @@ import { PrintJob } from '../models/PrintJob.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { ApiError } from '../utils/ApiError.js';
 import { buildTenantScopedQuery } from '../services/tenantScopeService.js';
-import { markPrintJobFailed, markPrintJobPrinted, retryPrintJob } from '../services/printService.js';
+import { getPrinterForPurpose, markPrintJobFailed, markPrintJobPrinted, retryPrintJob } from '../services/printService.js';
 
 const populateJob = (query) => query.populate('printer').populate('order').populate('payment');
 
@@ -32,6 +32,12 @@ export const claimPrintJob = asyncHandler(async (req, res) => {
   if (!['PENDING', 'FAILED'].includes(job.status)) throw new ApiError(409, `Cannot claim ${job.status} print job`);
 
   job.status = 'PROCESSING';
+  const currentPrinter = await getPrinterForPurpose({
+    user: req.user,
+    restaurantId: job.restaurantId || job.order?.restaurantId,
+    purpose: job.station
+  });
+  job.printer = currentPrinter?._id || null;
   job.attempts = Number(job.attempts || 0) + 1;
   job.claimedAt = new Date().toISOString();
   job.claimedBy = String(req.body?.clientId || req.user?._id || 'print-station');
@@ -58,6 +64,6 @@ export const failPrintJob = asyncHandler(async (req, res) => {
 export const retryPrintJobController = asyncHandler(async (req, res) => {
   const job = await findScopedJob(req, req.params.jobId);
   if (!job) throw new ApiError(404, 'Print job not found');
-  const data = await retryPrintJob(job);
-  res.json({ data });
+  await retryPrintJob(job);
+  res.json({ data: await findScopedJob(req, job._id) });
 });

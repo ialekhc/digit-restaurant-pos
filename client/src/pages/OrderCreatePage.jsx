@@ -8,8 +8,7 @@ import Button from '../components/ui/Button';
 import { FEATURE_KEYS, ORDER_TYPES } from '../utils/constants';
 import { currency } from '../utils/format';
 import { useAutoRefresh } from '../hooks/useAutoRefresh';
-import { shouldAutoPrintKitchenTicket } from '../utils/kitchenPrinting';
-import { openStationTicketsPdfTab } from '../utils/stationTicketPdf';
+import { printCreatedOrderJobs } from '../utils/directOrderPrinting';
 
 const initialState = {
   orderType: 'DINE_IN',
@@ -22,7 +21,8 @@ const activeFlowStatuses = ['PENDING', 'PREPARING', 'READY', 'SERVED'];
 const orderMenuTabs = [
   { label: 'Food Menu', value: 'FOOD' },
   { label: 'Drink Menu', value: 'DRINK' },
-  { label: 'Smoke Menu', value: 'SMOKE' }
+  { label: 'Smoke Menu', value: 'SMOKE' },
+  { label: 'Combo Platter Menu', value: 'COMBO_PLATTER' }
 ];
 const getMenuType = (item) => item.menuType || (item.kitchenSection === 'BAR' ? 'DRINK' : 'FOOD');
 const getCategoryId = (item) => item.category?._id || item.category || '';
@@ -30,13 +30,22 @@ const getCategoryName = (item) => item.category?.name || 'Uncategorized';
 const menuTypeLabels = {
   FOOD: 'Food',
   DRINK: 'Drink',
-  SMOKE: 'Smoke'
+  SMOKE: 'Smoke',
+  COMBO_PLATTER: 'Combo Platter'
 };
+const orderItemSortOptions = [
+  { label: 'Name: A to Z', value: 'name-asc' },
+  { label: 'Name: Z to A', value: 'name-desc' },
+  { label: 'Category: A to Z', value: 'category-asc' },
+  { label: 'Price: Low to High', value: 'price-asc' },
+  { label: 'Price: High to Low', value: 'price-desc' }
+];
 
 const OrderCreatePage = () => {
   const [searchParams] = useSearchParams();
   const tableFromUrl = searchParams.get('table') || '';
   const tableNumberFromUrl = searchParams.get('tableNumber') || '';
+  const orderFromUrl = searchParams.get('order') || '';
   const didApplyTableContext = useRef(false);
 
   const [tables, setTables] = useState([]);
@@ -48,9 +57,12 @@ const OrderCreatePage = () => {
   const [activeMenuType, setActiveMenuType] = useState('FOOD');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedMenu, setSelectedMenu] = useState('');
+  const [menuSearchQuery, setMenuSearchQuery] = useState('');
+  const [menuSortBy, setMenuSortBy] = useState('name-asc');
   const [quantity, setQuantity] = useState(1);
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState([]);
+  const [targetOrderId, setTargetOrderId] = useState(orderFromUrl);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [saving, setSaving] = useState(false);
@@ -110,6 +122,19 @@ const OrderCreatePage = () => {
     );
   }, [orders, orderState.table]);
 
+  useEffect(() => {
+    if (!targetOrderId) return;
+    const target = orders.find((order) => order._id === targetOrderId);
+    if (!target || !activeFlowStatuses.includes(target.status)) {
+      setTargetOrderId('');
+      return;
+    }
+    const targetTableId = target.table?._id || target.table || '';
+    if (targetTableId && targetTableId !== orderState.table) {
+      setOrderState((prev) => ({ ...prev, orderType: target.orderType, table: targetTableId }));
+    }
+  }, [orderState.table, orders, targetOrderId]);
+
   const orderTypeOptions = useMemo(() => {
     if (!enabledFeatures.size) return ORDER_TYPES;
     return ORDER_TYPES.filter((type) => {
@@ -153,16 +178,42 @@ const OrderCreatePage = () => {
   }, [activeMenuItems]);
 
   const visibleMenuItems = useMemo(() => {
-    if (!selectedCategory) return [];
-    return activeMenuItems
-      .filter((item) => getCategoryId(item) === selectedCategory)
-      .sort((left, right) => left.name.localeCompare(right.name));
-  }, [activeMenuItems, selectedCategory]);
+    const query = menuSearchQuery.trim().toLocaleLowerCase();
+    const filteredItems = activeMenuItems.filter((item) => {
+      if (selectedCategory && getCategoryId(item) !== selectedCategory) return false;
+      if (!query) return true;
+
+      return [item.name, getCategoryName(item), item.description, item.price]
+        .some((value) => String(value ?? '').toLocaleLowerCase().includes(query));
+    });
+
+    const compareText = (left, right) => String(left || '').localeCompare(String(right || ''), undefined, {
+      numeric: true,
+      sensitivity: 'base'
+    });
+
+    return filteredItems.sort((left, right) => {
+      switch (menuSortBy) {
+        case 'name-desc':
+          return compareText(right.name, left.name);
+        case 'category-asc':
+          return compareText(getCategoryName(left), getCategoryName(right)) || compareText(left.name, right.name);
+        case 'price-asc':
+          return Number(left.price || 0) - Number(right.price || 0) || compareText(left.name, right.name);
+        case 'price-desc':
+          return Number(right.price || 0) - Number(left.price || 0) || compareText(left.name, right.name);
+        case 'name-asc':
+        default:
+          return compareText(left.name, right.name);
+      }
+    });
+  }, [activeMenuItems, menuSearchQuery, menuSortBy, selectedCategory]);
 
   const changeMenuType = (menuType) => {
     setActiveMenuType(menuType);
     setSelectedCategory('');
     setSelectedMenu('');
+    setMenuSearchQuery('');
   };
 
   useEffect(() => {
@@ -200,6 +251,7 @@ const OrderCreatePage = () => {
     });
 
     setSelectedMenu('');
+    setMenuSearchQuery('');
     setQuantity(1);
     setNotes('');
   };
@@ -218,23 +270,22 @@ const OrderCreatePage = () => {
     }
 
     setSaving(true);
-    const autoPrint = shouldAutoPrintKitchenTicket();
     try {
-      const created = await orderService.create({
-        ...orderState,
-        table: orderState.table || undefined,
-        customer: orderState.customer || undefined,
-        items,
-        discount: Number(orderState.discount || 0)
-      });
-      let printed = false;
-      if (autoPrint) {
-        try {
-          await openStationTicketsPdfTab(created);
-          printed = true;
-        } catch (printError) {
-          setError(printError?.message || 'Order created, but the station-ticket PDF could not be opened');
-        }
+      const created = targetOrderId
+        ? await orderService.addItems(targetOrderId, { items })
+        : await orderService.create({
+          ...orderState,
+          table: orderState.table || undefined,
+          customer: orderState.customer || undefined,
+          items,
+          discount: Number(orderState.discount || 0)
+        });
+      const printResult = await printCreatedOrderJobs(created.printJobs || []);
+      const printed = printResult.totalCount > 0 && printResult.printedCount === printResult.totalCount;
+      if (!printed) {
+        setError(
+          `Order ${created.orderNumber} was saved, but KOT printing failed. ${printResult.errorMessage || 'Use Retry Print in Print Station.'}`
+        );
       }
       setItems([]);
       setSelectedMenu('');
@@ -245,7 +296,7 @@ const OrderCreatePage = () => {
         discount: 0
       }));
       setSuccess(
-        `Order ${created.orderNumber} has been created${printed ? ' and the station-ticket PDF opened in Chrome' : ''}.${
+        `Order ${created.orderNumber} has been ${targetOrderId ? 'updated with the new items' : 'created'}${printed ? ' and all KOTs printed' : ''}.${
           orderState.table ? ' You can add another new order for the same table.' : ''
         }`
       );
@@ -282,7 +333,10 @@ const OrderCreatePage = () => {
                 };
               })
             )}
-            onChange={(e) => setOrderState((p) => ({ ...p, table: e.target.value }))}
+            onChange={(e) => {
+              setTargetOrderId('');
+              setOrderState((p) => ({ ...p, table: e.target.value }));
+            }}
           />
 
           <Select
@@ -316,19 +370,27 @@ const OrderCreatePage = () => {
               Active orders on this table: <span className="font-bold">{selectedTableActiveOrders.length}</span>
             </p>
             {selectedTableActiveOrders.length ? (
-              <div className="mt-2 flex flex-wrap gap-2">
-                {selectedTableActiveOrders.map((order) => (
-                  <span key={order._id} className="rounded-full bg-white px-2 py-1 text-xs font-semibold text-slate-700 ring-1 ring-amber-200">
-                    {order.orderNumber} - {order.status}
-                  </span>
-                ))}
+              <div className="mt-3 max-w-md">
+                <Select
+                  label="Order action"
+                  value={targetOrderId}
+                  options={[
+                    { value: '', label: 'Create a separate new order' },
+                    ...selectedTableActiveOrders.map((order) => ({
+                      value: order._id,
+                      label: `Add to ${order.orderNumber} (${order.status})`
+                    }))
+                  ]}
+                  onChange={(event) => setTargetOrderId(event.target.value)}
+                  helperText="Items added to an existing order print as an ADDITIONAL KOT."
+                />
               </div>
             ) : null}
           </div>
         ) : null}
       </Panel>
 
-      <Panel title="Add Items" subtitle="Choose a menu, then a category, and finally an item">
+      <Panel title="Add Items" subtitle="Choose a menu, then search or filter its items">
         <div className="mb-4 flex flex-wrap gap-2">
           {orderMenuTabs.map((tab) => (
             <Button
@@ -340,11 +402,26 @@ const OrderCreatePage = () => {
             </Button>
           ))}
         </div>
+        <div className="mb-3 grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(220px,320px)]">
+          <Input
+            label={`Search ${menuTypeLabels[activeMenuType] || 'Menu'} Items`}
+            type="search"
+            placeholder="Search by item name, category, description, or price"
+            value={menuSearchQuery}
+            onChange={(e) => setMenuSearchQuery(e.target.value)}
+          />
+          <Select
+            label="Sort Items"
+            value={menuSortBy}
+            options={orderItemSortOptions}
+            onChange={(e) => setMenuSortBy(e.target.value)}
+          />
+        </div>
         <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-5">
           <Select
             label={`${menuTypeLabels[activeMenuType] || 'Menu'} Category`}
             value={selectedCategory}
-            options={[{ label: 'Select category', value: '' }].concat(categoryOptions)}
+            options={[{ label: 'All categories', value: '' }].concat(categoryOptions)}
             onChange={(e) => {
               setSelectedCategory(e.target.value);
               setSelectedMenu('');
@@ -353,7 +430,7 @@ const OrderCreatePage = () => {
           <Select
             label={`${menuTypeLabels[activeMenuType] || 'Menu'} Item`}
             value={selectedMenu}
-            disabled={!selectedCategory}
+            disabled={!visibleMenuItems.length}
             options={[{ label: 'Select menu item', value: '' }].concat(
               visibleMenuItems.map((m) => ({
                 label: `${m.name}${m.category?.name ? ` (${m.category.name})` : ''} - ${currency(m.price)}`,
@@ -363,17 +440,24 @@ const OrderCreatePage = () => {
             onChange={(e) => setSelectedMenu(e.target.value)}
           />
           <Input label="Quantity" type="number" min={1} value={quantity} onChange={(e) => setQuantity(Number(e.target.value))} />
-          <Input label="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          <Input label="Special Instructions" value={notes} onChange={(e) => setNotes(e.target.value)} />
           <div className="flex items-end">
             <Button className="w-full py-3 text-base" onClick={addItem}>Add Item</Button>
           </div>
         </div>
+        {activeMenuItems.length ? (
+          <p className="mt-3 text-xs text-slate-500" aria-live="polite">
+            Showing {visibleMenuItems.length} of {activeMenuItems.length} {menuTypeLabels[activeMenuType].toLowerCase()} items
+          </p>
+        ) : null}
         {!activeMenuItems.length ? (
           <p className="mt-3 text-sm text-slate-500">
             No {(menuTypeLabels[activeMenuType] || 'menu').toLowerCase()} items are available right now.
           </p>
-        ) : selectedCategory && !visibleMenuItems.length ? (
-          <p className="mt-3 text-sm text-slate-500">No items are available in the selected category.</p>
+        ) : !visibleMenuItems.length ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No items match the selected category and search.
+          </p>
         ) : null}
 
         <div className="mt-4 hidden overflow-x-auto md:block">
@@ -384,7 +468,7 @@ const OrderCreatePage = () => {
                 <th className="px-3 py-2">Qty</th>
                 <th className="px-3 py-2">Price</th>
                 <th className="px-3 py-2">Total</th>
-                <th className="px-3 py-2">Notes</th>
+                <th className="px-3 py-2">Special Instructions</th>
                 <th className="px-3 py-2">Action</th>
               </tr>
             </thead>
@@ -440,7 +524,7 @@ const OrderCreatePage = () => {
 
         <div className="mt-4 grid gap-2 sm:flex">
           <Button className="px-6 py-3 text-base" onClick={submitOrder} disabled={saving}>
-            {saving ? 'Creating Order...' : 'Create & Send Order'}
+            {saving ? 'Saving Order...' : targetOrderId ? 'Add Items & Print KOT' : 'Create & Print KOT'}
           </Button>
           {orderState.table ? (
             <Link
