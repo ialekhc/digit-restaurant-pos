@@ -12,7 +12,7 @@ const execFileAsync = promisify(execFile);
 
 const isDevelopment = Boolean(process.env.ELECTRON_START_URL);
 const legacyLocalApiBaseUrl = 'http://127.0.0.1:5500/api';
-const defaultApiBaseUrl = 'https://digitnp.com/api';
+const defaultApiBaseUrl = 'https://rms.digitnp.com/api';
 const resolveApiBaseUrl = (configuredApiBaseUrl) => {
   const candidate = (process.env.DIGIT_DESKTOP_API_BASE_URL || process.env.VITE_API_URL || configuredApiBaseUrl || defaultApiBaseUrl).replace(/\/+$/, '');
   let parsed;

@@ -30,7 +30,7 @@ const displayOrderStatus = (order) => (
 );
 
 const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, onReadyItem, onServeItem, allowServeActions }) => (
-  <article className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+  <article className="min-w-0 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200 sm:p-4">
     <div className="mb-3 flex items-start justify-between gap-2">
       <div>
         <p className="text-sm font-semibold text-slate-500">{order.orderNumber}</p>
@@ -76,9 +76,9 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
       ))}
     </ul>
 
-    <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-slate-500">
+    <div className="mt-3 grid gap-1 text-xs text-slate-500 sm:grid-cols-2 sm:gap-2">
       <p>Placed: {formatDateTime(order.createdAt)}</p>
-      <p className="text-right">Age: {orderAgeLabel(order.createdAt)}</p>
+      <p className="sm:text-right">Age: {orderAgeLabel(order.createdAt)}</p>
     </div>
 
     <div className="mt-4 grid gap-2 sm:grid-cols-2">
@@ -98,7 +98,7 @@ const KitchenOrderCard = ({ order, activeCountByTable, updatingId, onPreparing, 
 );
 
 const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => (
-  <article className="rounded-xl border border-cyan-200 bg-cyan-50 p-3">
+  <article className="min-w-0 rounded-xl border border-cyan-200 bg-cyan-50 p-3">
     <div className="flex items-start justify-between gap-2">
       <div>
         <p className="text-xs font-semibold text-cyan-800">{dish.orderNumber}</p>
@@ -107,7 +107,7 @@ const ReadyDishCard = ({ dish, updatingId, onServeItem, allowServeActions }) => 
         </p>
       </div>
     </div>
-    <p className="mt-2 text-sm font-semibold text-slate-800">{dish.remainingToServe} x {dish.itemName}</p>
+    <p className="mt-2 break-words text-sm font-semibold text-slate-800">{dish.remainingToServe} x {dish.itemName}</p>
     <p className="text-xs text-slate-600">
       Ready: {dish.readyQuantity}/{dish.quantity} | {dish.orderType === 'TAKEAWAY' ? 'Packed' : 'Served'}: {dish.servedQuantity}/{dish.quantity}
     </p>
@@ -222,6 +222,7 @@ const KitchenPage = ({ station = 'FOOD' }) => {
   const { user } = useAuth();
   const [orders, setOrders] = useState([]);
   const [updatingId, setUpdatingId] = useState('');
+  const [actionError, setActionError] = useState('');
   const config = stationConfig[station] || stationConfig.FOOD;
   const allowServeActions = !['KITCHEN', 'BARISTA'].includes(user?.role);
 
@@ -340,9 +341,13 @@ const KitchenPage = ({ station = 'FOOD' }) => {
 
   const updateStatus = async (id, status, extra = {}) => {
     setUpdatingId(id);
+    setActionError('');
     try {
       await orderService.updateStatus(id, status, extra);
       await load();
+    } catch (error) {
+      const message = error.response?.data?.message || error.message || 'Unable to update order status';
+      setActionError(message);
     } finally {
       setUpdatingId('');
     }
@@ -357,6 +362,12 @@ const KitchenPage = ({ station = 'FOOD' }) => {
         </div>
         <Button onClick={load}>Refresh</Button>
       </div>
+
+      {actionError ? (
+        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          {actionError}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2">
@@ -377,7 +388,7 @@ const KitchenPage = ({ station = 'FOOD' }) => {
         </div>
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-3">
+      <div className="grid min-w-0 gap-4 xl:grid-cols-2 2xl:grid-cols-3">
         <Panel title={`Ready Orders (${readyDishes.length})`} subtitle="Complete ready dishes first">
           <div className="space-y-3">
             {readyDishes.map((dish) => (
@@ -439,12 +450,12 @@ const KitchenPage = ({ station = 'FOOD' }) => {
           </span>
         ) : null}
       >
-        <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
+        <div className="grid min-w-0 gap-3 md:grid-cols-2 2xl:grid-cols-3 min-[1800px]:grid-cols-5">
           {completedOrders.map((order) => (
             <CompletedOrderCard key={order._id} order={order} stationLabel={config.stationLabel} />
           ))}
           {!completedOrders.length ? (
-            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center lg:col-span-2 xl:col-span-3 2xl:col-span-5">
+            <div className="rounded-2xl border border-dashed border-slate-300 bg-slate-50 px-5 py-8 text-center md:col-span-2 2xl:col-span-3 min-[1800px]:col-span-5">
               <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-lg font-bold text-emerald-700">✓</div>
               <p className="mt-3 text-sm font-bold text-slate-700">No completed {config.stationLabel.toLowerCase()} orders yet</p>
               <p className="mt-1 text-xs text-slate-500">Finished tickets will appear here automatically.</p>

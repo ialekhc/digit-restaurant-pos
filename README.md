@@ -126,14 +126,14 @@ At the project root:
 docker compose up -d postgres
 ```
 
-This uses `docker-compose.yml` and exposes PostgreSQL on `127.0.0.1:5432`.
+This uses `docker-compose.yml` and exposes PostgreSQL on `127.0.0.1:55432` by default.
 
 ### Option B: Local PostgreSQL
 
 Create a local database named `restaurant_pos`, then set:
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 ```
 
@@ -161,7 +161,7 @@ cp .env.example .env
 
 ```env
 PORT=5500
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 JWT_SECRET=supersecretkey
 JWT_EXPIRES_IN=7d
@@ -214,6 +214,81 @@ Frontend runs at:
 
 - `http://localhost:5400`
 
+## Windows Desktop App Distribution
+
+Digit RMS includes a stable Electron desktop build for Windows. The Windows app uses the same hosted production API as the web app, so restaurant data stays synchronized between browser users and desktop users.
+
+Default desktop API:
+
+```text
+https://rms.digitnp.com/api
+```
+
+### Build Windows Installers
+
+Build from a Windows machine or a Windows GitHub Actions runner:
+
+```powershell
+npm ci
+npm run verify
+npm run package:windows
+```
+
+The Windows build writes distributable files to `release/`:
+
+- `Digit Restaurant POS-<version>-win-x64-Setup.exe`
+- `Digit Restaurant POS-<version>-win-x64-Portable.exe`
+
+Current Windows distribution files for this repository version (`2.0.0`):
+
+- `release/Digit Restaurant POS-2.0.0-win-x64-Setup.exe`
+- `release/Digit Restaurant POS-2.0.0-win-x64-Portable.exe`
+
+GitHub Release download location:
+
+- [Latest Windows desktop installer](https://github.com/ialekhc/digit-restaurant-pos/releases/latest)
+
+Use the `Setup.exe` file for normal restaurant installation. Use the portable file only for demos, testing, or support.
+
+### Signed Production Release
+
+For a production-ready GitHub Release, sign the Windows installer:
+
+```powershell
+$env:CSC_LINK='C:\secure\digit-pos-signing.pfx'
+$env:CSC_KEY_PASSWORD='use-a-secret-store'
+npm run release:windows
+```
+
+Do not commit signing certificates or passwords. Store release artifacts in GitHub Releases so vendors can download the latest stable installer from the repository release page.
+
+### Distribution Checklist
+
+- Run `npm run verify` before packaging.
+- Confirm `https://rms.digitnp.com/api/health` is reachable before distributing.
+- Upload only tested `release/*.exe` files to GitHub Releases.
+- Prefer signed `Setup.exe` builds for real vendors.
+- Keep the web backend deployed before installing the desktop app.
+- Configure Windows printers from the app Settings page after installation.
+
+### Vendor Installation Notes
+
+1. Download the latest `Setup.exe` from GitHub Releases.
+2. Install and open `Digit Restaurant POS`.
+3. Log in with the vendor or staff account created in the web system.
+4. Configure Counter, Kitchen, Bar, and Smoke printers if needed.
+5. Orders, bills, menu, users, and reports sync through the hosted API.
+
+If a vendor needs to use a different backend, open the desktop app data folder from the connection-status screen and edit `desktop-config.json`:
+
+```json
+{
+  "apiBaseUrl": "https://your-backend.example.com/api"
+}
+```
+
+Remote desktop APIs must use HTTPS.
+
 ## Port Conflict Fix (`EADDRINUSE`)
 
 If you get:
@@ -234,8 +309,8 @@ If the backend prints `PostgreSQL is not reachable`, check:
 
 - Docker Desktop is running.
 - `docker compose up -d postgres` completed successfully.
-- `server/.env` has `DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos`.
-- Port `5432` is not already used by another local PostgreSQL instance.
+- `server/.env` has `DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos`.
+- Port `55432` is available, or set `POSTGRES_HOST_PORT` before running Docker Compose.
 
 For hosted PostgreSQL, set:
 
@@ -470,9 +545,9 @@ The project now includes a normalized PostgreSQL schema while retaining the lega
 ### Environment Variables
 
 ```env
-DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
-CORE_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
-VENDOR_DATABASE_URL=postgresql://postgres:postgres@localhost:5432/restaurant_pos
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
+CORE_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
+VENDOR_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:55432/restaurant_pos
 DATABASE_SSL=false
 USE_LEGACY_DOCUMENT_STORAGE=false
 ```
@@ -497,6 +572,41 @@ npm run db:migrate --workspace server
 npm run db:seed --workspace @pos/vendor-service
 npm run db:seed --workspace server
 ```
+
+### Production Database Update
+
+Production deploys must not run the destructive development seed. Use the deploy script or the non-destructive production sync command instead.
+
+`./deploy.sh` now performs the production database update on every deploy:
+
+- starts PostgreSQL if needed;
+- synchronizes the existing PostgreSQL user password with `.env.postgres`;
+- creates a timestamped database backup;
+- runs vendor and core migrations;
+- runs a non-destructive production auth/vendor sync;
+- replaces the backend and frontend containers only after database maintenance succeeds.
+
+Manual production sync command:
+
+```bash
+npm run production:db:sync
+```
+
+Production sync only repairs required auth/vendor records and tenant links in the existing `app_documents` store. It does not delete orders, bills, vendors, menu items, staff, or inventory.
+
+Optional production sync variables:
+
+```env
+PRODUCTION_SUPER_ADMIN_EMAIL=superadmin@restaurant.local
+PRODUCTION_SUPER_ADMIN_PASSWORD=SuperAdmin@12345
+PRODUCTION_OWNER_EMAIL=owner@jiggs.com
+PRODUCTION_OWNER_PASSWORD=Owner@12345
+PRODUCTION_OWNER_NAME=Jiggs Cafe Owner
+PRODUCTION_VENDOR_NAME=Jiggs Cafe
+PRODUCTION_SYNC_RESET_DEFAULT_PASSWORDS=true
+```
+
+Set `PRODUCTION_SYNC_RESET_DEFAULT_PASSWORDS=false` if passwords changed from the UI should not be reset during deploy.
 
 ### JSONB Migration Commands
 

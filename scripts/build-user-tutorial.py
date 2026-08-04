@@ -471,7 +471,7 @@ def add_getting_started(doc, decimal_num_id, bullet_num_id):
     doc.add_paragraph("Open and sign in", style="Heading 2")
     add_steps(doc, [
         ("Open the app", "Start Digit Restaurant POS from the desktop shortcut or the installed application."),
-        ("Confirm connectivity", "If a connection-status screen appears, check the internet connection and retry. The production app uses the hosted API at https://digitnp.com/api."),
+        ("Confirm connectivity", "If a connection-status screen appears, check the internet connection and retry. The production app uses the hosted API at https://rms.digitnp.com/api."),
         ("Enter your account", "Use the email and password issued by the restaurant owner or authorized manager. Never use another staff member's account."),
         ("Review your role", "The sidebar displays the signed-in role. Confirm it matches your job before recording orders or payments."),
     ], decimal_num_id)

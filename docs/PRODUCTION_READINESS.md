@@ -48,7 +48,7 @@ TRUST_PROXY=1
 
 Keep secrets in the deployment platform's secret manager. Do not reuse the sample database password or development login credentials.
 
-Packaged desktop builds use `https://digitnp.com/api` by default. To use another hosted API, edit `desktop-config.json` in the app-data directory and set `apiBaseUrl` to its HTTPS URL. A packaged app rejects non-local plain HTTP endpoints.
+Packaged desktop builds use `https://rms.digitnp.com/api` by default. To use another hosted API, edit `desktop-config.json` in the app-data directory and set `apiBaseUrl` to its HTTPS URL. A packaged app rejects non-local plain HTTP endpoints.
 
 ## Database and recovery
 

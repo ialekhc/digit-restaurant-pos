@@ -3,7 +3,7 @@
 The desktop app uses Electron and packages the same React/Vite interface used by the web app.
 It can connect to:
 
-- the hosted production backend on `https://digitnp.com/api` by default
+- the hosted production backend on `https://rms.digitnp.com/api` by default
 - a local or alternate backend by setting `DIGIT_DESKTOP_API_BASE_URL`
 
 The packaged desktop app does not start its bundled backend when using the hosted API, so no PostgreSQL installation is required on the POS computer. Local development mode can still start the bundled Node/Express backend and requires PostgreSQL.
@@ -29,7 +29,7 @@ postgresql://postgres:postgres@127.0.0.1:5432/restaurant_pos
 Default desktop API:
 
 ```text
-https://digitnp.com/api
+https://rms.digitnp.com/api
 ```
 
 ## Run Packaged-Style Desktop App Locally
@@ -64,9 +64,29 @@ npm run package:windows
 
 Output files are written to `release/`.
 
+For Windows distribution through GitHub Releases, build on Windows:
+
+```powershell
+npm ci
+npm run verify
+npm run package:windows
+```
+
+Upload the generated `release/*Setup.exe` and, if needed, `release/*Portable.exe` files to the GitHub Release. Use the setup installer for real vendors and the portable build for demos or support.
+
+For a signed production installer:
+
+```powershell
+$env:CSC_LINK='C:\secure\digit-pos-signing.pfx'
+$env:CSC_KEY_PASSWORD='use-a-secret-store'
+npm run release:windows
+```
+
+Never commit the signing certificate or password.
+
 ## Hosted Backend Mode
 
-The installed app uses the hosted Digit API by default. To use another hosted backend:
+The installed app uses the hosted Digit RMS API by default. To use another hosted backend:
 
 ```bash
 DIGIT_DESKTOP_API_BASE_URL="https://your-backend.example.com/api" npm run desktop
