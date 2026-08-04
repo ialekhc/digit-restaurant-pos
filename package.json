@@ -13,7 +13,7 @@
   ],
   "scripts": {
     "check:syntax": "node scripts/check-syntax.cjs",
-    "test": "npm run test --workspace server",
+    "test": "npm run test --workspace server && npm run test --workspace client",
     "verify": "npm run check:syntax && npm test && npm run build:client && npm run build:desktop-ui",
     "dev:client": "npm run dev --workspace client",
     "dev:server": "npm run dev --workspace server",

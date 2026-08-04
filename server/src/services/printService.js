@@ -34,6 +34,17 @@ export const stationToKitchenSection = (station) => {
   return station;
 };
 
+const normalizeMenuTypeForRouting = (value) => String(value || '')
+  .trim()
+  .toUpperCase()
+  .replace(/[^A-Z0-9]+/g, '_')
+  .replace(/^_+|_+$/g, '');
+
+const isComboPlatterItem = (item = {}) => {
+  const menuType = normalizeMenuTypeForRouting(item.menuType || item.menuItem?.menuType);
+  return ['COMBO_PLATTER', 'COMBO', 'COMBOS'].includes(menuType);
+};
+
 export const stationFromMenu = (menu = {}) => {
   const menuType = String(menu.menuType || '').trim().toUpperCase();
   // Legacy migrations defaulted preparationStation to KITCHEN for every menu
@@ -51,8 +62,11 @@ export const printerPurposeForStation = (station) => {
 
 export const groupItemsByStation = (items = []) => {
   return items.reduce((acc, item) => {
-    const menuType = String(item.menuType || item.menuItem?.menuType || '').trim().toUpperCase();
-    const stations = menuType === 'COMBO_PLATTER'
+    const menuType = normalizeMenuTypeForRouting(item.menuType || item.menuItem?.menuType);
+    // A combo platter is intentionally duplicated into two independent KOTs.
+    // Its saved preparationStation remains KITCHEN for workflow compatibility,
+    // but station routing must always override that single stored value.
+    const stations = isComboPlatterItem(item)
       ? [STATIONS.KITCHEN, STATIONS.BAR]
       : [
           menuType === 'DRINK'

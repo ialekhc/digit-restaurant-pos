@@ -5,7 +5,7 @@
   "main": "server.js",
   "type": "module",
   "scripts": {
-    "test": "node --test src/config/envValidation.test.js src/middleware/security.test.js src/services/permissionService.test.js",
+    "test": "node --test src/config/envValidation.test.js src/middleware/security.test.js src/services/permissionService.test.js && node src/scripts/printService.selftest.js",
     "dev": "nodemon server.js",
     "start": "node server.js",
     "seed": "node src/scripts/seed.js",

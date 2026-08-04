@@ -75,14 +75,7 @@ const importSheetNames = {
   FOOD: ['food menu', 'food'],
   DRINK: ['drink menu', 'drinks menu', 'drink', 'drinks'],
   SMOKE: ['smoke menu', 'smoke'],
-  COMBO_PLATTER: ['combo platter menu', 'combo platter', 'combos']
-};
-
-const normalizeSheetName = (value) => String(value || '').trim().toLowerCase();
-
-const findImportSheetName = (sheetNames, menuType) => {
-  const expectedNames = importSheetNames[menuType] || importSheetNames.FOOD;
-  return sheetNames.find((sheetName) => expectedNames.includes(normalizeSheetName(sheetName))) || '';
+  COMBO_PLATTER: ['combo platter menu', 'combo platter', 'combo menu', 'combo', 'combos']
 };
 
 const menuSortOptions = [
@@ -301,9 +294,7 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
       setImporting(true);
       const buffer = await importFile.arrayBuffer();
       const preferredSheetNames = importSheetNames[menuType];
-      const { sheetNames, rows: importedRows } = await readRowsFromXlsx(buffer, preferredSheetNames);
-      const matchingSheetName = findImportSheetName(sheetNames, menuType);
-      const sheetName = matchingSheetName || (sheetNames.length === 1 ? sheetNames[0] : '');
+      const { sheetName, rows: importedRows } = await readRowsFromXlsx(buffer, preferredSheetNames);
 
       if (!sheetName) {
         setImportError(
@@ -319,11 +310,17 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
         return;
       }
 
-      const summary = await menuService.importExcel({ rows, upsert: true });
+      if (!window.confirm(`Replace the existing ${config.itemLabel.toLowerCase()} menu with ${rows.length} imported rows?`)) {
+        return;
+      }
+
+      const summary = await menuService.importExcel({ rows, upsert: true, replace: true, menuType });
       setImportSummary(summary);
       setImportFile(null);
       await load();
     } catch (err) {
+      const responseData = err.response?.data?.data;
+      if (responseData) setImportSummary(responseData);
       setImportError(err.response?.data?.message || 'Unable to import menu file');
     } finally {
       setImporting(false);
@@ -342,21 +339,21 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
             type="file"
             accept=".xlsx"
             onChange={(e) => setImportFile(e.target.files?.[0] || null)}
-            helperText="Use an .xlsx file with columns: Category, Item, Price (Rs.)"
+            helperText="Use an .xlsx file with columns: Category, Item, Price (Rs.). A successful import replaces the existing menu."
           />
           <div className="md:col-span-2 lg:col-span-2 flex items-end gap-2">
             <Button type="button" variant="secondary" onClick={downloadTemplate}>
               Download Template
             </Button>
             <Button type="submit" variant="success" disabled={importing}>
-              {importing ? 'Importing...' : `Import ${config.itemLabel} Menu`}
+              {importing ? 'Replacing...' : `Replace ${config.itemLabel} Menu`}
             </Button>
           </div>
         </form>
         {importError ? <p className="mt-2 text-sm text-rose-600">{importError}</p> : null}
         {importSummary ? (
           <div className="mt-4 space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3">
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
               <p className="text-sm text-slate-700">
                 Total Rows: <span className="font-semibold">{importSummary.totalRows}</span>
               </p>
@@ -371,6 +368,9 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
               </p>
               <p className="text-sm text-slate-700">
                 New Categories: <span className="font-semibold text-violet-700">{importSummary.categoriesCreated}</span>
+              </p>
+              <p className="text-sm text-slate-700">
+                Removed Old Items: <span className="font-semibold text-rose-700">{importSummary.deleted || 0}</span>
               </p>
             </div>
             {Array.isArray(importSummary.errors) && importSummary.errors.length ? (
@@ -405,14 +405,18 @@ const MenuItemsPage = ({ menuType = 'FOOD' }) => {
           <Input label="Preparation Time (mins)" type="number" value={form.preparationTime} onChange={(e) => setForm((p) => ({ ...p, preparationTime: e.target.value }))} />
           <Select
             label="Preparation Station"
-            options={[
-              { label: 'Kitchen printer', value: 'KITCHEN' },
-              { label: 'Bar printer', value: 'BAR' },
-              { label: 'Smoke printer', value: 'SMOKE' },
-              { label: 'No preparation print', value: 'NONE' }
-            ]}
+            options={menuType === 'COMBO_PLATTER'
+              ? [{ label: 'Kitchen + Bar printers', value: 'KITCHEN' }]
+              : [
+                  { label: 'Kitchen printer', value: 'KITCHEN' },
+                  { label: 'Bar printer', value: 'BAR' },
+                  { label: 'Smoke printer', value: 'SMOKE' },
+                  { label: 'No preparation print', value: 'NONE' }
+                ]}
             value={form.preparationStation}
             onChange={(e) => setForm((p) => ({ ...p, preparationStation: e.target.value }))}
+            disabled={menuType === 'COMBO_PLATTER'}
+            helperText={menuType === 'COMBO_PLATTER' ? 'Combo platter KOTs always print on both stations.' : ''}
           />
           <Select
             label="Availability"

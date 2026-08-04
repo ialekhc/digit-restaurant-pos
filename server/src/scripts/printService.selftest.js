@@ -35,6 +35,13 @@ assert.equal(grouped.NONE, undefined, 'NONE station must not create a printable 
 assert.equal(grouped.KITCHEN.filter((item) => item.menuType === 'COMBO_PLATTER').length, 1);
 assert.equal(grouped.BAR.filter((item) => item.menuType === 'COMBO_PLATTER').length, 1);
 
+const legacyComboGrouped = groupItemsByStation([
+  { name: 'Legacy combo', menuType: 'Combo Platter', preparationStation: 'KITCHEN' },
+  { name: 'Populated combo', menuItem: { menuType: 'COMBO_PLATTER' }, preparationStation: 'KITCHEN' }
+]);
+assert.equal(legacyComboGrouped.KITCHEN.length, 2, 'Every combo spelling must route to Kitchen');
+assert.equal(legacyComboGrouped.BAR.length, 2, 'Every combo spelling must also route to Bar');
+
 const legacyGrouped = groupItemsByStation([
   { name: 'Legacy drink', menuType: 'DRINK', preparationStation: 'KITCHEN' },
   { name: 'Legacy smoke', menuType: 'SMOKE', preparationStation: 'KITCHEN' },

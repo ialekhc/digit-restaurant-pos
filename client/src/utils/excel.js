@@ -56,18 +56,50 @@ const plainCellValue = (value) => {
   return '';
 };
 
+export const normalizeWorksheetName = (value) => String(value || '')
+  .trim()
+  .toLowerCase()
+  .replace(/&/g, ' and ')
+  .replace(/[^a-z0-9]+/g, ' ')
+  .replace(/\s+/g, ' ')
+  .trim();
+
+const worksheetHasMenuColumns = (worksheet) => {
+  const headers = worksheet.getRow(1).values
+    .slice(1)
+    .map((value) => normalizeWorksheetName(plainCellValue(value)));
+
+  const hasCategory = headers.includes('category');
+  const hasItem = headers.some((header) => ['item', 'name', 'item name'].includes(header));
+  const hasPrice = headers.some((header) => ['price', 'price rs'].includes(header));
+  return hasCategory && hasItem && hasPrice;
+};
+
+const findPreferredWorksheet = (worksheets, preferredSheetNames) => {
+  const preferred = preferredSheetNames.map(normalizeWorksheetName).filter(Boolean);
+  const exactMatch = worksheets.find((worksheet) => preferred.includes(normalizeWorksheetName(worksheet.name)));
+  if (exactMatch) return exactMatch;
+
+  const descriptiveMatch = worksheets.find((worksheet) => {
+    const sheetName = normalizeWorksheetName(worksheet.name);
+    return preferred.some((name) => sheetName.startsWith(`${name} `) || sheetName.endsWith(` ${name}`));
+  });
+  if (descriptiveMatch) return descriptiveMatch;
+
+  const menuWorksheets = worksheets.filter(worksheetHasMenuColumns);
+  if (menuWorksheets.length === 1) return menuWorksheets[0];
+  return worksheets.length === 1 ? worksheets[0] : null;
+};
+
 export const readRowsFromXlsx = async (buffer, preferredSheetNames = []) => {
   const ExcelJS = await loadExcelJs();
   const workbook = new ExcelJS.Workbook();
   await workbook.xlsx.load(buffer);
 
   const sheetNames = workbook.worksheets.map((worksheet) => worksheet.name);
-  const preferred = preferredSheetNames.find((name) => sheetNames.some((sheetName) => sheetName.toLowerCase() === name.toLowerCase()));
-  const worksheet = preferred
-    ? workbook.worksheets.find((sheet) => sheet.name.toLowerCase() === preferred.toLowerCase())
-    : workbook.worksheets.length === 1 ? workbook.worksheets[0] : null;
+  const worksheet = findPreferredWorksheet(workbook.worksheets, preferredSheetNames);
 
-  if (!worksheet) return { sheetNames, rows: [] };
+  if (!worksheet) return { sheetNames, sheetName: '', rows: [] };
 
   const headers = worksheet.getRow(1).values.slice(1).map((value) => String(plainCellValue(value)).trim());
   const rows = [];
@@ -80,5 +112,5 @@ export const readRowsFromXlsx = async (buffer, preferredSheetNames = []) => {
     if (Object.values(record).some((value) => value !== '')) rows.push(record);
   });
 
-  return { sheetNames, rows };
+  return { sheetNames, sheetName: worksheet.name, rows };
 };

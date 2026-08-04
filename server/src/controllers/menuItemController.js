@@ -197,7 +197,7 @@ export const createMenuItem = asyncHandler(async (req, res) => {
 });
 
 export const importMenuItems = asyncHandler(async (req, res) => {
-  const { rows, upsert = true } = req.body;
+  const { rows, upsert = true, replace = false, menuType: requestedMenuTypeRaw } = req.body;
 
   if (!Array.isArray(rows) || !rows.length) {
     throw new ApiError(400, 'Rows array is required for menu import');
@@ -207,16 +207,26 @@ export const importMenuItems = asyncHandler(async (req, res) => {
     throw new ApiError(400, 'Maximum 2000 rows can be imported at once');
   }
 
+  const shouldReplace = replace === true;
+  const requestedMenuType = String(requestedMenuTypeRaw || '').trim().toUpperCase();
+  if (shouldReplace && !MENU_TYPES.includes(requestedMenuType)) {
+    throw new ApiError(400, 'A valid menuType is required when replacing a menu');
+  }
+
   const summary = {
     totalRows: rows.length,
     created: 0,
     updated: 0,
+    deleted: 0,
     skipped: 0,
     categoriesCreated: 0,
+    replaceApplied: false,
+    aborted: false,
     errors: []
   };
 
-  const categoryCache = new Map();
+  const preparedRows = [];
+  const spreadsheetKeys = new Set();
 
   for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index] || {};
@@ -233,23 +243,73 @@ export const importMenuItems = asyncHandler(async (req, res) => {
         continue;
       }
 
-      if (!categoryName || !itemName) {
-        throw new Error('Category and Item are required');
-      }
+      if (!categoryName || !itemName) throw new Error('Category and Item are required');
 
       const price = parsePriceValue(priceRaw);
-      if (!Number.isFinite(price) || price < 0) {
-        throw new Error('Valid Price is required');
-      }
+      if (!Number.isFinite(price) || price < 0) throw new Error('Valid Price is required');
 
-      const preparationTime = parsePreparationTime(getFirstValue(row, PREPARATION_TIME_KEYS));
-      const isAvailable = parseAvailability(getFirstValue(row, AVAILABILITY_KEYS), true);
       const rawKitchenSection = getFirstValue(row, KITCHEN_SECTION_KEYS);
-      const rawPreparationStation = getFirstValue(row, PREPARATION_STATION_KEYS);
-      const menuType = resolveMenuType(getFirstValue(row, MENU_TYPE_KEYS), rawKitchenSection, 'FOOD');
+      const menuType = shouldReplace
+        ? requestedMenuType
+        : resolveMenuType(getFirstValue(row, MENU_TYPE_KEYS), rawKitchenSection, 'FOOD');
+      const spreadsheetKey = `${menuType}:${categoryName.toLowerCase()}:${itemName.toLowerCase()}`;
+      if (spreadsheetKeys.has(spreadsheetKey)) {
+        throw new Error('Duplicate Category and Item in spreadsheet');
+      }
+      spreadsheetKeys.add(spreadsheetKey);
+
       const kitchenSection = resolveKitchenSection(rawKitchenSection, menuType, categoryName, itemName);
-      const preparationStation = resolvePreparationStation(rawPreparationStation, kitchenSection, menuType);
-      const description = getTrimmedString(row, DESCRIPTION_KEYS);
+      const preparationStation = resolvePreparationStation(
+        getFirstValue(row, PREPARATION_STATION_KEYS),
+        kitchenSection,
+        menuType
+      );
+
+      preparedRows.push({
+        rowNumber,
+        categoryName,
+        itemName,
+        price,
+        preparationTime: parsePreparationTime(getFirstValue(row, PREPARATION_TIME_KEYS)),
+        isAvailable: parseAvailability(getFirstValue(row, AVAILABILITY_KEYS), true),
+        menuType,
+        kitchenSection,
+        preparationStation,
+        description: getTrimmedString(row, DESCRIPTION_KEYS)
+      });
+    } catch (error) {
+      if (summary.errors.length < 100) {
+        summary.errors.push({ row: rowNumber, message: error?.message || 'Failed to validate row' });
+      }
+    }
+  }
+
+  if (shouldReplace && summary.errors.length) {
+    summary.aborted = true;
+    res.status(422).json({
+      message: 'Menu replacement was not applied. Fix the spreadsheet row errors and try again.',
+      data: summary
+    });
+    return;
+  }
+
+  const categoryCache = new Map();
+  const importedItemIds = [];
+
+  for (const preparedRow of preparedRows) {
+    try {
+      const {
+        rowNumber,
+        categoryName,
+        itemName,
+        price,
+        preparationTime,
+        isAvailable,
+        menuType,
+        kitchenSection,
+        preparationStation,
+        description
+      } = preparedRow;
 
       const categoryKey = `${menuType}:${categoryName.toLowerCase()}`;
       let categoryDoc = categoryCache.get(categoryKey);
@@ -295,19 +355,42 @@ export const importMenuItems = asyncHandler(async (req, res) => {
         }
         Object.assign(existing, payload);
         await existing.save();
+        importedItemIds.push(existing._id);
         summary.updated += 1;
       } else {
-        await MenuItem.create(payload);
+        const created = await MenuItem.create(payload);
+        importedItemIds.push(created._id);
         summary.created += 1;
       }
     } catch (error) {
       if (summary.errors.length < 100) {
         summary.errors.push({
-          row: rowNumber,
+          row: preparedRow.rowNumber,
           message: error?.message || 'Failed to import row'
         });
       }
     }
+  }
+
+  if (shouldReplace) {
+    if (summary.errors.length) {
+      summary.aborted = true;
+      res.status(422).json({
+        message: 'The new rows could not all be saved, so old menu items were not removed.',
+        data: summary
+      });
+      return;
+    }
+
+    const staleItemsQuery = await buildTenantScopedQuery(req.user, {
+      $and: [
+        buildMenuTypeFilter(requestedMenuType),
+        { _id: { $nin: importedItemIds } }
+      ]
+    });
+    const deleteResult = await MenuItem.deleteMany(staleItemsQuery);
+    summary.deleted = deleteResult.deletedCount;
+    summary.replaceApplied = true;
   }
 
   res.json({ data: summary });
